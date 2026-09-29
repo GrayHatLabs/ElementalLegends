@@ -227,6 +227,22 @@ impl Game {
     pub fn debug_larder_items(&self) -> usize {
         self.items.iter().filter(|i| !i.dead && i.life > i32::MAX / 4).count()
     }
+    pub fn debug_mp(&self) -> f32 {
+        self.s.mp
+    }
+    pub fn debug_set_mp(&mut self, mp: f32, max: i32) {
+        self.s.max_mp = max;
+        self.s.mp = mp;
+    }
+    pub fn debug_potions(&self) -> i32 {
+        self.s.potions
+    }
+    pub fn debug_set_potions(&mut self, n: i32) {
+        self.s.potions = n;
+    }
+    pub fn debug_add_potion_item(&mut self, x: f32, y: f32) {
+        self.add_item(IK::Potion, x, y, 0, Elem::Neutral);
+    }
     pub fn debug_set_food(&mut self, f: f32) {
         self.s.food = f;
     }

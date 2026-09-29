@@ -690,13 +690,17 @@ impl Game {
         scr.disc(139, 22, 3, el.main());
         scr.pset(138, 21, el.light());
         scr.text(el.name(), 145, 19, el.light(), Align::Left, 8);
+        // Carried mana potions.
+        scr.spr(&self.spr.potion.img, 191.0, 22.0, false);
+        let pc = if self.s.potions > 0 { rgb(0x3cbcfc) } else { rgb(0x747474) };
+        scr.text(&self.s.potions.to_string(), 197, 19, pc, Align::Left, 8);
         if self.dungeon.is_some() && self.in_lair == 0 {
-            scr.spr(&self.spr.key.img, 206.0, 22.0, false);
-            scr.text(&format!("X{}", self.dungeon_keys()), 212, 19, rgb(0xfcbc3c), Align::Left, 8);
+            scr.spr(&self.spr.key.img, 213.0, 22.0, false);
+            scr.text(&format!("X{}", self.dungeon_keys()), 219, 19, rgb(0xfcbc3c), Align::Left, 8);
         } else {
             let runes = (1..=5).filter(|&i| self.s.cleared[i]).count();
-            scr.spr(&self.spr.gem.img, 206.0, 22.0, false);
-            scr.text(&format!("{}/5", runes), 212, 19, rgb(0xf878f8), Align::Left, 8);
+            scr.spr(&self.spr.gem.img, 213.0, 22.0, false);
+            scr.text(&format!("{}/5", runes), 219, 19, rgb(0xf878f8), Align::Left, 8);
         }
         if self.muted {
             scr.text("M", 248, 5, rgb(0x747474), Align::Left, 8);
@@ -838,7 +842,7 @@ impl Game {
         }
         scr.text("MOVE: D-PAD   CAST: A / Z", 128, 184, rgb(0x747474), Align::Center, 8);
         scr.text("SPELL: B / X  MAP: START", 128, 196, rgb(0x747474), Align::Center, 8);
-        scr.text("HOLD CAST TO STRAFE", 128, 208, rgb(0x747474), Align::Center, 8);
+        scr.text("POTION: Y / C  STRAFE: HOLD A", 128, 208, rgb(0x747474), Align::Center, 8);
         let c = if (self.frame >> 5) & 1 == 1 { rgb(0xfcbc3c) } else { rgb(0xfc7460) };
         scr.text("PRESS START", 128, 224, c, Align::Center, 8);
     }

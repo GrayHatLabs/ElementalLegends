@@ -247,6 +247,44 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.tap(Btn::Fire);
     t.check(t.g.debug_gold() == 85, "shop purchasing still works (roast for 15 gold)");
 
+    // Mana is a resource: slow regen, potions carried and drunk on demand.
+    println!("[mana] regen and carried potions");
+    t.g.debug_set_mp(0.0, 40);
+    t.frames(600);
+    let mp = t.g.debug_mp();
+    t.check((4.0..=6.0).contains(&mp), &format!("mana regenerates at about 0.5 MP per second ({mp:.1} MP after 10 s)"));
+    let p0 = t.g.debug_potions();
+    t.g.debug_set_mp(10.0, 40);
+    t.g.debug_set_player(128.0, 150.0, b'u');
+    t.walk_to(128.0, 136.0, 60);
+    t.frames(2);
+    t.tap(Btn::Fire);
+    t.check(t.g.debug_potions() == p0 + 1 && t.g.debug_gold() == 60, "buying a potion puts it in the pack (25 gold)");
+    t.check(t.g.debug_mp() < 20.0, "buying a potion does not drink it");
+    t.g.debug_set_player(128.0, 170.0, b'u');
+    t.frames(2);
+    t.tap(Btn::Potion);
+    t.check(t.g.debug_mp() >= 39.5 && t.g.debug_potions() == p0, "the potion button drinks one and refills mana");
+    t.tap(Btn::Potion);
+    t.check(t.g.debug_potions() == p0, "drinking with full mana doesn't waste a potion");
+    t.g.debug_set_potions(2);
+    let (x, y) = t.g.debug_player();
+    t.g.debug_add_potion_item(x, y);
+    t.frames(2);
+    t.check(t.g.debug_potions() == 3, "picking up a potion adds it to the pack");
+    t.g.debug_set_potions(5);
+    t.g.debug_set_mp(0.0, 40);
+    t.g.debug_add_potion_item(x, y);
+    t.frames(2);
+    t.check(t.g.debug_potions() == 5 && t.g.debug_mp() >= 29.0, "with a full pack a found potion restores 30 MP instead");
+    t.g.debug_set_gold(100);
+    t.g.debug_set_player(128.0, 150.0, b'u');
+    t.walk_to(128.0, 136.0, 60);
+    t.frames(2);
+    t.tap(Btn::Fire);
+    t.check(t.g.debug_gold() == 100, "the shop won't sell a potion when the pack is full");
+    t.shot("09b_potion_hud");
+
     // ---------------------------------------------------------------- fire: travelling bolt + burning DOT
     println!("[fire] firebolt and burning");
     t.g.debug_god();

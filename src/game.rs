@@ -60,7 +60,8 @@ pub enum Btn {
     Right,
     Fire,
     Sub,
-    Cycle,
+    /// Drink a carried mana potion.
+    Potion,
     Start,
     Mute,
 }
@@ -201,6 +202,10 @@ fn spell_cost(e: Elem) -> f32 {
 }
 const SPELL_NAMES: [&str; 4] = ["FLAME RING", "FROST NOVA", "CHAIN BOLT", "QUAKE"];
 const REGION: [Elem; 4] = [Elem::Earth, Elem::Ice, Elem::Storm, Elem::Fire];
+/// Mana regenerates slowly (0.5 MP per second), so potions matter.
+const MP_REGEN: f32 = 0.5 / 60.0;
+/// How many mana potions the mage can carry.
+const MAX_POTIONS: i32 = 5;
 
 // ---------------------------------------------------------------- entities
 #[derive(Clone, Copy)]
@@ -385,6 +390,8 @@ pub struct SaveData {
     heart_price: i32,
     /// Per-dungeon puzzle progress bit flags (see dungeon::D_*).
     dprog: [u8; 7],
+    /// Mana potions carried.
+    potions: i32,
 }
 
 impl SaveData {
@@ -408,6 +415,7 @@ impl SaveData {
             time: 0,
             heart_price: 150,
             dprog: [0; 7],
+            potions: 1,
         }
     }
     fn to_text(&self) -> String {
@@ -415,10 +423,10 @@ impl SaveData {
         let l = |v: &[usize]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         let dp = self.dprog.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         format!(
-            "max_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\n",
+            "max_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\n",
             self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
             b(&self.cleared), l(&self.tanks), l(&self.caches), l(&self.opened), l(&self.visited), self.room,
-            self.time, self.heart_price, dp
+            self.time, self.heart_price, dp, self.potions
         )
     }
     fn from_text(txt: &str) -> Option<Self> {
@@ -454,6 +462,7 @@ impl SaveData {
                 "room" => s.room = num() as usize,
                 "time" => s.time = num() as u64,
                 "heart_price" => s.heart_price = num() as i32,
+                "potions" => s.potions = (num() as i32).clamp(0, MAX_POTIONS),
                 "dprog" => {
                     for (i, x) in v.split(',').enumerate().take(7) {
                         s.dprog[i] = x.trim().parse().unwrap_or(0);
@@ -1033,7 +1042,7 @@ impl Game {
 
     fn update_needs(&mut self) {
         self.s.food = (self.s.food - 1.0 / 72.0).max(0.0);
-        self.s.mp = (self.s.mp + 1.0 / 30.0).min(self.s.max_mp as f32);
+        self.s.mp = (self.s.mp + MP_REGEN).min(self.s.max_mp as f32);
         if self.s.food <= 0.0 {
             self.starve_t += 1;
             if !self.starving_warned {
@@ -1167,6 +1176,9 @@ impl Game {
         if self.held(Btn::Sub) && self.pl.scd <= 0 && !self.boss_dead {
             self.cast_spell();
         }
+        if self.p(Btn::Potion) {
+            self.drink_potion();
+        }
         self.update_pbullets();
         self.update_enemies();
         self.update_boss();
@@ -1254,6 +1266,28 @@ impl Game {
         self.float(label.to_string(), x - label.len() as f32 * 4.0, y - 18.0, rgb(0xfcbc3c));
         self.sfx(Sfx::Eat);
     }
+    /// Drink a carried potion: refills mana completely.
+    fn drink_potion(&mut self) {
+        let (x, y) = (self.pl.x, self.pl.y);
+        if self.s.potions <= 0 {
+            self.float("NO POTIONS", x - 40.0, y - 18.0, rgb(0x747474));
+            self.sfx(Sfx::Deny);
+            return;
+        }
+        if self.s.mp >= self.s.max_mp as f32 - 0.5 {
+            self.float("MANA IS FULL", x - 48.0, y - 18.0, rgb(0x3cbcfc));
+            return;
+        }
+        self.s.potions -= 1;
+        self.s.mp = self.s.max_mp as f32;
+        self.float("MANA RESTORED", x - 52.0, y - 18.0, rgb(0x3cbcfc));
+        self.part(x, y, 0.0, 0.0, 16, rgb(0x3cbcfc), 1, PK::Glow(14.0));
+        for i in 0..8 {
+            let ox = (i as f32 - 3.5) * 2.0;
+            self.part(x + ox, y + 4.0, 0.0, -0.6 - (i % 3) as f32 * 0.2, 24, rgb(0xa4e4fc), 1, PK::Dot);
+        }
+        self.sfx(Sfx::Heal);
+    }
     fn set_element(&mut self, el: Elem) {
         self.s.el = el.idx();
         self.show_msg(format!("YOU NOW WIELD THE POWER OF {}! SPELL: {}.", el.name(), SPELL_NAMES[el.idx()]));
@@ -1278,8 +1312,13 @@ impl Game {
             IK::Bread => self.eat(30.0, 0, "BREAD"),
             IK::Meat => self.eat(50.0, 4, "ROAST"),
             IK::Potion => {
-                self.s.mp = (self.s.mp + 30.0).min(self.s.max_mp as f32);
-                self.float("MANA", x - 16.0, y - 18.0, rgb(0x3cbcfc));
+                if self.s.potions < MAX_POTIONS {
+                    self.s.potions += 1;
+                    self.float(format!("POTION {}/{}", self.s.potions, MAX_POTIONS), x - 40.0, y - 18.0, rgb(0x3cbcfc));
+                } else {
+                    self.s.mp = (self.s.mp + 30.0).min(self.s.max_mp as f32);
+                    self.float("+30 MP", x - 24.0, y - 18.0, rgb(0x3cbcfc));
+                }
                 self.sfx(Sfx::Pickup);
             }
             IK::Heart => {
@@ -1438,13 +1477,18 @@ impl Game {
             }
             if self.shop_armed[i] {
                 self.shop_armed[i] = false;
-                let what = ["A HEARTY ROAST", "A MANA POTION", "A HEART CONTAINER"][i];
+                let what = ["A HEARTY ROAST", "A MANA POTION TO CARRY", "A HEART CONTAINER"][i];
                 self.show_msg(format!("{} FOR {} GOLD. PRESS A TO BUY.", what, prices[i]));
                 if let Some(m) = self.msg.as_mut() {
                     m.1 = 120;
                 }
             }
             if !self.p(Btn::Fire) {
+                continue;
+            }
+            if i == 1 && self.s.potions >= MAX_POTIONS {
+                self.show_msg("YOUR PACK CAN'T HOLD ANY MORE POTIONS.");
+                self.sfx(Sfx::Deny);
                 continue;
             }
             if self.s.gold < prices[i] {
@@ -1459,9 +1503,9 @@ impl Game {
                     self.show_msg("A HEARTY MEAL! HUNGER SATED.");
                 }
                 1 => {
-                    self.s.mp = self.s.max_mp as f32;
-                    self.show_msg("MANA FULLY RESTORED.");
-                    self.sfx(Sfx::Heal);
+                    self.s.potions += 1;
+                    self.show_msg(format!("A MANA POTION FOR YOUR PACK ({}/{}). PRESS Y OR C TO DRINK IT.", self.s.potions, MAX_POTIONS));
+                    self.sfx(Sfx::Pickup);
                 }
                 _ => {
                     self.s.max_hp += 4;
@@ -1574,6 +1618,7 @@ mod tests {
         s.tanks = vec![3, 9];
         s.dprog[1] = 0b1011;
         s.el = 2;
+        s.potions = 4;
         let back = SaveData::from_text(&s.to_text()).expect("parse");
         assert_eq!(back, s);
     }

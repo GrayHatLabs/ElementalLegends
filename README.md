@@ -24,6 +24,7 @@ sound are generated in code, so there are no asset files.
   and lose life. Eat apples, bread and roasts, or buy food in the starting village shop.
 - **Treasure:** chests, gold coins, gems, dragon hoards and heart containers are
   hidden around the realm. Spend gold at the shop (stand on an item and press A).
+- **Mana is precious.** It refills slowly, about 0.5 MP per second. Carry up to 5 mana potions (buy them at the shop, or find them in chests and from monsters) and drink one with the potion button when you need a spell.
 - **Monster generators** (skull stones) keep spawning enemies until you destroy them.
 - **Five lairs and the Dark Tower** are dungeons behind fantasy buildings. Each has a hall with a locked door, two puzzle chambers, and a sealed staircase. The west chamber hides the key and the east chamber breaks the staircase seal. Puzzles include combat seals, braziers to light with fire, blocks to push onto pressure plates, rivers to freeze into ice bridges, and cracked walls hiding levers. Puzzles that need an element come with its orb shrine.
 - **Bosses** (Ancient Treant, Undead Guardian, Stone Golem, Crimson Dragon, Arcane Sorcerer, Dark Sorcerer) wait at the bottom of the stairs. Watch for the red **!** and ground markers before big attacks. Beating one gives a rune, a power-up and more life, and unseals the next lair.
@@ -36,6 +37,7 @@ sound are generated in code, so there are no asset files.
 | Cast bolt (hold to strafe) | A or X, R2 | Z / J / Space |
 | Element spell (costs MP) | B, L2 | X / K |
 | Map / pause | START | Enter / Esc |
+| Drink mana potion | Y / L1 / R1 | C / L / Shift |
 | Mute | SELECT | M |
 | Quit | SELECT + START | close window |
 
