@@ -34,8 +34,15 @@ pub enum Sfx {
     Quake,
     Freeze,
     Coin,
+    Ignite,
+    Shatter,
+    Roar,
+    Unlock,
+    Rumble,
+    Push,
+    Click,
 }
-pub const SFX_COUNT: usize = 19;
+pub const SFX_COUNT: usize = 26;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Song {
@@ -229,6 +236,36 @@ impl Synth {
             Sfx::Quake => {
                 self.noise(0.8, 0.5, 600.0, 0.0);
                 self.tone(Sine, 60.0, 30.0, 0.8, 0.4, 0.0);
+            }
+            Sfx::Ignite => {
+                self.noise(0.3, 0.18, 3000.0, 0.0);
+                self.tone(Saw, 200.0, 500.0, 0.2, 0.04, 0.0);
+            }
+            Sfx::Shatter => {
+                self.noise(0.25, 0.25, 9000.0, 0.0);
+                for i in 0..4 {
+                    let f = 2400.0 + i as f32 * 500.0;
+                    self.tone(Square, f, f * 0.7, 0.05, 0.03, i as f32 * 0.03);
+                }
+            }
+            Sfx::Roar => {
+                self.noise(1.0, 0.4, 900.0, 0.0);
+                self.tone(Saw, 110.0, 55.0, 1.0, 0.12, 0.0);
+                self.tone(Square, 90.0, 60.0, 0.9, 0.05, 0.05);
+            }
+            Sfx::Unlock => {
+                self.tone(Square, 1200.0, 1200.0, 0.04, 0.05, 0.0);
+                self.tone(Square, 800.0, 800.0, 0.06, 0.05, 0.06);
+                self.arp(&[523.0, 784.0, 1046.0], 0.08, 0.1);
+            }
+            Sfx::Rumble => {
+                self.noise(1.2, 0.35, 400.0, 0.0);
+                self.tone(Sine, 50.0, 35.0, 1.2, 0.3, 0.0);
+            }
+            Sfx::Push => self.noise(0.12, 0.15, 700.0, 0.0),
+            Sfx::Click => {
+                self.tone(Square, 1500.0, 900.0, 0.03, 0.05, 0.0);
+                self.tone(Square, 600.0, 600.0, 0.05, 0.04, 0.05);
             }
             Sfx::Freeze => {
                 self.tone(Tri, 2000.0, 3000.0, 0.4, 0.08, 0.0);

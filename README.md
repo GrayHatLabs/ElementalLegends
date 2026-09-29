@@ -9,9 +9,10 @@ sound are generated in code, so there are no asset files.
 
 ## How to play
 
+- **You awaken at an ancient monolith.** Touch it to restore your strength. It lights a rune for every lair you conquer. The village shop is one screen away.
 - **Choose an element** at the start: FIRE, ICE, STORM or EARTH.
-  - FIRE: exploding fireballs, spell FLAME RING
-  - ICE: shards that slow enemies, spell FROST NOVA (freezes the screen)
+  - FIRE: firebolts that set foes burning (damage over time), spell FLAME RING
+  - ICE: the first hit chills (slows), a second hit freezes solid; the ice shatters when it breaks. Spell FROST NOVA
   - STORM: fast piercing bolts, spell CHAIN BOLT
   - EARTH: heavy knockback boulders, spell QUAKE
 - **Elemental weaknesses:** fire and ice are opposites, and so are storm and earth.
@@ -24,9 +25,8 @@ sound are generated in code, so there are no asset files.
 - **Treasure:** chests, gold coins, gems, dragon hoards and heart containers are
   hidden around the realm. Spend gold at the shop (stand on an item and press A).
 - **Monster generators** (skull stones) keep spawning enemies until you destroy them.
-- **Five monster lairs** hold bosses, each with an element and a weakness. Beating a
-  lair gives a rune, a power-up and more life, and unseals the next lair.
-  Collect all five runes to open the **Dark Tower**.
+- **Five lairs and the Dark Tower** are dungeons behind fantasy buildings. Each has a hall with a locked door, two puzzle chambers, and a sealed staircase. The west chamber hides the key and the east chamber breaks the staircase seal. Puzzles include combat seals, braziers to light with fire, blocks to push onto pressure plates, rivers to freeze into ice bridges, and cracked walls hiding levers. Puzzles that need an element come with its orb shrine.
+- **Bosses** (Ancient Treant, Undead Guardian, Stone Golem, Crimson Dragon, Arcane Sorcerer, Dark Sorcerer) wait at the bottom of the stairs. Watch for the red **!** and ground markers before big attacks. Beating one gives a rune, a power-up and more life, and unseals the next lair.
 
 ## Controls
 
@@ -74,6 +74,10 @@ OS with PortMaster installed. It then appears under **Ports**.
 
 The binary links to the system `libSDL2-2.0.so.0` and needs glibc 2.35 or newer
 (it's built on Ubuntu 22.04).
+
+### Tests
+
+`scripts/test.sh [screenshot-dir]` runs the unit tests and the headless self-test. The self-test plays through every dungeon and boss and checks the acceptance criteria. Current status is in `IMPLEMENTATION_STATUS.md`.
 
 ### Headless snapshot test
 

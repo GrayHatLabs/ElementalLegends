@@ -49,9 +49,10 @@ fn map_button(b: Button) -> Option<Btn> {
 
 fn main() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
-    if let Some(i) = args.iter().position(|a| a == "--snapshot") {
-        snapshot::run(args.get(i + 1).map(String::as_str).unwrap_or("snapshots"));
-        return Ok(());
+    if let Some(i) = args.iter().position(|a| a == "--snapshot" || a == "--selftest") {
+        let dir = args.get(i + 1).map(String::as_str).filter(|d| !d.starts_with("--"));
+        let dir = if args[i] == "--snapshot" { Some(dir.unwrap_or("snapshots")) } else { dir };
+        std::process::exit(snapshot::run(dir));
     }
     let sdl = sdl2::init()?;
     let video = sdl.video()?;

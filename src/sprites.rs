@@ -2,7 +2,6 @@
 // palette-swapped per element, so one drawing gives fire, ice, storm, earth
 // and neutral versions.
 use crate::gfx::*;
-use crate::world::Mul;
 
 // Index order matches game::Elem: Fire, Ice, Storm, Earth, Neutral.
 pub const EL_MAIN: [u32; 5] = [rgb(0xd82800), rgb(0x0070ec), rgb(0x8030c8), rgb(0x207c10), rgb(0x747474)];
@@ -37,18 +36,28 @@ fn tint(el: usize) -> impl Fn(char) -> u32 {
     }
 }
 
-/// A sprite plus its hit-flash (white) and frozen (ice) silhouettes.
+/// A sprite plus its hit-flash (white), frozen (ice) and chilled (frost-tinted) variants.
 pub struct Spr {
     pub img: Sprite,
     pub white: Sprite,
+    #[allow(dead_code)]
     pub ice: Sprite,
+    pub frost: Sprite,
 }
 
 pub fn spr_with(rows: &[&str], p: impl Fn(char) -> u32) -> Spr {
+    let img = Sprite::from_rows(rows, &p);
+    let mut frost = img.clone();
+    for px in frost.px.iter_mut() {
+        if *px != 0 {
+            *px = mix(*px, rgb(0xa4e4fc), 0.45);
+        }
+    }
     Spr {
-        img: Sprite::from_rows(rows, &p),
+        img,
         white: Sprite::from_rows(rows, |_| WHITE),
-        ice: Sprite::from_rows(rows, |c| if c == 'k' { rgb(0x0058f8) } else { rgb(0xa4e4fc) }),
+        ice: Sprite::from_rows(rows, |c| if c == 'k' { rgb(0x2c78c8) } else { rgb(0xc4ecfc) }),
+        frost,
     }
 }
 fn spr(rows: &[&str]) -> Spr {
@@ -131,6 +140,7 @@ pub struct Sprites {
     pub heart: Spr,
     pub big_heart: Spr,
     pub hoard: Spr,
+    pub key: Spr,
 }
 
 impl Sprites {
@@ -286,66 +296,18 @@ impl Sprites {
                 "kyyyyyyoyyyyyk",
                 ".kkkkkkkkkkkk.",
             ]),
+            key: spr(&[
+                ".kkk....",
+                "kyyyk...",
+                "kykyk...",
+                "kyyykkkk",
+                ".kkkyyyk",
+                "....kykk",
+                "....kyk.",
+                ".....k..",
+            ]),
         }
     }
-}
-
-/// Generated boss: a mirrored random pixel creature with an outline, eyes and a core.
-/// Returns one sprite per element (Fire, Ice, Storm, Earth) so shifting bosses can recolour.
-pub fn gen_boss(seed: u32, w: usize, h: usize) -> Vec<Spr> {
-    let mut r = Mul(seed);
-    let hw = w / 2;
-    let mut g = vec![vec!['.'; w]; h];
-    for y in 0..h {
-        for x in 0..hw {
-            let cx = (hw - 1 - x) as f64 / hw as f64;
-            let cy = (y as f64 - h as f64 / 2.0).abs() / (h as f64 / 2.0);
-            if r.f() < 0.9 - cx * 0.55 - cy * 0.35 {
-                let ch = if r.f() < 0.22 { 'b' } else { 'a' };
-                g[y][x] = ch;
-                g[y][w - 1 - x] = ch;
-            }
-        }
-    }
-    let cy = (h as f64 * 0.55) as usize;
-    for dy in 0..2 {
-        for dx in 0..2 {
-            g[cy + dy][hw - 1 + dx] = 'r';
-        }
-    }
-    let ey = (h as f64 * 0.3) as usize;
-    for dy in 0..2 {
-        g[ey + dy][hw - 3] = 'w';
-        g[ey + dy][hw + 2] = 'w';
-    }
-    let filled = |x: i32, y: i32| x >= 0 && y >= 0 && (x as usize) < w && (y as usize) < h && g[y as usize][x as usize] != '.';
-    let mut rows: Vec<String> = Vec::new();
-    for y in -1..=h as i32 {
-        let mut row = String::new();
-        for x in -1..=w as i32 {
-            if filled(x, y) {
-                row.push(g[y as usize][x as usize]);
-            } else if filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1) {
-                row.push('k');
-            } else {
-                row.push('.');
-            }
-        }
-        rows.push(row);
-    }
-    let refs: Vec<&str> = rows.iter().map(|s| s.as_str()).collect();
-    (0..4)
-        .map(|e| {
-            spr_with(&refs, move |ch| match ch {
-                'a' => EL_MAIN[e],
-                'b' => EL_LIGHT[e],
-                'k' => rgb(0x100808),
-                'r' => rgb(0xfc3c3c),
-                'w' => WHITE,
-                _ => pal(ch),
-            })
-        })
-        .collect()
 }
 
 // ---------------------------------------------------------------- terrain
@@ -437,17 +399,48 @@ pub fn build_themes() -> Vec<Theme> {
         }
         Theme { name: "EMBERPEAK", floor, wall, map_col: rgb(0xc04020) }
     };
-    let lair = Theme {
-        name: "MONSTER LAIR",
-        floor: flagstone(rgb(0x140c1c), rgb(0x201430), rgb(0x34204c)),
-        wall: bricks(rgb(0x302040), rgb(0x5c4880), rgb(0x08040c)),
-        map_col: rgb(0x5c4880),
+    // Dungeon interiors (and their boss arenas), indexed 3 + dungeon number.
+    let shrine = {
+        let mut floor = flagstone(rgb(0x1c2c14), rgb(0x2c3c1c), rgb(0x3c5c24));
+        floor.fill(2, 10, 3, 1, rgb(0x2c6c1c));
+        let mut wall = bricks(rgb(0x4c5c40), rgb(0x7c9068), rgb(0x141c10));
+        for &(x, y) in &[(1, 2), (2, 3), (9, 9), (10, 10), (13, 1)] {
+            wall.fill(x, y, 2, 1, rgb(0x2c8c2c));
+        }
+        Theme { name: "OVERGROWN SHRINE", floor, wall, map_col: rgb(0x48a838) }
+    };
+    let crypt_d = Theme {
+        name: "UNDERGROUND CRYPT",
+        floor: flagstone(rgb(0x18181c), rgb(0x24242c), rgb(0x34343c)),
+        wall: bricks(rgb(0x3c3c4c), rgb(0x60607c), rgb(0x0c0c10)),
+        map_col: rgb(0x7878a0),
+    };
+    let castle = Theme {
+        name: "RUINED CASTLE",
+        floor: flagstone(rgb(0x2c2418), rgb(0x3c3020), rgb(0x54442c)),
+        wall: bricks(rgb(0x7c6c50), rgb(0xa8987c), rgb(0x241c10)),
+        map_col: rgb(0xa8987c),
+    };
+    let fortress = {
+        let mut floor = flagstone(rgb(0x1c0c08), rgb(0x2c140c), rgb(0x4c1c10));
+        floor.fill(11, 5, 3, 1, rgb(0xd84000));
+        let mut wall = bricks(rgb(0x2c2020), rgb(0x544444), rgb(0x080404));
+        for &(x, y) in &[(4, 11), (5, 12), (12, 2), (1, 5)] {
+            wall.fill(x, y, 1, 1, rgb(0xfc6000));
+        }
+        Theme { name: "DRAGON FORTRESS", floor, wall, map_col: rgb(0xc04020) }
+    };
+    let sanctuary = Theme {
+        name: "FORGOTTEN SANCTUARY",
+        floor: flagstone(rgb(0x14142c), rgb(0x1c1c3c), rgb(0x3c3c7c)),
+        wall: bricks(rgb(0x3c3c6c), rgb(0x7878b8), rgb(0x0c0c1c)),
+        map_col: rgb(0x7878d8),
     };
     let tower = Theme {
         name: "DARK TOWER",
-        floor: flagstone(rgb(0x100000), rgb(0x200000), rgb(0x400000)),
-        wall: bricks(rgb(0x500000), rgb(0x902020), rgb(0x100000)),
-        map_col: rgb(0x902020),
+        floor: flagstone(rgb(0x140c1c), rgb(0x201430), rgb(0x34204c)),
+        wall: bricks(rgb(0x302040), rgb(0x5c4880), rgb(0x08040c)),
+        map_col: rgb(0x9818a8),
     };
-    vec![forest, crypt, swamp, volcano, lair, tower]
+    vec![forest, crypt, swamp, volcano, shrine, crypt_d, castle, fortress, sanctuary, tower]
 }

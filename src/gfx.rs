@@ -206,6 +206,32 @@ impl Screen {
         }
     }
 
+    /// Translucent filled circle (glows, halos, overlays).
+    pub fn blend_disc(&mut self, cx: i32, cy: i32, r: i32, c: u32, a: f32) {
+        for y in -r..=r {
+            let half = ((r * r + r - y * y).max(0) as f32).sqrt() as i32;
+            self.blend(cx - half, cy + y, half * 2 + 1, 1, c, a);
+        }
+    }
+
+    /// Translucent ellipse, e.g. shadows and ground markers.
+    pub fn blend_ellipse(&mut self, cx: i32, cy: i32, rx: i32, ry: i32, c: u32, a: f32) {
+        let ry = ry.max(1);
+        for y in -ry..=ry {
+            let f = 1.0 - (y * y) as f32 / (ry * ry) as f32;
+            let half = (rx as f32 * f.max(0.0).sqrt()) as i32;
+            self.blend(cx - half, cy + y, half * 2 + 1, 1, c, a);
+        }
+    }
+
+    pub fn ellipse(&mut self, cx: i32, cy: i32, rx: i32, ry: i32, c: u32) {
+        let steps = ((rx.max(ry)) * 6).max(12);
+        for i in 0..steps {
+            let a = i as f32 / steps as f32 * std::f32::consts::TAU;
+            self.pset(cx + (a.cos() * rx as f32).round() as i32, cy + (a.sin() * ry as f32).round() as i32, c);
+        }
+    }
+
     pub fn ring(&mut self, cx: i32, cy: i32, r: i32, c: u32) {
         let (mut x, mut y, mut d) = (r, 0, 1 - r);
         while x >= y {

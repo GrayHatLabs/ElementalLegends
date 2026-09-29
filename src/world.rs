@@ -1,5 +1,6 @@
 // Overworld generation: a 6x6 grid of Zelda-style screens connected by a
-// randomized maze, with lairs, treasure, shrines and dead-end secrets.
+// randomized maze, with dungeon buildings, treasure, shrines and dead-end
+// secrets. Also the shared tile set used by dungeon rooms and boss arenas.
 use crate::gfx::*;
 use crate::sprites::Theme;
 use std::collections::VecDeque;
@@ -13,6 +14,34 @@ pub const WH: usize = 6;
 pub const START_X: usize = 2;
 pub const START_Y: usize = 5;
 pub const WORLD_SEED: u32 = 1988;
+
+// ---------------------------------------------------------------- tiles
+pub const T_FLOOR: u8 = 0;
+pub const T_WALL: u8 = 1;
+/// Blocks walking, but bolts fly over it. Ice bolts freeze it into T_ICE.
+pub const T_WATER: u8 = 2;
+pub const T_ICE: u8 = 3;
+/// A brittle wall hiding a passage; breaks after a few hits.
+pub const T_CRACK: u8 = 4;
+/// Locked door, opened with a dungeon key.
+pub const T_LOCK: u8 = 5;
+/// Portcullis that seals a room during a combat challenge.
+pub const T_SEAL: u8 = 6;
+/// Magic seal over the boss staircase.
+pub const T_BARRIER: u8 = 7;
+pub const T_PLATE: u8 = 8;
+pub const T_STAIRS: u8 = 9;
+/// Solid, drawn as floor: the footprint of big sprites (monolith, buildings, standing stones).
+pub const T_DECOR: u8 = 10;
+
+/// Blocks the player and walking enemies.
+pub fn solid_tile(t: u8) -> bool {
+    matches!(t, T_WALL | T_WATER | T_CRACK | T_LOCK | T_SEAL | T_BARRIER | T_DECOR)
+}
+/// Stops projectiles.
+pub fn shot_solid(t: u8) -> bool {
+    matches!(t, T_WALL | T_CRACK | T_LOCK | T_SEAL | T_BARRIER | T_DECOR)
+}
 
 /// Seeded PRNG (mulberry32) so the world is identical every playthrough.
 pub struct Mul(pub u32);
@@ -36,6 +65,11 @@ pub const CH_POTION: u8 = 2;
 pub const CH_GEM: u8 = 3;
 pub const CH_MEAT: u8 = 4;
 
+/// Room purpose.
+pub const SP_NONE: u8 = 0;
+pub const SP_MONOLITH: u8 = 1;
+pub const SP_SHOP: u8 = 2;
+
 pub struct Room {
     pub i: usize,
     pub x: usize,
@@ -48,6 +82,7 @@ pub struct Room {
     pub dist: i32,
     pub theme: usize,
     pub seed: u32,
+    pub special: u8,
     pub tiles: [[u8; RC]; RR],
     pub img: Sprite,
     /// (x, y, contents, gold value)
@@ -57,10 +92,32 @@ pub struct Room {
 }
 
 impl Room {
-    fn new(i: usize, x: usize, y: usize, seed: u32) -> Self {
+    pub fn new(i: usize, x: usize, y: usize, seed: u32) -> Self {
         Room {
             i, x, y, doors: [false; 4], visited: false, gate: 0, tank: false, cache: false, dist: -1, theme: 0, seed,
-            tiles: [[0; RC]; RR], img: Sprite::new(1, 1), chest: None, shrine: None,
+            special: SP_NONE, tiles: [[0; RC]; RR], img: Sprite::new(1, 1), chest: None, shrine: None,
+        }
+    }
+    /// Border walls with the standard door gaps for each open side.
+    pub fn frame(&mut self) {
+        for y in 0..RR {
+            for x in 0..RC {
+                self.tiles[y][x] = if x == 0 || y == 0 || x == RC - 1 || y == RR - 1 { T_WALL } else { T_FLOOR };
+            }
+        }
+        for d in 0..4 {
+            if self.doors[d] {
+                self.set_gap(d, T_FLOOR);
+            }
+        }
+    }
+    /// Fill one door gap (n, s, e, w) with a tile.
+    pub fn set_gap(&mut self, d: usize, t: u8) {
+        match d {
+            0 => (6..=9).for_each(|x| self.tiles[0][x] = t),
+            1 => (6..=9).for_each(|x| self.tiles[RR - 1][x] = t),
+            2 => (5..=7).for_each(|y| self.tiles[y][RC - 1] = t),
+            _ => (5..=7).for_each(|y| self.tiles[y][0] = t),
         }
     }
 }
@@ -84,7 +141,8 @@ fn at(x: i32, y: i32) -> Option<usize> {
     }
 }
 
-pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize) {
+/// Returns (rooms, start room, shop room).
+pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
     let mut rng = Mul(WORLD_SEED);
     let mut rooms = Vec::new();
     for y in 0..WH {
@@ -138,7 +196,17 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize) {
     for r in rooms.iter_mut() {
         r.theme = ((r.dist * 4) / (max_d + 1)).min(3) as usize;
     }
-    let mut order: Vec<usize> = (0..rooms.len()).filter(|&i| i != start).collect();
+    // The village shop sits one screen away from the monolith, along the first open path.
+    let shop = [0usize, 2, 3, 1]
+        .iter()
+        .filter(|&&d| rooms[start].doors[d])
+        .find_map(|&d| at(rooms[start].x as i32 + DIRS[d].0, rooms[start].y as i32 + DIRS[d].1))
+        .unwrap_or(start);
+    rooms[start].special = SP_MONOLITH;
+    if shop != start {
+        rooms[shop].special = SP_SHOP;
+    }
+    let mut order: Vec<usize> = (0..rooms.len()).filter(|&i| i != start && i != shop).collect();
     order.sort_by(|&a, &b| rooms[a].dist.cmp(&rooms[b].dist).then(rooms[a].seed.cmp(&rooms[b].seed)));
     let l = order.len();
     rooms[order[l - 1]].gate = 6;
@@ -164,92 +232,179 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize) {
         }
     }
     for r in rooms.iter_mut() {
-        let is_start = r.i == start;
-        build_room(r, themes, is_start);
+        build_room(r, themes);
     }
-    (rooms, start)
+    (rooms, start, shop)
 }
 
-fn build_room(r: &mut Room, themes: &[Theme], is_start: bool) {
+fn build_room(r: &mut Room, themes: &[Theme]) {
     let mut rng = Mul(r.seed);
-    for y in 0..RR {
-        for x in 0..RC {
-            r.tiles[y][x] = (x == 0 || y == 0 || x == RC - 1 || y == RR - 1) as u8;
-        }
-    }
-    if r.doors[0] {
-        (6..=9).for_each(|x| r.tiles[0][x] = 0);
-    }
-    if r.doors[1] {
-        (6..=9).for_each(|x| r.tiles[RR - 1][x] = 0);
-    }
-    if r.doors[2] {
-        (5..=7).for_each(|y| r.tiles[y][RC - 1] = 0);
-    }
-    if r.doors[3] {
-        (5..=7).for_each(|y| r.tiles[y][0] = 0);
-    }
-    if !is_start {
-        let pat = QPATS[(rng.f() * QPATS.len() as f64) as usize];
-        let diag = rng.f() < 0.3;
-        for &(c, y) in pat.iter() {
-            let (mc, my) = (RC - 1 - c, RR - 1 - y);
-            r.tiles[y][c] = 1;
-            r.tiles[my][mc] = 1;
-            if !diag {
-                r.tiles[y][mc] = 1;
-                r.tiles[my][c] = 1;
-            }
-        }
-        if rng.f() < 0.35 {
-            for _ in 0..30 {
-                let c = 1 + (rng.f() * 14.0) as usize;
-                let y = 1 + (rng.f() * 11.0) as usize;
-                if r.tiles[y][c] > 0 || ((c as f32 - 7.5).abs() < 3.0 && (y as f32 - 6.0).abs() < 2.5) {
-                    continue;
+    r.frame();
+    match r.special {
+        SP_MONOLITH => {
+            // The monolith itself and a ring of standing stones.
+            for y in 3..=5 {
+                for x in 7..=8 {
+                    r.tiles[y][x] = T_DECOR;
                 }
-                let v = rng.f();
-                let (content, val) = if v < 0.55 {
-                    (CH_GOLD, 20 + (rng.f() * 40.0) as i32)
-                } else if v < 0.72 {
-                    (CH_BREAD, 0)
-                } else if v < 0.84 {
-                    (CH_POTION, 0)
-                } else if v < 0.94 {
-                    (CH_GEM, 0)
-                } else {
-                    (CH_MEAT, 0)
-                };
-                r.chest = Some(((c as i32 * TS + 8) as f32, (HUD + y as i32 * TS + 8) as f32, content, val));
-                break;
+            }
+            for &(x, y) in &[(4, 3), (11, 3), (4, 9), (11, 9)] {
+                r.tiles[y][x] = T_DECOR;
             }
         }
-        if r.gate == 0 && !r.tank && !r.cache && rng.f() < 0.14 {
-            r.shrine = Some((rng.f() * 4.0) as usize);
+        SP_SHOP => {
+            // The merchant's cottage along the north wall.
+            for y in 1..=2 {
+                for x in 6..=9 {
+                    r.tiles[y][x] = T_DECOR;
+                }
+            }
+        }
+        _ => {
+            let pat = QPATS[(rng.f() * QPATS.len() as f64) as usize];
+            let diag = rng.f() < 0.3;
+            for &(c, y) in pat.iter() {
+                let (mc, my) = (RC - 1 - c, RR - 1 - y);
+                r.tiles[y][c] = T_WALL;
+                r.tiles[my][mc] = T_WALL;
+                if !diag {
+                    r.tiles[y][mc] = T_WALL;
+                    r.tiles[my][c] = T_WALL;
+                }
+            }
+            if r.gate > 0 {
+                // Dungeon building footprint; the doorway is just below it at the room centre.
+                for y in 2..=5 {
+                    for x in 6..=9 {
+                        r.tiles[y][x] = T_DECOR;
+                    }
+                }
+            }
+            if rng.f() < 0.35 {
+                for _ in 0..30 {
+                    let c = 1 + (rng.f() * 14.0) as usize;
+                    let y = 1 + (rng.f() * 11.0) as usize;
+                    if r.tiles[y][c] != T_FLOOR || ((c as f32 - 7.5).abs() < 3.0 && (y as f32 - 6.0).abs() < 2.5) {
+                        continue;
+                    }
+                    let v = rng.f();
+                    let (content, val) = if v < 0.55 {
+                        (CH_GOLD, 20 + (rng.f() * 40.0) as i32)
+                    } else if v < 0.72 {
+                        (CH_BREAD, 0)
+                    } else if v < 0.84 {
+                        (CH_POTION, 0)
+                    } else if v < 0.94 {
+                        (CH_GEM, 0)
+                    } else {
+                        (CH_MEAT, 0)
+                    };
+                    r.chest = Some(((c as i32 * TS + 8) as f32, (HUD + y as i32 * TS + 8) as f32, content, val));
+                    break;
+                }
+            }
+            if r.gate == 0 && !r.tank && !r.cache && rng.f() < 0.14 {
+                r.shrine = Some((rng.f() * 4.0) as usize);
+            }
         }
     }
     render(r, &themes[r.theme]);
 }
 
-fn render(r: &mut Room, th: &Theme) {
+/// Re-draw a room's static image from its tiles (call after tiles change).
+pub fn render(r: &mut Room, th: &Theme) {
     let mut img = Sprite::new(W, RR as i32 * TS);
     for y in 0..RR {
         for x in 0..RC {
-            let t = if r.tiles[y][x] > 0 { &th.wall } else { &th.floor };
-            img.draw(t, x as i32 * TS, y as i32 * TS);
+            let (px, py) = (x as i32 * TS, y as i32 * TS);
+            let t = r.tiles[y][x];
+            match t {
+                T_WALL => img.draw(&th.wall, px, py),
+                T_CRACK => {
+                    img.draw(&th.wall, px, py);
+                    let c = rgb(0x181010);
+                    for &(cx, cy) in &[(7, 2), (6, 3), (7, 4), (8, 5), (8, 6), (7, 7), (9, 7), (10, 8), (6, 8), (5, 9), (7, 10), (8, 11), (8, 12)] {
+                        img.fill(px + cx, py + cy, 1, 1, c);
+                    }
+                    img.fill(px + 3, py + 12, 2, 1, c);
+                    img.fill(px + 11, py + 3, 2, 1, c);
+                }
+                T_WATER => {
+                    img.fill(px, py, TS, TS, rgb(0x0c2c6c));
+                    img.fill(px, py, TS, 1, rgb(0x08204c));
+                    img.fill(px + 2, py + 5, 5, 1, rgb(0x2c5cac));
+                    img.fill(px + 9, py + 11, 5, 1, rgb(0x2c5cac));
+                }
+                T_ICE => {
+                    img.fill(px, py, TS, TS, rgb(0x78c8ec));
+                    img.fill(px, py, TS, 1, rgb(0xa4e4fc));
+                    img.fill(px + 2, py + 11, 6, 1, WHITE);
+                    img.fill(px + 8, py + 4, 5, 1, rgb(0xd4f4fc));
+                    img.fill(px + 3, py + 3, 1, 1, WHITE);
+                }
+                T_LOCK => {
+                    img.fill(px, py, TS, TS, rgb(0x5c3410));
+                    img.fill(px + 1, py + 1, TS - 2, TS - 2, rgb(0x8c5020));
+                    img.fill(px, py + 4, TS, 2, rgb(0x404040));
+                    img.fill(px, py + 11, TS, 2, rgb(0x404040));
+                    if x == 7 || x == 8 {
+                        let kx = if x == 7 { px + 13 } else { px + 1 };
+                        img.fill(kx, py + 6, 2, 4, rgb(0xfcbc3c));
+                        img.fill(kx, py + 8, 2, 2, rgb(0x101010));
+                    }
+                }
+                T_SEAL => {
+                    img.draw(&th.floor, px, py);
+                    for bx in [1, 5, 9, 13] {
+                        img.fill(px + bx, py, 2, TS, rgb(0x5c5c64));
+                        img.fill(px + bx, py, 1, TS, rgb(0x9c9ca4));
+                    }
+                    img.fill(px, py + 3, TS, 2, rgb(0x5c5c64));
+                    img.fill(px, py + 11, TS, 2, rgb(0x5c5c64));
+                }
+                T_PLATE => {
+                    img.draw(&th.floor, px, py);
+                    img.fill(px + 2, py + 2, 12, 12, rgb(0x303038));
+                    img.fill(px + 3, py + 3, 10, 10, rgb(0x747480));
+                    img.fill(px + 3, py + 3, 10, 1, rgb(0xa0a0ac));
+                    img.fill(px + 6, py + 6, 4, 4, rgb(0x505058));
+                }
+                T_STAIRS | T_BARRIER => {
+                    img.fill(px, py, TS, TS, rgb(0x080808));
+                    for s in 0..4 {
+                        let c = [rgb(0x7c7c84), rgb(0x5c5c64), rgb(0x3c3c44), rgb(0x202028)][s as usize];
+                        img.fill(px, py + s * 4, TS, 3, c);
+                    }
+                }
+                _ => img.draw(&th.floor, px, py),
+            }
         }
     }
     for y in 0..RR {
         for x in 0..RC {
-            if r.tiles[y][x] > 0 {
+            if solid_tile(r.tiles[y][x]) && r.tiles[y][x] != T_WATER {
                 continue;
             }
             let (px, py) = (x as i32 * TS, y as i32 * TS);
-            if y > 0 && r.tiles[y - 1][x] > 0 {
+            let wallish = |t: u8| matches!(t, T_WALL | T_CRACK | T_LOCK);
+            if y > 0 && wallish(r.tiles[y - 1][x]) {
                 img.blend(px, py, TS, 3, BLACK, 0.4);
             }
-            if x > 0 && r.tiles[y][x - 1] > 0 {
+            if x > 0 && wallish(r.tiles[y][x - 1]) {
                 img.blend(px, py, 3, TS, BLACK, 0.4);
+            }
+        }
+    }
+    if r.special == SP_MONOLITH {
+        // Wildflowers around the clearing.
+        let mut fr = Mul(r.seed ^ 0x5eed);
+        for _ in 0..70 {
+            let (x, y) = ((fr.f() * 224.0) as i32 + 16, (fr.f() * 176.0) as i32 + 16);
+            let (tx, ty) = ((x / TS) as usize, (y / TS) as usize);
+            if ty < RR && tx < RC && r.tiles[ty][tx] == T_FLOOR {
+                let c = [rgb(0xf878f8), rgb(0xfce040), WHITE, rgb(0xa4e4fc)][(fr.f() * 4.0) as usize];
+                img.fill(x, y, 1, 1, c);
+                img.fill(x, y + 1, 1, 1, rgb(0x2c7c1c));
             }
         }
     }
@@ -260,13 +415,9 @@ fn render(r: &mut Room, th: &Theme) {
 pub fn make_arena(th: &Theme, tier: usize) -> Room {
     let mut r = Room::new(usize::MAX, 0, 0, 0);
     r.theme = tier;
-    for y in 0..RR {
-        for x in 0..RC {
-            r.tiles[y][x] = (x == 0 || y == 0 || x == RC - 1 || y == RR - 1) as u8;
-        }
-    }
-    for &(x, y) in &[(4, 4), (11, 4), (4, 8), (11, 8)] {
-        r.tiles[y][x] = 1;
+    r.frame();
+    for &(x, y) in &[(3, 4), (12, 4), (3, 9), (12, 9)] {
+        r.tiles[y][x] = T_WALL;
     }
     render(&mut r, th);
     r
