@@ -1,0 +1,19 @@
+[package]
+name = "elementallegends"
+version = "0.1.0"
+edition = "2021"
+description = "ELEMENTAL LEGENDS - an NES-style fantasy action adventure (Zelda x Gauntlet) with an elemental mage"
+
+[dependencies]
+sdl2 = "0.37"
+
+[features]
+# Build SDL2 from source and link it statically (needs CMake). Handy on Windows.
+bundled = ["sdl2/bundled", "sdl2/static-link"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
