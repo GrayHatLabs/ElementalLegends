@@ -131,9 +131,9 @@ impl Game {
     /// and it shrinks as the mage's health runs low (down to about half).
     pub(super) fn bolt_range(&self) -> f32 {
         let base = match self.s.spell_lv {
-            1 => 110.0,
-            2 => 165.0,
-            _ => 250.0,
+            1 => 80.0,
+            2 => 120.0,
+            _ => 190.0,
         };
         let health = (self.s.hp.max(0) as f32 / self.s.max_hp.max(1) as f32).clamp(0.0, 1.0);
         base * (0.45 + 0.55 * health)

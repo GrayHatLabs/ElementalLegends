@@ -291,7 +291,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.g.debug_set_element(0);
     t.g.debug_play_room(start, 40.0, 200.0);
     t.frames(5);
-    let id = t.g.debug_spawn(2, 130.0, 200.0, 60.0, true); // skeleton: neutral, holds still
+    let id = t.g.debug_spawn(2, 105.0, 200.0, 60.0, true); // skeleton: neutral, holds still
     t.g.debug_set_player(40.0, 200.0, b'r');
     t.tap(Btn::Fire);
     let mut xs = vec![];
@@ -308,7 +308,7 @@ pub fn run(dir: Option<&str>) -> i32 {
         }
     }
     let travelled = xs.last().copied().unwrap_or(0.0) - xs.first().copied().unwrap_or(0.0);
-    t.check(xs.len() >= 10 && travelled > 60.0, "firebolt visibly travels before hitting");
+    t.check(xs.len() >= 10 && travelled > 40.0, "firebolt visibly travels before hitting");
     let e = t.g.debug_enemy(id);
     t.check(e.as_ref().map_or(false, |e| e.burn > 0), "a firebolt hit ignites the enemy");
     let hp_hit = e.map_or(0.0, |e| e.hp);
@@ -327,7 +327,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.g.debug_kill_enemies();
     t.frames(40);
     t.g.debug_set_element(1);
-    let id = t.g.debug_spawn(2, 150.0, 200.0, 80.0, true);
+    let id = t.g.debug_spawn(2, 120.0, 200.0, 80.0, true);
     t.g.debug_set_player(60.0, 200.0, b'r');
     t.tap(Btn::Fire);
     t.hold_until(Btn::Mute, 60, move |g| g.debug_enemy(id).map_or(false, |e| e.chill > 0));
@@ -378,9 +378,9 @@ pub fn run(dir: Option<&str>) -> i32 {
     let weak = measure(&mut t, 1, 4);
     let full = measure(&mut t, 3, 40);
     println!("  ranges: lv1 full hp {short:.0}px, lv1 low hp {weak:.0}px, lv3 full hp {full:.0}px");
-    t.check(short < 130.0, "without power-ups a bolt does not cross the whole screen");
+    t.check(short < 95.0, "without power-ups a bolt only flies about five tiles");
     t.check(weak < short * 0.7, "bolts get shorter as the mage's health drops");
-    t.check(full > 200.0, "with the top magic power-up bolts reach across the screen");
+    t.check(full > 160.0 && full < 210.0, "the top magic power-up extends bolts to about twelve tiles");
     t.g.debug_set_spell_lv(1);
     t.g.debug_god();
 
@@ -605,7 +605,7 @@ fn boss_fight(t: &mut T, n: usize) {
     let mut saw_shots = false;
     let mut strafe_kept = true;
     let mut frame_ms: Vec<f64> = Vec::with_capacity(2400);
-    t.g.debug_set_player(128.0, 200.0, b'u');
+    t.g.debug_set_player(128.0, 176.0, b'u');
     t.input.set_key(Btn::Fire, true);
     let limit = 2400;
     for f in 0..limit {
