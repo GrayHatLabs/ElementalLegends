@@ -381,6 +381,16 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check(short < 95.0, "without power-ups a bolt only flies about five tiles");
     t.check(weak < short * 0.7, "bolts get shorter as the mage's health drops");
     t.check(full > 160.0 && full < 210.0, "the top magic power-up extends bolts to about twelve tiles");
+    let mut shots = vec![];
+    for lv in 1..=3 {
+        t.g.debug_set_spell_lv(lv);
+        t.g.debug_set_player(20.0, 150.0, b'r');
+        t.frames(40);
+        t.tap(Btn::Fire);
+        shots.push(t.g.debug_player_bolts().len());
+        t.frames(60);
+    }
+    t.check(shots == vec![1, 1, 2], &format!("single bolt until the end stages, twin bolts at magic level 3 (got {shots:?})"));
     t.g.debug_set_spell_lv(1);
     t.g.debug_god();
 

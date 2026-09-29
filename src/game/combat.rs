@@ -144,11 +144,8 @@ impl Game {
         let life = ((self.bolt_range() / spd).round() as i32).max(8);
         let p = self.pl;
         let a = p.fy.atan2(p.fx);
-        let spread: &[f32] = match self.s.spell_lv {
-            1 => &[0.0],
-            2 => &[-0.12, 0.12],
-            _ => &[-0.22, 0.0, 0.22],
-        };
+        // A single bolt until the end stages: twin bolts arrive with the 4th lair's power-up.
+        let spread: &[f32] = if self.s.spell_lv >= 3 { &[-0.12, 0.12] } else { &[0.0] };
         for &da in spread {
             let b = a + da;
             self.pb.push(Bullet {

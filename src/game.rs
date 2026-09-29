@@ -362,10 +362,10 @@ struct Scroll {
 
 const REWARDS: [&str; 7] = [
     "",
-    "SPELL POWER UP",
+    "SPELL POWER UP: LONGER BOLTS",
     "MANA CRYSTAL: MAX MP UP",
     "HEART CONTAINER",
-    "SPELL POWER UP",
+    "SPELL POWER UP: TWIN BOLTS",
     "WINGED BOOTS: SPEED UP",
     "",
 ];
