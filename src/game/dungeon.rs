@@ -26,7 +26,32 @@ pub(super) const R_HUB: usize = 1;
 pub(super) const R_WEST: usize = 2;
 pub(super) const R_EAST: usize = 3;
 pub(super) const R_STAIRS: usize = 4;
-const GRID: [(i32, i32); 5] = [(1, 2), (1, 1), (0, 1), (2, 1), (1, 0)];
+/// Feast hall (dungeon 1 only), west of the entrance.
+pub(super) const R_FEAST: usize = 5;
+/// Hidden pantry (dungeons 2-6), behind a cracked wall east of the entrance.
+pub(super) const R_PANTRY: usize = 6;
+pub(super) const D_PANTRY: u8 = 128;
+const GRID: [(i32, i32); 7] = [(1, 2), (1, 1), (0, 1), (2, 1), (1, 0), (0, 2), (2, 2)];
+/// Food laid out in each food room: (kind, col, row).
+fn larder_stock(room: usize) -> Vec<(IK, i32, i32)> {
+    match room {
+        R_FEAST => vec![
+            (IK::Meat, 4, 6),
+            (IK::Bread, 6, 6),
+            (IK::Meat, 8, 6),
+            (IK::Bread, 10, 6),
+            (IK::Meat, 12, 6),
+            (IK::Apple, 4, 10),
+            (IK::Apple, 7, 10),
+            (IK::Potion, 9, 10),
+            (IK::Apple, 12, 10),
+        ],
+        R_PANTRY => vec![(IK::Meat, 6, 5), (IK::Bread, 9, 5), (IK::Bread, 6, 8), (IK::Apple, 9, 8), (IK::Apple, 8, 7)],
+        _ => vec![],
+    }
+}
+/// Placed food never expires or blinks.
+const LARDER_LIFE: i32 = i32::MAX / 2;
 /// Staircase tiles in the stairs room (top-left corner; 2x2).
 pub(super) const STAIRS_C: i32 = 7;
 pub(super) const STAIRS_R: i32 = 3;
@@ -105,7 +130,11 @@ pub(super) struct Dungeon {
     pub n: usize,
     pub rooms: Vec<Room>,
     pub objs: Vec<Vec<Obj>>,
-    pub puz: [Option<Puz>; 5],
+    pub puz: [Option<Puz>; 7],
+    /// Which of the seven room slots this dungeon uses.
+    pub has: [bool; 7],
+    /// Food left in the feast hall / pantry, kept while you come and go.
+    pub larder: Vec<Vec<(IK, f32, f32)>>,
     pub hub_combat: bool,
     pub cur: usize,
     pub dirty: bool,
@@ -113,13 +142,18 @@ pub(super) struct Dungeon {
     pub push_t: i32,
     /// (room, col, row, hits) for cracked walls being chipped at.
     pub crack_hits: Vec<(usize, i32, i32, i32)>,
-    pub seen: [bool; 5],
+    pub seen: [bool; 7],
     pub warned: bool,
 }
 
-fn neighbor(i: usize, d: usize) -> Option<usize> {
+fn neighbor(i: usize, d: usize, has: &[bool; 7]) -> Option<usize> {
     let (x, y) = (GRID[i].0 + DIRS[d].0, GRID[i].1 + DIRS[d].1);
-    GRID.iter().position(|&g| g == (x, y))
+    let food = |r: usize| r == R_FEAST || r == R_PANTRY;
+    GRID.iter()
+        .enumerate()
+        .position(|(j, &g)| has[j] && g == (x, y))
+        // Food rooms open only onto the entrance hall, never into puzzle chambers.
+        .filter(|&j| !(food(i) || food(j)) || i == R_ENTRY || j == R_ENTRY)
 }
 /// Mirror a column for the east chamber (templates are written for the west one).
 fn mc(c: i32, east: bool) -> i32 {
@@ -134,10 +168,13 @@ pub(super) fn build_dungeon(n: usize, themes: &[Theme], prog: u8) -> Dungeon {
     let (hub_combat, west, east) = layout(n);
     let mut rooms = Vec::new();
     let mut objs = Vec::new();
-    for i in 0..5 {
+    let mut has = [true; 7];
+    has[R_FEAST] = n == 1;
+    has[R_PANTRY] = n >= 2;
+    for i in 0..7 {
         let mut r = Room::new(i, GRID[i].0 as usize, GRID[i].1 as usize, 7000 + n as u32 * 10 + i as u32);
         for d in 0..4 {
-            r.doors[d] = neighbor(i, d).is_some();
+            r.doors[d] = has[i] && neighbor(i, d, &has).is_some();
         }
         if i == R_ENTRY {
             r.doors[1] = true; // way back out
@@ -150,6 +187,23 @@ pub(super) fn build_dungeon(n: usize, themes: &[Theme], prog: u8) -> Dungeon {
             R_ENTRY => {
                 for &(x, y) in &[(4, 3), (11, 3), (4, 9), (11, 9)] {
                     r.tiles[y][x] = T_WALL;
+                }
+                // The pantry hides behind a brittle stretch of the east wall.
+                if has[R_PANTRY] && prog & D_PANTRY == 0 {
+                    r.set_gap(2, T_CRACK);
+                }
+            }
+            R_FEAST => {
+                // Two long banquet tables.
+                for y in [4, 8] {
+                    for x in 4..=11 {
+                        r.tiles[y][x] = T_DECOR;
+                    }
+                }
+            }
+            R_PANTRY => {
+                for &(x, y) in &[(2, 2), (3, 2), (12, 2), (13, 2), (2, 10), (13, 10), (12, 10)] {
+                    r.tiles[y][x] = T_DECOR;
                 }
             }
             R_HUB => {
@@ -166,7 +220,7 @@ pub(super) fn build_dungeon(n: usize, themes: &[Theme], prog: u8) -> Dungeon {
                 let solved = prog & if side_east { D_EAST } else { D_WEST } != 0;
                 build_puzzle(&mut r, &mut o, p, side_east, solved, prog);
             }
-            _ => {
+            R_STAIRS => {
                 for &(x, y) in &[(5, 2), (10, 2)] {
                     r.tiles[y][x] = T_WALL;
                 }
@@ -182,17 +236,33 @@ pub(super) fn build_dungeon(n: usize, themes: &[Theme], prog: u8) -> Dungeon {
                     o.push(t);
                 }
             }
+            _ => {}
         }
         render(&mut r, &themes[dungeon_theme(n)]);
         rooms.push(r);
         objs.push(o);
     }
-    let mut puz = [None; 5];
+    let mut puz = [None; 7];
     puz[R_WEST] = Some(west);
     puz[R_EAST] = Some(east);
+    // Food rooms are freshly stocked each time you enter the dungeon.
+    let larder = (0..7)
+        .map(|i| {
+            if !has[i] {
+                return vec![];
+            }
+            larder_stock(i)
+                .into_iter()
+                .map(|(k, c, r)| {
+                    let (x, y) = tile_center(c, r);
+                    (k, x, y)
+                })
+                .collect()
+        })
+        .collect();
     Dungeon {
-        n, rooms, objs, puz, hub_combat, cur: R_ENTRY, dirty: false, sealed: false, push_t: 0, crack_hits: vec![],
-        seen: [false; 5], warned: false,
+        n, rooms, objs, puz, has, larder, hub_combat, cur: R_ENTRY, dirty: false, sealed: false, push_t: 0,
+        crack_hits: vec![], seen: [false; 7], warned: false,
     }
 }
 
@@ -340,10 +410,14 @@ impl Game {
         let normal = match cur {
             R_ENTRY => 1,
             R_HUB => 2,
-            R_STAIRS => 0,
+            R_STAIRS | R_FEAST | R_PANTRY => 0,
             _ => 2,
         };
+        let food: Vec<(IK, f32, f32)> = d.larder[cur].clone();
         self.dungeon_flush();
+        for (kind, x, y) in food {
+            self.items.push(Item { kind, x, y, val: 0, el: Elem::Neutral, life: LARDER_LIFE, dead: false });
+        }
         if combat {
             self.spawn_pack(5, th, false);
             self.show_msg("THE DOORS SLAM SHUT! DEFEAT EVERY MONSTER.");
@@ -355,6 +429,8 @@ impl Game {
                 let hint = match (cur, puz) {
                     (R_STAIRS, _) if prog & D_EAST == 0 => Some("A MAGIC SEAL GUARDS THE STAIRS. SOLVE THE EAST CHAMBER TO BREAK IT."),
                     (R_STAIRS, _) => Some("THE STAIRS DESCEND INTO DARKNESS..."),
+                    (R_FEAST, _) => Some("A FEAST HALL! THE OLD KEEPERS LEFT A MEAL FOR WEARY TRAVELLERS."),
+                    (R_PANTRY, _) => Some("A HIDDEN PANTRY, STILL STOCKED WITH FOOD!"),
                     (_, Some(Puz::Torches)) if !solved => Some("FOUR COLD BRAZIERS. PERHAPS FIRE MAGIC WILL WAKE THEM."),
                     (_, Some(Puz::Plates)) if !solved => Some("PRESSURE PLATES... PUSH THE STONE BLOCKS ONTO THEM. LEAVE THE ROOM TO RESET."),
                     (_, Some(Puz::IceBridge)) if !solved => Some("DEEP WATER BLOCKS THE WAY. ICE MAGIC COULD BRIDGE IT."),
@@ -368,7 +444,20 @@ impl Game {
         }
     }
 
+    /// Remember what's left on the tables before leaving a food room.
+    fn stash_larder(&mut self) {
+        let left: Vec<(IK, f32, f32)> =
+            self.items.iter().filter(|i| !i.dead && i.life > LARDER_LIFE / 2).map(|i| (i.kind, i.x, i.y)).collect();
+        if let Some(d) = self.dungeon.as_mut() {
+            if matches!(d.cur, R_FEAST | R_PANTRY) {
+                let cur = d.cur;
+                d.larder[cur] = left;
+            }
+        }
+    }
+
     pub(super) fn dungeon_exit(&mut self, dir: usize) {
+        self.stash_larder();
         let Some(d) = self.dungeon.as_ref() else { return };
         if d.cur == R_ENTRY && dir == 1 {
             let r = self.gate_room;
@@ -376,7 +465,7 @@ impl Game {
             self.fade = 24;
             return;
         }
-        let Some(to) = neighbor(d.cur, dir) else {
+        let Some(to) = neighbor(d.cur, dir, &d.has) else {
             self.pl.x = self.pl.x.clamp(12.0, WF - 12.0);
             self.pl.y = self.pl.y.clamp(HUDF + 12.0, HF - 12.0);
             return;
@@ -445,6 +534,24 @@ impl Game {
         }
     }
     fn break_crack(&mut self, c: i32, r: i32) {
+        let cur = self.dungeon.as_ref().map_or(0, |d| d.cur);
+        if cur == R_ENTRY {
+            // The pantry wall: the whole doorway crumbles at once.
+            for rr in 5..=7 {
+                self.set_tile(RC as i32 - 1, rr, T_FLOOR);
+            }
+            let (x, y) = tile_center(RC as i32 - 1, 6);
+            for _ in 0..24 {
+                let (vx, vy) = (self.rng.range(-2.2, 0.4), self.rng.range(-2.6, -0.4));
+                let col = self.rng.pick(&[rgb(0x686878), rgb(0xa0a0b0), rgb(0x3c3c48)]);
+                self.part(x, y, vx, vy, 30, col, 3, PK::Shard);
+            }
+            self.sfx(Sfx::Rumble);
+            self.shake = 10;
+            self.set_dprog(D_PANTRY);
+            self.show_msg("THE CRACKED WALL CRUMBLES... A HIDDEN PANTRY LIES BEYOND!");
+            return;
+        }
         self.set_tile(c, r, T_FLOOR);
         let (x, y) = tile_center(c, r);
         for _ in 0..14 {
@@ -455,7 +562,6 @@ impl Game {
         self.part(x, y, 0.0, 0.0, 12, WHITE, 1, PK::Burst(Elem::Earth, 12.0));
         self.sfx(Sfx::Rumble);
         self.shake = 8;
-        let cur = self.dungeon.as_ref().map_or(0, |d| d.cur);
         self.set_dprog(if cur == R_EAST { D_CRACK_E } else { D_CRACK_W });
         self.show_msg("THE WALL CRUMBLES, REVEALING A HIDDEN PASSAGE!");
     }

@@ -223,6 +223,20 @@ impl Game {
     pub fn debug_player_stuck(&self) -> bool {
         self.box_solid(self.pl.x, self.pl.y, self.pl.w, self.pl.h)
     }
+    /// Placed food (feast hall / pantry) currently on the floor.
+    pub fn debug_larder_items(&self) -> usize {
+        self.items.iter().filter(|i| !i.dead && i.life > i32::MAX / 4).count()
+    }
+    pub fn debug_set_food(&mut self, f: f32) {
+        self.s.food = f;
+    }
+    pub fn debug_set_hp(&mut self, hp: i32, max: i32) {
+        self.s.max_hp = max;
+        self.s.hp = hp;
+    }
+    pub fn debug_set_spell_lv(&mut self, lv: i32) {
+        self.s.spell_lv = lv;
+    }
     pub fn debug_dir(&self) -> u8 {
         self.pl.dir
     }

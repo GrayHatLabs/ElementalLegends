@@ -1,6 +1,6 @@
 //! Rendering: the play field, entities, effects, HUD, maps and menus.
 use super::bosses::{draw_flames, draw_ice_block, BState};
-use super::dungeon::{dungeon_name, Obj, OK, R_EAST, R_ENTRY, R_HUB, R_STAIRS, R_WEST, STAIRS_C, STAIRS_R};
+use super::dungeon::{dungeon_name, Obj, OK, R_EAST, R_ENTRY, R_FEAST, R_HUB, R_PANTRY, R_STAIRS, R_WEST, STAIRS_C, STAIRS_R};
 use super::*;
 
 impl Game {
@@ -221,8 +221,74 @@ impl Game {
                 scr.blend(sx, sy, 32, 32, rgb(0xb040fc), a);
             }
         }
+        if d.cur == R_FEAST {
+            self.draw_feast_tables(scr);
+        }
+        if d.cur == R_PANTRY {
+            self.draw_pantry(scr, room);
+        }
         for o in d.objs[d.cur].iter().filter(|o| o.visible) {
             self.draw_obj(scr, o);
+        }
+    }
+    /// Two long banquet tables with plates, goblets and candles (drawn over their decor tiles).
+    fn draw_feast_tables(&self, scr: &mut Screen) {
+        for (ti, row) in [4i32, 8].iter().enumerate() {
+            let ti = ti as i32;
+            let (x0, y0) = (4 * TS, HUD + row * TS);
+            let w = 8 * TS;
+            scr.blend_ellipse(x0 + w / 2, y0 + 15, w / 2, 3, BLACK, 0.35);
+            scr.fill(x0 + 2, y0 + 10, 2, 6, rgb(0x3c2410));
+            scr.fill(x0 + w - 4, y0 + 10, 2, 6, rgb(0x3c2410));
+            scr.fill(x0, y0 + 2, w, 9, rgb(0x8c5020));
+            scr.fill(x0, y0 + 2, w, 1, rgb(0xb87838));
+            scr.fill(x0, y0 + 10, w, 1, rgb(0x5c3410));
+            scr.fill(x0 + 1, y0 + 4, w - 2, 1, rgb(0xa86030));
+            for i in 0..8 {
+                let px = x0 + 8 + i * TS;
+                scr.disc(px, y0 + 6, 3, rgb(0xd8d8c8));
+                scr.disc(px, y0 + 6, 2, WHITE);
+                let dish = match (i + ti * 3) % 4 {
+                    0 => &self.spr.meat.img,
+                    1 => &self.spr.bread.img,
+                    2 => &self.spr.apple.img,
+                    _ => &self.spr.potion.img,
+                };
+                if (i + ti) % 2 == 0 {
+                    scr.spr(dish, px as f32, (y0 + 4) as f32, false);
+                } else {
+                    scr.fill(px - 1, y0 + 2, 3, 5, rgb(0xfcbc3c));
+                    scr.fill(px - 2, y0 + 1, 5, 1, rgb(0xfce040));
+                }
+            }
+            for &cx in &[x0 + 4, x0 + w - 5] {
+                scr.fill(cx, y0 - 3, 2, 6, rgb(0xf8f0d8));
+                let c = if (self.frame / 5 + cx as u64) % 2 == 0 { rgb(0xfce040) } else { rgb(0xfc9838) };
+                scr.fill(cx, y0 - 6, 2, 3, c);
+                scr.blend_disc(cx + 1, y0 - 5, 6, rgb(0xfc9838), 0.18);
+            }
+        }
+    }
+    /// Barrels and sacks on the pantry's decor tiles.
+    fn draw_pantry(&self, scr: &mut Screen, room: &Room) {
+        for r in 0..RR {
+            for c in 0..RC {
+                if room.tiles[r][c] != T_DECOR {
+                    continue;
+                }
+                let (x, y) = (c as i32 * TS + 8, HUD + r as i32 * TS + 8);
+                if (c + r) % 3 == 0 {
+                    scr.disc(x, y + 2, 6, rgb(0xc8b080));
+                    scr.disc(x - 2, y, 3, rgb(0xe0d0a0));
+                    scr.fill(x - 2, y - 6, 4, 3, rgb(0xa08858));
+                } else {
+                    scr.fill(x - 6, y - 7, 12, 15, rgb(0x8c5020));
+                    scr.fill(x - 6, y - 7, 12, 2, rgb(0xb87838));
+                    scr.fill(x - 6, y - 3, 12, 1, rgb(0x404040));
+                    scr.fill(x - 6, y + 4, 12, 1, rgb(0x404040));
+                    scr.fill(x + 3, y - 5, 2, 12, rgb(0x5c3410));
+                }
+            }
         }
     }
     pub(super) fn draw_hero(&self, scr: &mut Screen, ox: f32, oy: f32) {
@@ -703,9 +769,13 @@ impl Game {
         let (cw, ch) = (48, 30);
         let (ox, oy) = (128 - cw * 3 / 2, HUD + 26);
         let col = self.themes[dungeon::dungeon_theme(d.n)].map_col;
-        let labels = ["ENTRY", "HALL", "WEST", "EAST", "STAIRS"];
+        let labels = ["ENTRY", "HALL", "WEST", "EAST", "STAIRS", "FEAST", "FOOD"];
         for (i, r) in d.rooms.iter().enumerate() {
             let (x, y) = (ox + r.x as i32 * cw, oy + r.y as i32 * ch);
+            // The pantry stays off the map until it's found.
+            if !d.has[i] || (i == R_PANTRY && !r.visited) {
+                continue;
+            }
             if !r.visited {
                 scr.frame_rect(x + 4, y + 4, cw - 8, ch - 8, rgb(0x303030));
                 continue;
@@ -732,7 +802,13 @@ impl Game {
         scr.fill(ox + cw * 2 - 4, oy + ch + ch / 2 - 1, 8, 3, col);
         scr.fill(hub.0 - 1, oy + ch * 2 - 4, 3, 8, col);
         let _ = (R_ENTRY, R_HUB);
-        let y = oy + ch * 3 + 8;
+        if d.has[R_FEAST] {
+            scr.fill(ox + cw - 4, oy + ch * 2 + ch / 2 - 1, 8, 3, col);
+        }
+        if d.has[R_PANTRY] && d.rooms[R_PANTRY].visited {
+            scr.fill(ox + cw * 2 - 4, oy + ch * 2 + ch / 2 - 1, 8, 3, col);
+        }
+        let y = oy + ch * 3 + 4;
         scr.text(&format!("KEYS: {}", self.dungeon_keys()), 128, y, rgb(0xfcbc3c), Align::Center, 8);
         let goal = if prog & dungeon::D_EAST == 0 {
             "BREAK THE SEAL IN THE EAST"

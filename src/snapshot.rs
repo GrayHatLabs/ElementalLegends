@@ -253,7 +253,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.g.debug_set_element(0);
     t.g.debug_play_room(start, 40.0, 200.0);
     t.frames(5);
-    let id = t.g.debug_spawn(2, 200.0, 200.0, 60.0, true); // skeleton: neutral, holds still
+    let id = t.g.debug_spawn(2, 130.0, 200.0, 60.0, true); // skeleton: neutral, holds still
     t.g.debug_set_player(40.0, 200.0, b'r');
     t.tap(Btn::Fire);
     let mut xs = vec![];
@@ -270,7 +270,7 @@ pub fn run(dir: Option<&str>) -> i32 {
         }
     }
     let travelled = xs.last().copied().unwrap_or(0.0) - xs.first().copied().unwrap_or(0.0);
-    t.check(xs.len() >= 10 && travelled > 60.0, "firebolt visibly travels across the screen before hitting");
+    t.check(xs.len() >= 10 && travelled > 60.0, "firebolt visibly travels before hitting");
     let e = t.g.debug_enemy(id);
     t.check(e.as_ref().map_or(false, |e| e.burn > 0), "a firebolt hit ignites the enemy");
     let hp_hit = e.map_or(0.0, |e| e.hp);
@@ -289,7 +289,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.g.debug_kill_enemies();
     t.frames(40);
     t.g.debug_set_element(1);
-    let id = t.g.debug_spawn(2, 200.0, 200.0, 80.0, true);
+    let id = t.g.debug_spawn(2, 150.0, 200.0, 80.0, true);
     t.g.debug_set_player(60.0, 200.0, b'r');
     t.tap(Btn::Fire);
     t.hold_until(Btn::Mute, 60, move |g| g.debug_enemy(id).map_or(false, |e| e.chill > 0));
@@ -316,6 +316,35 @@ pub fn run(dir: Option<&str>) -> i32 {
         }
     }
     t.check(shards > 6, "the freeze ends with an ice-shatter burst of falling fragments");
+
+    // ---------------------------------------------------------------- bolt range
+    println!("[range] bolt range vs power-ups and health");
+    t.g.debug_kill_enemies();
+    t.frames(40);
+    let measure = |t: &mut T, lv: i32, hp: i32| -> f32 {
+        t.g.debug_set_spell_lv(lv);
+        t.g.debug_set_hp(hp, 40);
+        t.g.debug_set_player(20.0, 150.0, b'r');
+        t.frames(30);
+        t.tap(Btn::Fire);
+        let mut far = 0.0f32;
+        for _ in 0..90 {
+            for (x, _) in t.g.debug_player_bolts() {
+                far = far.max(x - 20.0);
+            }
+            t.frames(1);
+        }
+        far
+    };
+    let short = measure(&mut t, 1, 40);
+    let weak = measure(&mut t, 1, 4);
+    let full = measure(&mut t, 3, 40);
+    println!("  ranges: lv1 full hp {short:.0}px, lv1 low hp {weak:.0}px, lv3 full hp {full:.0}px");
+    t.check(short < 130.0, "without power-ups a bolt does not cross the whole screen");
+    t.check(weak < short * 0.7, "bolts get shorter as the mage's health drops");
+    t.check(full > 200.0, "with the top magic power-up bolts reach across the screen");
+    t.g.debug_set_spell_lv(1);
+    t.g.debug_god();
 
     // ---------------------------------------------------------------- dungeons, puzzles, stairs, bosses
     for n in 1..=6 {
@@ -352,7 +381,7 @@ fn run_dungeon(t: &mut T, n: usize) {
     t.shot(&format!("22_dungeon_entry_{n}"));
     let (hub_combat, west, east) = t.g.debug_puzzles().unwrap();
     println!("  layout: hub combat={hub_combat} west={west} east={east}");
-
+    food_room(t, n);
     t.walk_to(128.0, 60.0, 200);
     { let ok = t.go_room(Btn::Up, R_HUB); t.check(ok, &format!("dungeon {n}: entrance -> hall")); }
     t.frames(4);
@@ -602,4 +631,53 @@ fn boss_fight(t: &mut T, n: usize) {
         t.tap(Btn::Start);
         t.frames(5);
     }
+}
+
+/// Dungeon 1's feast hall (west of the entrance) and the hidden pantries (east, behind cracks).
+fn food_room(t: &mut T, n: usize) {
+    const R_FEAST: usize = 5;
+    const R_PANTRY: usize = 6;
+    t.g.debug_kill_enemies();
+    let (btn, room, back) = if n == 1 { (Btn::Left, R_FEAST, Btn::Right) } else { (Btn::Right, R_PANTRY, Btn::Left) };
+    if n >= 2 {
+        t.check(t.g.debug_tile(15, 6) == 4, &format!("dungeon {n}: a cracked wall hides the pantry doorway"));
+        for _ in 0..4 {
+            if t.g.debug_tile(15, 6) == T_FLOOR {
+                break;
+            }
+            let (x, y) = tc(12, 6);
+            t.fire_from(x, y, b'r');
+        }
+        t.check((5..=7).all(|r| t.g.debug_tile(15, r) == T_FLOOR), &format!("dungeon {n}: breaking the crack opens the whole pantry doorway"));
+    }
+    t.g.debug_set_player(128.0, 136.0, if n == 1 { b'l' } else { b'r' });
+    let ok = t.go_room(btn, room);
+    t.check(ok, &format!("dungeon {n}: reached the {}", if n == 1 { "feast hall" } else { "hidden pantry" }));
+    t.frames(4);
+    let stock = t.g.debug_larder_items();
+    t.check(stock >= if n == 1 { 8 } else { 4 }, &format!("dungeon {n}: the food room is stocked ({stock} items)"));
+    t.check(t.g.debug_enemy_count() == 0, &format!("dungeon {n}: the food room is a safe room"));
+    t.check(t.g.debug_tile(7, 0) == 1 && t.g.debug_tile(7, 12) == 1, &format!("dungeon {n}: the food room only connects to the entrance hall"));
+    t.shot(&format!("{}_{n}", if n == 1 { "40_feast_hall" } else { "41_pantry" }));
+    // Eat one thing, leave, come back: the rest should still be there.
+    t.g.debug_set_food(10.0);
+    let (fx, fy) = if n == 1 { tc(4, 6) } else { tc(6, 5) };
+    t.g.debug_set_player(fx + 16.0, fy, b'l');
+    t.walk_to(fx, fy, 60);
+    t.frames(2);
+    t.check(t.g.debug_food() > 30.0, &format!("dungeon {n}: eating the food fills the food bar"));
+    let left = t.g.debug_larder_items();
+    // Leave along a row with no food on it.
+    let (exit_x, exit_y) = if n == 1 { (200.0, 120.0) } else { (56.0, 136.0) };
+    t.g.debug_set_player(exit_x, exit_y, b'u');
+    let ok = t.go_room(back, R_ENTRY);
+    t.check(ok, &format!("dungeon {n}: back to the entrance"));
+    t.g.debug_set_player(128.0, 136.0, b'u');
+    t.go_room(btn, room);
+    t.frames(2);
+    t.check(t.g.debug_larder_items() == left, &format!("dungeon {n}: uneaten food is still there when you return"));
+    t.g.debug_set_player(exit_x, exit_y, b'u');
+    t.go_room(back, R_ENTRY);
+    t.g.debug_god();
+    t.g.debug_set_player(128.0, 150.0, b'u');
 }

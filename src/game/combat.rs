@@ -127,9 +127,21 @@ impl Game {
     }
 
     // ------------------------------------------------------------ casting
+    /// How far a bolt flies: magic power-ups extend it (full screen at level 3),
+    /// and it shrinks as the mage's health runs low (down to about half).
+    pub(super) fn bolt_range(&self) -> f32 {
+        let base = match self.s.spell_lv {
+            1 => 110.0,
+            2 => 165.0,
+            _ => 250.0,
+        };
+        let health = (self.s.hp.max(0) as f32 / self.s.max_hp.max(1) as f32).clamp(0.0, 1.0);
+        base * (0.45 + 0.55 * health)
+    }
     pub(super) fn cast_bolt(&mut self) {
         let el = self.el();
-        let (spd, dmg, r, cd, life) = bolt_stats(el);
+        let (spd, dmg, r, cd, _) = bolt_stats(el);
+        let life = ((self.bolt_range() / spd).round() as i32).max(8);
         let p = self.pl;
         let a = p.fy.atan2(p.fx);
         let spread: &[f32] = match self.s.spell_lv {
