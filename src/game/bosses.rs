@@ -72,10 +72,10 @@ pub(super) struct Hazard {
     pub track: bool,
 }
 impl Hazard {
-    fn circle(k: HK, x: f32, y: f32, r: f32, warn: i32, act: i32, dmg: i32) -> Self {
+    pub(super) fn circle(k: HK, x: f32, y: f32, r: f32, warn: i32, act: i32, dmg: i32) -> Self {
         Hazard { k, x, y, r, w: 0.0, h: 0.0, vx: 0.0, warn, warn_max: warn.max(1), act, dmg, track: false }
     }
-    fn hits(&self, px: f32, py: f32) -> bool {
+    pub(super) fn hits(&self, px: f32, py: f32) -> bool {
         if self.w > 0.0 {
             hit(self.x, self.y, self.w, self.h, px, py, 8.0, 10.0)
         } else {
@@ -1051,9 +1051,19 @@ impl Game {
 
     // ============================================================ drawing
     pub(super) fn draw_hazards(&self, scr: &mut Screen) {
-        let Some(b) = &self.boss else { return };
+        if let Some(b) = &self.boss {
+            self.draw_hazard_list(scr, &b.hazards, b.el);
+        }
+        self.draw_hazard_list(scr, &self.hazards, Elem::Earth);
+    }
+    /// Ground danger zones (bosses and overworld encounters share the look).
+    pub(super) fn draw_hazard_list(&self, scr: &mut Screen, list: &[Hazard], el: Elem) {
+        struct Tint {
+            el: Elem,
+        }
+        let b = Tint { el };
         let blink = (self.frame >> 2) & 1 == 1;
-        for h in &b.hazards {
+        for h in list {
             let (x, y, r) = (h.x as i32, h.y as i32, h.r as i32);
             if h.warn > 0 {
                 let p = 1.0 - h.warn as f32 / h.warn_max as f32;

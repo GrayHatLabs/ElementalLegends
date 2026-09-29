@@ -89,14 +89,52 @@ pub struct Room {
     pub chest: Option<(f32, f32, u8, i32)>,
     /// Element index of an orb shrine in the centre of the room.
     pub shrine: Option<usize>,
+    /// Overworld mini-boss living on this screen (MINI_*), 0 for none.
+    pub mini: u8,
+    /// Deceiving Dryad: the door leading to her poison-pool screen.
+    pub mini_dir: usize,
+    /// Fruit trees (tile positions) and which of them is a disguised treant.
+    pub trees: Vec<(i32, i32)>,
+    pub treant: Option<usize>,
+    /// Graveyard tombstones.
+    pub graves: Vec<(i32, i32)>,
+    /// Poison pool (top-left tile of a 4x2 pool).
+    pub pool: Option<(i32, i32)>,
+    fruit: bool,
 }
+
+/// Overworld mini-boss ids (also their save-flag bit numbers).
+pub const MINI_HOARD: u8 = 1;
+pub const MINI_DRYAD: u8 = 2;
+pub const MINI_TREANT: u8 = 3;
+pub const MINI_GRAVE: u8 = 4;
+/// The poison pool is 4 tiles wide and 2 tall.
+pub const POOL_W: i32 = 4;
+pub const POOL_H: i32 = 2;
 
 impl Room {
     pub fn new(i: usize, x: usize, y: usize, seed: u32) -> Self {
         Room {
             i, x, y, doors: [false; 4], visited: false, gate: 0, tank: false, cache: false, dist: -1, theme: 0, seed,
-            special: SP_NONE, tiles: [[0; RC]; RR], img: Sprite::new(1, 1), chest: None, shrine: None,
+            special: SP_NONE, tiles: [[0; RC]; RR], img: Sprite::new(1, 1), chest: None, shrine: None, mini: 0,
+            mini_dir: 0, trees: vec![], treant: None, graves: vec![], pool: None, fruit: false,
         }
+    }
+    /// A plain screen with nothing else assigned to it.
+    fn free(&self, start: usize, shop: usize) -> bool {
+        self.i != start
+            && self.i != shop
+            && self.gate == 0
+            && !self.tank
+            && !self.cache
+            && self.special == SP_NONE
+            && self.mini == 0
+            && self.pool.is_none()
+            && !self.fruit
+    }
+    /// Screens whose layout must stay clear (no random obstacles, chests or shrines).
+    fn clean(&self) -> bool {
+        matches!(self.mini, MINI_HOARD | MINI_DRYAD | MINI_GRAVE) || self.pool.is_some()
     }
     /// Border walls with the standard door gaps for each open side.
     pub fn frame(&mut self) {
@@ -231,10 +269,68 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
             rooms[i].cache = true;
         }
     }
+    assign_minis(&mut rooms, start, shop);
     for r in rooms.iter_mut() {
         build_room(r, themes);
     }
     (rooms, start, shop)
+}
+
+/// Fixed screens for the overworld mini-boss encounters (deterministic per world).
+fn assign_minis(rooms: &mut [Room], start: usize, shop: usize) {
+    let by_seed = |rooms: &[Room], ok: &dyn Fn(&Room) -> bool| -> Vec<usize> {
+        let mut v: Vec<usize> = rooms.iter().filter(|r| ok(r)).map(|r| r.i).collect();
+        v.sort_by_key(|&i| rooms[i].seed);
+        v
+    };
+    // Hoard Dragon: the farthest dead-end treasure screen (it replaces that hoard).
+    let hoard = rooms
+        .iter()
+        .filter(|r| r.cache)
+        .max_by_key(|r| r.dist)
+        .map(|r| r.i)
+        .or_else(|| by_seed(rooms, &|r| r.free(start, shop)).last().copied());
+    if let Some(i) = hoard {
+        rooms[i].cache = false;
+        rooms[i].mini = MINI_HOARD;
+    }
+    // Deceiving Dryad: a Greenwood screen next to another plain screen that holds her poison pool.
+    'dryad: for pass in 0..2 {
+        for a in by_seed(rooms, &|r| r.free(start, shop) && (pass == 1 || r.theme == 0)) {
+            for d in [0usize, 2, 3, 1] {
+                if !rooms[a].doors[d] {
+                    continue;
+                }
+                let (x, y) = (rooms[a].x as i32 + DIRS[d].0, rooms[a].y as i32 + DIRS[d].1);
+                let Some(b) = at(x, y) else { continue };
+                if rooms[b].free(start, shop) {
+                    rooms[a].mini = MINI_DRYAD;
+                    rooms[a].mini_dir = d;
+                    rooms[b].pool = Some((6, 5));
+                    break 'dryad;
+                }
+            }
+        }
+    }
+    // Graveyard: an Old Crypt screen.
+    let grave = by_seed(rooms, &|r| r.free(start, shop) && r.theme == 1)
+        .first()
+        .copied()
+        .or_else(|| by_seed(rooms, &|r| r.free(start, shop)).first().copied());
+    if let Some(i) = grave {
+        rooms[i].mini = MINI_GRAVE;
+    }
+    // Fruit trees on three Greenwood screens; one of them hides the treant.
+    let mut fruit = by_seed(rooms, &|r| r.free(start, shop) && r.theme == 0);
+    if fruit.len() < 3 {
+        fruit.extend(by_seed(rooms, &|r| r.free(start, shop) && r.theme != 0));
+    }
+    for (k, &i) in fruit.iter().take(3).enumerate() {
+        rooms[i].fruit = true;
+        if k == 0 {
+            rooms[i].mini = MINI_TREANT;
+        }
+    }
 }
 
 fn build_room(r: &mut Room, themes: &[Theme]) {
@@ -263,13 +359,36 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
         _ => {
             let pat = QPATS[(rng.f() * QPATS.len() as f64) as usize];
             let diag = rng.f() < 0.3;
-            for &(c, y) in pat.iter() {
+            let clean = r.clean();
+            for &(c, y) in pat.iter().filter(|_| !clean) {
                 let (mc, my) = (RC - 1 - c, RR - 1 - y);
                 r.tiles[y][c] = T_WALL;
                 r.tiles[my][mc] = T_WALL;
                 if !diag {
                     r.tiles[y][mc] = T_WALL;
                     r.tiles[my][c] = T_WALL;
+                }
+            }
+            if r.mini == MINI_GRAVE {
+                for &(c, y) in &[(3, 3), (5, 3), (10, 3), (12, 3), (3, 9), (5, 9), (10, 9), (12, 9)] {
+                    r.tiles[y][c] = T_DECOR;
+                    r.graves.push((c as i32, y as i32));
+                }
+            }
+            if r.fruit {
+                let spots = [(3, 2), (12, 2), (3, 10), (12, 10), (5, 9), (10, 3), (2, 6), (13, 6)];
+                let want = if r.mini == MINI_TREANT { 3 } else { 2 };
+                for &(c, y) in spots.iter() {
+                    if r.trees.len() >= want {
+                        break;
+                    }
+                    if r.tiles[y][c] == T_FLOOR {
+                        r.tiles[y][c] = T_DECOR;
+                        r.trees.push((c as i32, y as i32));
+                    }
+                }
+                if r.mini == MINI_TREANT && !r.trees.is_empty() {
+                    r.treant = Some(r.trees.len() - 1);
                 }
             }
             if r.gate > 0 {
@@ -280,7 +399,7 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
                     }
                 }
             }
-            if rng.f() < 0.35 {
+            if rng.f() < 0.35 && !clean {
                 for _ in 0..30 {
                     let c = 1 + (rng.f() * 14.0) as usize;
                     let y = 1 + (rng.f() * 11.0) as usize;
@@ -303,7 +422,7 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
                     break;
                 }
             }
-            if r.gate == 0 && !r.tank && !r.cache && rng.f() < 0.14 {
+            if r.gate == 0 && !r.tank && !r.cache && !clean && r.mini == 0 && rng.f() < 0.14 {
                 r.shrine = Some((rng.f() * 4.0) as usize);
             }
         }

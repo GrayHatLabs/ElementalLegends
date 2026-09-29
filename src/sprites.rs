@@ -24,6 +24,10 @@ pub fn pal(ch: char) -> u32 {
         'd' => 0xa85020,
         'm' => 0xf878f8,
         'p' => 0x9818a8,
+        'z' => 0x7c9c6c,
+        'Z' => 0x4c6c44,
+        'q' => 0x5c4c3c,
+        'D' => 0x5c3410,
         _ => 0xff00ff,
     })
 }
@@ -43,6 +47,8 @@ pub struct Spr {
     #[allow(dead_code)]
     pub ice: Sprite,
     pub frost: Sprite,
+    /// Poisoned (green) tint.
+    pub sick: Sprite,
 }
 
 /// Perceived brightness, 0..2550.
@@ -124,6 +130,7 @@ pub fn spr_with(rows: &[&str], p: impl Fn(char) -> u32) -> Spr {
         white: map(&|_| WHITE),
         ice: map(&|c| if is_line(c) { rgb(0x2c78c8) } else { mix(rgb(0xc4ecfc), c, 0.15) }),
         frost: map(&|c| mix(c, rgb(0xa4e4fc), 0.45)),
+        sick: map(&|c| mix(c, rgb(0x48d848), 0.42)),
         img,
     }
 }
@@ -223,6 +230,11 @@ pub struct Sprites {
     pub big_heart: Spr,
     pub hoard: Spr,
     pub key: Spr,
+    pub zombie: Spr,
+    pub dryad_friend: Spr,
+    pub dryad_true: Spr,
+    pub golden_apple: Spr,
+    pub antidote: Spr,
 }
 
 impl Sprites {
@@ -388,6 +400,53 @@ impl Sprites {
                 "....kyk.",
                 ".....k..",
             ]),
+            zombie: spr(&[
+                "....kkkk....",
+                "...kzzzzk...",
+                "..kzkzzkzk..",
+                "..kzzzzzzk..",
+                "...kzZZzk...",
+                "kkkkqqqqkkkk",
+                "zzzkqqqqkzzz",
+                "kkkkqqqqk.kk",
+                "...kqqqqk...",
+                "...kqkkqk...",
+                "...kzk.kzk..",
+                "...kzk..kzk.",
+                "...kk....kk.",
+            ]),
+            dryad_friend: spr(&[
+                "....kkkk....",
+                "...kddddk...",
+                "..kddssddk..",
+                "..kdskkskd..",
+                "..kdssssdk..",
+                "...kksskk...",
+                "..keeeeeek..",
+                ".kseeeeeesk.",
+                ".k.keeeek.k.",
+                "...keeeek...",
+                "..keeeeeek..",
+                "..keeeeeek..",
+                "...kk..kk...",
+            ]),
+            dryad_true: spr(&[
+                ".e.l.ee.l.e.",
+                "eleellleelle",
+                ".keeeeeeek..",
+                ".kDyDDDyDk..",
+                ".kDDkkkDDk..",
+                "k.kDDDDDk.k.",
+                "kDkDDlDDkDk.",
+                ".kDDDlDDDk..",
+                "..kDDlDDk...",
+                "..kDDDDDk...",
+                ".kDDkDkDDk..",
+                "kDk.kDk.kDk.",
+                "k...k.k...k.",
+            ]),
+            golden_apple: spr(&["...e...", "..ke...", ".yykyy.", "ywyyyyy", "yyyyyyo", ".yyyyo.", "..y.y.."]),
+            antidote: spr(&["..kkk..", "...k...", "..kwk..", ".kewek.", "keeeeek", "kelleek", "keeeeek", ".kkkkk."]),
         }
     }
 }

@@ -4,6 +4,114 @@ use super::bosses::BState;
 use super::dungeon::OK;
 use super::*;
 
+/// A snapshot of one creature for the encounter tests.
+pub struct DebugMob {
+    pub id: u32,
+    pub kind: String,
+    pub x: f32,
+    pub y: f32,
+    pub mode: u8,
+    pub hp: f32,
+    pub active: bool,
+}
+
+impl Game {
+    /// Room holding encounter `id` (1 hoard, 2 dryad, 3 treant, 4 graveyard).
+    pub fn debug_mini_room(&self, id: u8) -> Option<usize> {
+        self.rooms.iter().position(|r| r.mini == id)
+    }
+    /// The dryad's poison-pool screen and the door that leads there from her screen.
+    pub fn debug_pool_room(&self) -> Option<(usize, usize)> {
+        let pool = self.rooms.iter().position(|r| r.pool.is_some())?;
+        let a = self.debug_mini_room(2)?;
+        Some((pool, self.rooms[a].mini_dir))
+    }
+    pub fn debug_fruit_rooms(&self) -> Vec<usize> {
+        let mut v: Vec<usize> = self.fruit.iter().map(|f| f.room).collect();
+        v.dedup();
+        v
+    }
+    /// (col, row, fruit left, regrow timer, is the treant) for trees on this screen.
+    pub fn debug_trees(&self) -> Vec<(i32, i32, i32, i32, bool)> {
+        self.fruit.iter().filter(|f| f.room == self.room).map(|f| (f.c, f.r, f.fruit, f.regrow, f.treant)).collect()
+    }
+    pub fn debug_regrow_now(&mut self) {
+        for f in self.fruit.iter_mut() {
+            if f.regrow > 0 {
+                f.regrow = 1;
+            }
+        }
+    }
+    pub fn debug_graves(&self) -> Vec<(i32, i32)> {
+        self.rooms[self.room].graves.clone()
+    }
+    pub fn debug_mini_done(&self, id: u8) -> bool {
+        self.s.mini_done(id)
+    }
+    pub fn debug_mini_seen(&self, id: u8) -> bool {
+        self.s.mini_seen & (1 << id) != 0
+    }
+    pub fn debug_mobs(&self) -> Vec<DebugMob> {
+        self.enemies
+            .iter()
+            .filter(|e| !e.dead)
+            .map(|e| DebugMob { id: e.id, kind: format!("{:?}", e.k), x: e.x, y: e.y, mode: e.mode, hp: e.hp, active: e.active() })
+            .collect()
+    }
+    pub fn debug_mob(&self, kind: &str) -> Option<DebugMob> {
+        self.debug_mobs().into_iter().find(|m| m.kind == kind)
+    }
+    /// Hit a creature through the normal damage path (weaknesses, reactions, rewards).
+    pub fn debug_hit(&mut self, id: u32, dmg: f32, el: usize) {
+        let mut en = std::mem::take(&mut self.enemies);
+        for e in en.iter_mut().filter(|e| e.id == id) {
+            self.damage_enemy(e, dmg, Elem::from_idx(el));
+        }
+        en.append(&mut self.enemies);
+        self.enemies = en;
+    }
+    /// (kind, x, y, is a hoard coin)
+    pub fn debug_items(&self) -> Vec<(String, f32, f32, bool)> {
+        self.items.iter().filter(|i| !i.dead).map(|i| (format!("{:?}", i.kind), i.x, i.y, i.tag == ITEM_HOARD)).collect()
+    }
+    pub fn debug_hoard_left(&self) -> i32 {
+        self.s.hoard_left
+    }
+    pub fn debug_hoard_anger(&self) -> f32 {
+        self.hoard_anger
+    }
+    pub fn debug_zombies(&self) -> i32 {
+        self.s.zombies
+    }
+    pub fn debug_poison(&self) -> i32 {
+        self.poison
+    }
+    pub fn debug_set_poison(&mut self, f: i32) {
+        self.poison = f;
+    }
+    pub fn debug_antidotes(&self) -> i32 {
+        self.s.antidotes
+    }
+    pub fn debug_set_antidotes(&mut self, n: i32) {
+        self.s.antidotes = n;
+    }
+    pub fn debug_dryad_stage(&self) -> u8 {
+        self.dryad_stage
+    }
+    pub fn debug_max(&self) -> (i32, i32) {
+        (self.s.max_hp, self.s.max_mp)
+    }
+    pub fn debug_hazards(&self) -> usize {
+        self.hazards.len()
+    }
+    pub fn debug_wilt_marks(&self) -> usize {
+        self.parts.iter().filter(|p| matches!(p.kind, PK::Dot) && p.max == 420).count()
+    }
+    pub fn debug_paused(&self) -> bool {
+        self.paused
+    }
+}
+
 pub struct DebugEnemy {
     pub hp: f32,
     pub burn: i32,

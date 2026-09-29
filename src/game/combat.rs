@@ -200,7 +200,7 @@ impl Game {
             Elem::Ice => {
                 let mut en = std::mem::take(&mut self.enemies);
                 for e in en.iter_mut() {
-                    if !e.dead && e.spawn <= 0 {
+                    if !e.dead && e.active() {
                         self.damage_enemy(e, 2.0, el);
                         if !e.dead {
                             e.st.freeze_now(FREEZE_TIME);
@@ -229,7 +229,7 @@ impl Game {
                     let mut best: Option<usize> = None;
                     let mut bd = range;
                     for (i, e) in en.iter().enumerate() {
-                        if e.dead || e.spawn > 0 || hitlist.contains(&e.id) {
+                        if e.dead || !e.active() || hitlist.contains(&e.id) {
                             continue;
                         }
                         let d = dist(cx, cy, e.x, e.y);
@@ -252,13 +252,15 @@ impl Game {
                     self.part(px, py, 0.0, 0.0, 12, el.light(), 1, PK::Line(bx, by));
                     self.boss_hit(5.0, el, px, py, 0.0, 0.0);
                 }
+                // Chain Bolt also leaps into nearby graves and raises the dead.
+                self.chain_graves(px, py);
                 self.flash = 4;
                 self.sfx(Sfx::Zap);
             }
             _ => {
                 let mut en = std::mem::take(&mut self.enemies);
                 for e in en.iter_mut() {
-                    if !e.dead && e.spawn <= 0 {
+                    if !e.dead && e.active() {
                         if e.st.break_freeze() {
                             let (x, y, w, h) = (e.x, e.y, e.w, e.h);
                             self.shatter(x, y, w, h);
@@ -288,7 +290,11 @@ impl Game {
         if e.dead {
             return;
         }
-        let m = mult(el, e.el);
+        // Encounter creatures may react instead of taking damage (the Hoard Dragon can't be hurt).
+        if !self.mini_hit(e, el) {
+            return;
+        }
+        let m = enemy_mult(e, el);
         e.hp -= dmg * m;
         e.flash = 5;
         if e.tip <= 0 && m != 1.0 {
@@ -316,10 +322,16 @@ impl Game {
         }
         self.sfx(Sfx::Boom);
         self.drop_from(e);
+        if e.mini != 0 {
+            self.mini_defeated(e);
+        }
     }
     /// Burn damage-over-time tick: fire multipliers apply, but no knockback or hit sound.
     fn burn_tick(&mut self, e: &mut Enemy, dmg: f32) {
-        e.hp -= dmg * mult(Elem::Fire, e.el);
+        if e.k == EK::HoardDragon {
+            return;
+        }
+        e.hp -= dmg * enemy_mult(e, Elem::Fire);
         e.flash = e.flash.max(2);
         self.embers(e.x, e.y - e.h / 2.0, 3, 0.8);
         if e.hp <= 0.0 && !e.dead {
@@ -419,7 +431,7 @@ impl Game {
         self.impact(b.x, b.y, b.el);
         if b.el == Elem::Fire {
             for e in en.iter_mut() {
-                if !e.dead && e.spawn <= 0 && dist(b.x, b.y, e.x, e.y) < 16.0 {
+                if !e.dead && e.active() && dist(b.x, b.y, e.x, e.y) < 16.0 {
                     self.damage_enemy(e, 0.5, Elem::Fire);
                 }
             }
@@ -448,12 +460,13 @@ impl Game {
             if self.shot_blocked(b.x, b.y) {
                 b.dead = true;
                 self.dungeon_bolt_hit(c, r, b.el);
+                self.world_bolt_hit(c, r, b.el);
                 self.bolt_impact(b, &mut en);
                 continue;
             }
             for i in 0..en.len() {
                 let e = &en[i];
-                if e.dead || e.spawn > 0 || !hit(b.x, b.y, b.r * 2.0, b.r * 2.0, e.x, e.y, e.w, e.h) {
+                if e.dead || !e.active() || !hit(b.x, b.y, b.r * 2.0, b.r * 2.0, e.x, e.y, e.w, e.h) {
                     continue;
                 }
                 if let Some(pl) = b.pierce.as_mut() {
@@ -659,6 +672,7 @@ impl Game {
                 e.vy = a.sin() * e.spd;
                 self.move_box(&mut e.x, &mut e.y, e.w, e.h, e.vx * f, e.vy * f);
             }
+            EK::HoardDragon | EK::Dryad | EK::Treant | EK::Zombie | EK::GraveLord => self.upd_mini_enemy(e, f),
             EK::Generator => {
                 let alive = counts.iter().find(|c| c.0 == e.id).map_or(0, |c| c.1);
                 if e.t % e.rate == 0 && alive < 4 && self.in_lair == 0 {
@@ -693,7 +707,7 @@ impl Game {
             self.upd_enemy(e, &counts);
             let p = self.pl;
             // Frozen enemies are harmless blocks of ice.
-            if !e.dead && e.spawn <= 0 && !e.st.frozen() && hit(e.x, e.y, e.w, e.h, p.x, p.y, p.w, p.h) {
+            if !e.dead && e.active() && e.touch > 0 && !e.st.frozen() && hit(e.x, e.y, e.w, e.h, p.x, p.y, p.w, p.h) {
                 self.hurt(e.touch);
             }
         }

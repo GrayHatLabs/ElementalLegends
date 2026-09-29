@@ -20,11 +20,13 @@ mod combat;
 mod debug;
 mod draw;
 mod dungeon;
+mod minis;
 mod scenes;
 mod status;
 
 use bosses::Boss;
 use dungeon::Dungeon;
+use minis::enemy_mult;
 use status::Status;
 
 pub const GATE_X: f32 = 128.0;
@@ -240,6 +242,12 @@ enum EK {
     Ghost,
     Golem,
     Generator,
+    // Overworld mini-bosses and their minions (see minis.rs).
+    HoardDragon,
+    Dryad,
+    Treant,
+    Zombie,
+    GraveLord,
 }
 const POOLS: [&[EK]; 4] = [
     &[EK::Slime, EK::Slime, EK::Bat, EK::Skeleton],
@@ -274,6 +282,17 @@ struct Enemy {
     kbx: f32,
     kby: f32,
     tip: i32,
+    /// Overworld mini-boss id (world::MINI_*), 0 for ordinary monsters.
+    mini: u8,
+    /// Mini-boss behaviour state (asleep / friendly / revealed / flying off...).
+    mode: u8,
+    timer: i32,
+}
+impl Enemy {
+    /// Fully spawned in: can be hit. (Disguised or sleeping encounters use touch = 0 so they don't hurt.)
+    fn active(&self) -> bool {
+        self.spawn <= 0
+    }
 }
 
 /// Enemy projectile looks.
@@ -285,6 +304,10 @@ enum Shot {
     Boulder,
     Dark,
     Wave,
+    /// A thrown apple (angry treant).
+    Apple,
+    /// Dryad thorns.
+    Thorn,
 }
 
 struct Bullet {
@@ -312,6 +335,10 @@ enum IK {
     Potion,
     Heart,
     Orb,
+    /// Full food and full health (the angry treant's reward).
+    GoldenApple,
+    /// Cures poison; carried.
+    Antidote,
 }
 struct Item {
     kind: IK,
@@ -321,7 +348,12 @@ struct Item {
     el: Elem,
     life: i32,
     dead: bool,
+    /// Special pickups: ITEM_HOARD coins belong to the Hoard Dragon's pile.
+    tag: u8,
 }
+const ITEM_HOARD: u8 = 1;
+/// Placed pickups (larders, the hoard) never expire or blink.
+const PLACED_LIFE: i32 = i32::MAX / 2;
 
 enum PK {
     Dot,
@@ -394,6 +426,15 @@ pub struct SaveData {
     dprog: [u8; 7],
     /// Mana potions carried.
     potions: i32,
+    /// Overworld encounters discovered / finished (bit per world::MINI_* id).
+    mini_seen: u32,
+    mini_done: u32,
+    /// Coins left on the Hoard Dragon's pile (-1 = untouched).
+    hoard_left: i32,
+    /// Zombies raised in the graveyard so far (the Grave Lord rises at 6).
+    zombies: i32,
+    /// Antidotes carried.
+    antidotes: i32,
 }
 
 impl SaveData {
@@ -418,17 +459,26 @@ impl SaveData {
             heart_price: 150,
             dprog: [0; 7],
             potions: 1,
+            mini_seen: 0,
+            mini_done: 0,
+            hoard_left: -1,
+            zombies: 0,
+            antidotes: 0,
         }
+    }
+    fn mini_done(&self, id: u8) -> bool {
+        self.mini_done & (1 << id) != 0
     }
     fn to_text(&self) -> String {
         let b = |v: &[bool]| v.iter().map(|x| if *x { "1" } else { "0" }).collect::<Vec<_>>().join(",");
         let l = |v: &[usize]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         let dp = self.dprog.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         format!(
-            "max_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\n",
+            "max_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\n",
             self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
             b(&self.cleared), l(&self.tanks), l(&self.caches), l(&self.opened), l(&self.visited), self.room,
-            self.time, self.heart_price, dp, self.potions
+            self.time, self.heart_price, dp, self.potions, self.mini_seen, self.mini_done, self.hoard_left,
+            self.zombies, self.antidotes
         )
     }
     fn from_text(txt: &str) -> Option<Self> {
@@ -465,6 +515,11 @@ impl SaveData {
                 "time" => s.time = num() as u64,
                 "heart_price" => s.heart_price = num() as i32,
                 "potions" => s.potions = (num() as i32).clamp(0, MAX_POTIONS),
+                "mini_seen" => s.mini_seen = num() as u32,
+                "mini_done" => s.mini_done = num() as u32,
+                "hoard_left" => s.hoard_left = num() as i32,
+                "zombies" => s.zombies = num() as i32,
+                "antidotes" => s.antidotes = (num() as i32).clamp(0, 3),
                 "dprog" => {
                     for (i, x) in v.split(',').enumerate().take(7) {
                         s.dprog[i] = x.trim().parse().unwrap_or(0);
@@ -568,7 +623,16 @@ pub struct Game {
     starve_t: i32,
     hungry_warned: bool,
     starving_warned: bool,
-    shop_armed: [bool; 3],
+    shop_armed: [bool; 4],
+    /// Player statuses: poison frames left (drains HP, green tint).
+    poison: i32,
+    /// Overworld encounter runtime state (see minis.rs).
+    dryad_stage: u8,
+    fruit: Vec<minis::Fruit>,
+    graves_open: Vec<bool>,
+    hazards: Vec<bosses::Hazard>,
+    hoard_anger: f32,
+    mini_hint: bool,
     no_save: bool,
     pub quit: bool,
 }
@@ -630,7 +694,14 @@ impl Game {
             starve_t: 0,
             hungry_warned: false,
             starving_warned: false,
-            shop_armed: [true; 3],
+            shop_armed: [true; 4],
+            poison: 0,
+            dryad_stage: 0,
+            fruit: vec![],
+            graves_open: vec![],
+            hazards: vec![],
+            hoard_anger: 0.0,
+            mini_hint: false,
             no_save: false,
             quit: false,
         };
@@ -678,6 +749,7 @@ impl Game {
                 r.visited = true;
             }
         }
+        self.setup_minis();
     }
     fn el(&self) -> Elem {
         Elem::from_idx(self.s.el)
@@ -915,7 +987,7 @@ impl Game {
         self.pl = Player::at(x, y);
         self.clear_entities();
         self.msg = None;
-        self.shop_armed = [true; 3];
+        self.shop_armed = [true; 4];
         self.enter_room(spawn);
         self.play_song(Some(Song::Field));
     }
@@ -928,6 +1000,8 @@ impl Game {
         if spawn {
             self.spawn_room_enemies();
         }
+        // Encounters appear whenever their screen is entered, even without regular spawns.
+        self.enter_mini_room();
         if r == self.shop_room {
             self.show_msg("MERCHANT: WELCOME, MAGE! STAND ON AN ITEM AND PRESS A TO BUY.");
             if let Some(m) = self.msg.as_mut() {
@@ -949,16 +1023,29 @@ impl Game {
             EK::Ghost => (3.0, 0.55, 12.0, 10.0, 3),
             EK::Golem => (9.0, 0.35, 14.0, 12.0, 4),
             EK::Generator => (8.0, 0.0, 16.0, 12.0, 2),
+            EK::HoardDragon => (9999.0, 0.0, 34.0, 20.0, 3),
+            EK::Dryad => (36.0, 0.7, 10.0, 14.0, 3),
+            EK::Treant => (50.0, 0.3, 22.0, 26.0, 4),
+            EK::Zombie => (10.0, 0.35, 10.0, 13.0, 3),
+            EK::GraveLord => (70.0, 0.45, 16.0, 22.0, 4),
         };
         let th = theme.min(3);
-        let hp = hp + th as f32 * if k == EK::Golem { 2.0 } else if k == EK::Generator { 3.0 } else { 1.0 };
+        let per = match k {
+            EK::Golem => 2.0,
+            EK::Generator => 3.0,
+            EK::Dryad | EK::Treant | EK::GraveLord => 8.0,
+            EK::Zombie => 2.0,
+            EK::HoardDragon => 0.0,
+            _ => 1.0,
+        };
+        let hp = hp + th as f32 * per;
         let el = match k {
             EK::Slime => REGION[th],
             EK::Bat => Elem::Storm,
-            EK::Skeleton | EK::Generator => Elem::Neutral,
+            EK::Skeleton | EK::Generator | EK::Zombie | EK::GraveLord | EK::HoardDragon | EK::Dryad => Elem::Neutral,
             EK::Imp => Elem::Fire,
             EK::Ghost => Elem::Ice,
-            EK::Golem => Elem::Earth,
+            EK::Golem | EK::Treant => Elem::Earth,
         };
         let rate = match k {
             EK::Imp => 110 - th as i32 * 10,
@@ -971,7 +1058,7 @@ impl Game {
         Enemy {
             id, k, el, x, y, w, h, hp, spd: spd + th as f32 * 0.08, touch, t, turn: 0, vx: 0.0, vy: 0.0, flash: 0,
             spawn: 30, rate, lvl: th as i32, dead: false, st: Status::default(), gen_id: 0, kbx: 0.0, kby: 0.0,
-            tip: 0,
+            tip: 0, mini: 0, mode: 0, timer: 0,
         }
     }
     fn free_spot(&mut self, min_d: f32, special: bool) -> Option<(f32, f32)> {
@@ -1043,6 +1130,10 @@ impl Game {
     }
 
     fn update_needs(&mut self) {
+        self.tick_player_status();
+        if self.mode != Mode::Play {
+            return;
+        }
         self.s.food = (self.s.food - 1.0 / 72.0).max(0.0);
         self.s.mp = (self.s.mp + MP_REGEN).min(self.s.max_mp as f32);
         if self.s.food <= 0.0 {
@@ -1167,6 +1258,9 @@ impl Game {
                 return;
             }
         }
+        if self.overworld() {
+            self.overworld_bump(ix, iy, blocked);
+        }
         if self.pl.cd > 0 {
             self.pl.cd -= 1;
         }
@@ -1180,11 +1274,17 @@ impl Game {
             self.cast_spell();
         }
         if self.p(Btn::Potion) {
-            self.drink_potion();
+            // The same button cures poison first when you carry an antidote.
+            if self.poison > 0 && self.s.antidotes > 0 {
+                self.use_antidote();
+            } else {
+                self.drink_potion();
+            }
         }
         self.update_pbullets();
         self.update_enemies();
         self.update_boss();
+        self.update_minis();
         self.update_ebullets();
         self.update_items();
         self.update_parts();
@@ -1233,9 +1333,13 @@ impl Game {
 
     // ------------------------------------------------------------ items
     fn add_item(&mut self, kind: IK, x: f32, y: f32, val: i32, el: Elem) {
-        self.items.push(Item { kind, x, y, val, el, life: 600, dead: false });
+        self.items.push(Item { kind, x, y, val, el, life: 600, dead: false, tag: 0 });
     }
     fn drop_from(&mut self, e: &Enemy) {
+        // Encounter bosses hand out their own rewards (minis.rs).
+        if e.mini != 0 {
+            return;
+        }
         let th = e.lvl;
         if e.k == EK::Generator {
             for _ in 0..3 {
@@ -1257,6 +1361,8 @@ impl Game {
             self.add_item(IK::Potion, e.x, e.y, 0, Elem::Neutral);
         } else if r < 0.47 {
             self.add_item(IK::Heart, e.x, e.y, 0, Elem::Neutral);
+        } else if r < 0.49 {
+            self.add_item(IK::Antidote, e.x, e.y, 0, Elem::Neutral);
         }
         if e.el != Elem::Neutral && self.rng.f() < 0.05 {
             self.add_item(IK::Orb, e.x + 6.0, e.y, 0, e.el);
@@ -1305,6 +1411,25 @@ impl Game {
                 self.s.gold = (self.s.gold + it.val).min(9999);
                 self.float(format!("+{}", it.val), x - 8.0, y - 18.0, rgb(0xfcbc3c));
                 self.sfx(Sfx::Coin);
+                if it.tag == ITEM_HOARD {
+                    self.hoard_coin_taken();
+                }
+            }
+            IK::GoldenApple => {
+                self.s.food = 100.0;
+                self.s.hp = self.s.max_hp;
+                self.float("GOLDEN APPLE!", x - 52.0, y - 18.0, rgb(0xfce040));
+                self.part(x, y, 0.0, 0.0, 18, rgb(0xfce040), 1, PK::Glow(16.0));
+                self.sfx(Sfx::Fanfare);
+            }
+            IK::Antidote => {
+                if self.s.antidotes < 3 {
+                    self.s.antidotes += 1;
+                    self.float(format!("ANTIDOTE {}/3", self.s.antidotes), x - 44.0, y - 18.0, rgb(0x58d854));
+                } else if self.poison > 0 {
+                    self.cure_poison();
+                }
+                self.sfx(Sfx::Pickup);
             }
             IK::Gem => {
                 self.s.gold = (self.s.gold + 100).min(9999);
@@ -1464,14 +1589,18 @@ impl Game {
     fn on_pedestal(&self) -> bool {
         self.overworld()
             && self.room == self.shop_room
-            && (0..3).any(|i| (self.pl.x - Self::shop_x(i)).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0)
+            && (0..4).any(|i| (self.pl.x - Self::shop_x(i)).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0)
     }
+    /// Shop pedestals: roast, mana potion, antidote, heart container.
     fn shop_x(i: usize) -> f32 {
-        80.0 + i as f32 * 48.0
+        56.0 + i as f32 * 48.0
+    }
+    fn shop_prices(&self) -> [i32; 4] {
+        [15, 25, 20, self.s.heart_price]
     }
     fn shop(&mut self) {
-        let prices = [15, 25, self.s.heart_price];
-        for i in 0..3 {
+        let prices = self.shop_prices();
+        for i in 0..4 {
             let x = Self::shop_x(i);
             let near = (self.pl.x - x).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0;
             if !near {
@@ -1480,7 +1609,7 @@ impl Game {
             }
             if self.shop_armed[i] {
                 self.shop_armed[i] = false;
-                let what = ["A HEARTY ROAST", "A MANA POTION TO CARRY", "A HEART CONTAINER"][i];
+                let what = ["A HEARTY ROAST", "A MANA POTION TO CARRY", "AN ANTIDOTE FOR POISON", "A HEART CONTAINER"][i];
                 self.show_msg(format!("{} FOR {} GOLD. PRESS A TO BUY.", what, prices[i]));
                 if let Some(m) = self.msg.as_mut() {
                     m.1 = 120;
@@ -1491,6 +1620,11 @@ impl Game {
             }
             if i == 1 && self.s.potions >= MAX_POTIONS {
                 self.show_msg("YOUR PACK CAN'T HOLD ANY MORE POTIONS.");
+                self.sfx(Sfx::Deny);
+                continue;
+            }
+            if i == 2 && self.s.antidotes >= 3 && self.poison <= 0 {
+                self.show_msg("YOU CAN ONLY CARRY THREE ANTIDOTES.");
                 self.sfx(Sfx::Deny);
                 continue;
             }
@@ -1508,6 +1642,15 @@ impl Game {
                 1 => {
                     self.s.potions += 1;
                     self.show_msg(format!("A MANA POTION FOR YOUR PACK ({}/{}). PRESS Y OR C TO DRINK IT.", self.s.potions, MAX_POTIONS));
+                    self.sfx(Sfx::Pickup);
+                }
+                2 => {
+                    if self.poison > 0 && self.s.antidotes >= 3 {
+                        self.cure_poison();
+                    } else {
+                        self.s.antidotes += 1;
+                        self.show_msg(format!("AN ANTIDOTE FOR YOUR PACK ({}/3). IF POISONED, PRESS Y OR C TO DRINK.", self.s.antidotes));
+                    }
                     self.sfx(Sfx::Pickup);
                 }
                 _ => {
@@ -1622,6 +1765,11 @@ mod tests {
         s.dprog[1] = 0b1011;
         s.el = 2;
         s.potions = 4;
+        s.mini_seen = 0b11110;
+        s.mini_done = 0b00100;
+        s.hoard_left = 7;
+        s.zombies = 3;
+        s.antidotes = 2;
         let back = SaveData::from_text(&s.to_text()).expect("parse");
         assert_eq!(back, s);
     }
@@ -1633,6 +1781,8 @@ mod tests {
         assert_eq!(s.gold, 77);
         assert!(s.cleared[1]);
         assert_eq!(s.dprog, [0; 7]);
+        // Saves from before the overworld encounters: nothing discovered or finished yet.
+        assert_eq!((s.mini_seen, s.mini_done, s.hoard_left, s.zombies, s.antidotes), (0, 0, -1, 0, 0));
     }
 
     #[test]

@@ -27,6 +27,7 @@ impl Game {
                     _ => {}
                 }
                 self.draw_hud(scr);
+                self.draw_status_icons(scr);
                 if self.paused {
                     if self.in_lair > 0 {
                         scr.blend(0, HUD, W, H - HUD, BLACK, 0.6);
@@ -119,8 +120,8 @@ impl Game {
             self.draw_cottage(scr, ox, oy);
             let sage = &self.spr.mage_d[4][0];
             scr.spr(&sage.img, 128.0 + ox as f32, HUDF + 58.0 + oy as f32, false);
-            let prices = [15, 25, self.s.heart_price];
-            for i in 0..3 {
+            let prices = self.shop_prices();
+            for i in 0..4 {
                 let px = Self::shop_x(i) as i32 + ox;
                 let py = GATE_Y as i32 + oy;
                 scr.fill(px - 8, py + 4, 16, 5, rgb(0x6c3c10));
@@ -128,12 +129,14 @@ impl Game {
                 let s = match i {
                     0 => &self.spr.meat,
                     1 => &self.spr.potion,
+                    2 => &self.spr.antidote,
                     _ => &self.spr.big_heart,
                 };
                 scr.spr(&s.img, px as f32, py as f32 - 2.0, false);
                 scr.text(&prices[i].to_string(), px + 1, py + 12, rgb(0xfcbc3c), Align::Center, 8);
             }
         }
+        self.draw_mini_room(scr, ri, ox, oy);
     }
     fn draw_obj(&self, scr: &mut Screen, o: &Obj) {
         let (fx, fy) = o.pos();
@@ -309,7 +312,8 @@ impl Game {
         let bob = if frame % 2 == 1 { 1.0 } else { 0.0 };
         let (x, y) = (p.x + ox, p.y + oy - 2.0 - bob);
         scr.blend_ellipse(x as i32, (p.y + oy + 6.0) as i32, 6, 2, BLACK, 0.35);
-        scr.spr(&s.img, x, y, p.dir == b'l');
+        let img = if self.poison > 0 && self.frame % 20 < 14 { &s.sick } else { &s.img };
+        scr.spr(img, x, y, p.dir == b'l');
         if p.cast > 0 {
             let sx = if p.dir == b'l' { x - 6.0 } else { x + 6.0 };
             scr.blend_disc(sx as i32, (y - 3.0) as i32, 4, Elem::from_idx(e).light(), 0.35);
@@ -323,6 +327,9 @@ impl Game {
                 scr.fill(e.x as i32 - r, e.y as i32, r * 2 + 1, 1, WHITE);
                 scr.fill(e.x as i32, e.y as i32 - r, 1, r * 2 + 1, WHITE);
             }
+            return;
+        }
+        if self.draw_mini_enemy(scr, e) {
             return;
         }
         let still = e.st.immobile();
@@ -455,6 +462,13 @@ impl Game {
                     scr.fill(x - 2, y - 1, 5, 3, rgb(0x5c3c10));
                     scr.fill(x - 1, y - 1, 3, 1, rgb(0x98d858));
                 }
+                Shot::Apple => scr.spr(&self.spr.apple.img, b.x, b.y, b.age % 20 < 10),
+                Shot::Thorn => {
+                    let l = b.vx.hypot(b.vy).max(0.01);
+                    let (ux, uy) = (b.vx / l, b.vy / l);
+                    scr.line(x - (ux * 4.0) as i32, y - (uy * 4.0) as i32, x + (ux * 3.0) as i32, y + (uy * 3.0) as i32, rgb(0x5c3410));
+                    scr.pset(x + (ux * 3.0) as i32, y + (uy * 3.0) as i32, rgb(0xb8f818));
+                }
                 Shot::Orb => {
                     let c = if b.el == Elem::Neutral {
                         if blink { rgb(0xfcfcfc) } else { rgb(0xbcbcbc) }
@@ -484,6 +498,11 @@ impl Game {
                 IK::Meat => &self.spr.meat,
                 IK::Potion => &self.spr.potion,
                 IK::Heart => &self.spr.heart,
+                IK::GoldenApple => {
+                    scr.blend_disc(it.x as i32, (it.y + bob) as i32, 8, rgb(0xfce040), 0.3);
+                    &self.spr.golden_apple
+                }
+                IK::Antidote => &self.spr.antidote,
                 IK::Orb => {
                     let (x, y) = (it.x as i32, (it.y + bob) as i32);
                     scr.blend_disc(x, y, 6, it.el.light(), 0.25);
@@ -878,6 +897,13 @@ impl Game {
             if r.special == SP_SHOP {
                 scr.text("S", x + cw / 2 + 1, y + 5, rgb(0xfcbc3c), Align::Center, 8);
             }
+            // Discovered encounters: a red diamond until finished, then grey.
+            if let Some(c) = self.mini_marker(r.mini) {
+                let (mx, my) = (x + cw - 6, y + 4);
+                scr.fill(mx, my - 2, 1, 5, c);
+                scr.fill(mx - 2, my, 5, 1, c);
+                scr.fill(mx - 1, my - 1, 3, 3, c);
+            }
             if r.i == self.room && (self.frame >> 4) & 1 == 1 {
                 scr.frame_rect(x + 1, y + 1, cw - 2, ch - 2, WHITE);
             }
@@ -885,8 +911,8 @@ impl Game {
         let y = oy + WH as i32 * ch + 6;
         let el = self.el();
         scr.text(&format!("{} MAGIC: {}", el.name(), SPELL_NAMES[el.idx()]), 128, y, el.light(), Align::Center, 8);
-        scr.text(&format!("MAGIC LV{}   RUNES {}/5", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count()), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
-        scr.text("M MONOLITH  S SHOP  1-5 LAIRS", 128, y + 26, rgb(0x747474), Align::Center, 8);
+        scr.text(&format!("LV{} RUNES {}/5 POT{} ANTI{}", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count(), self.s.potions, self.s.antidotes), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
+        scr.text("M MONOLITH S SHOP RED ENCOUNTER", 128, y + 26, rgb(0x747474), Align::Center, 8);
     }
     fn draw_dungeon_map(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };

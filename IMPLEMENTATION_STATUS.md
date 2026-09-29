@@ -6,7 +6,7 @@ Last updated: 2026-09-29
 
 | Level | Meaning |
 |---|---|
-| **H** | Headless-verified: `scripts/test.sh` (8 unit tests + 257 scripted self-test checks through the real game loop, real input and collisions) passes |
+| **H** | Headless-verified: `scripts/test.sh` (8 unit tests + 303 scripted self-test checks through the real game loop, real input and collisions) passes |
 | **S** | Screenshot-reviewed: rendered frames from the self-test inspected by eye |
 | **D** | Desktop-played: run interactively in the SDL window on desktop (WSL) |
 | **HW** | Verified on the ANBERNIC RG35XX H hardware |
@@ -66,7 +66,7 @@ Headless checks prove logic and render output. They do **not** prove feel, timin
 |---|---|
 | Shorter bolt range (playtest feedback) | Done (`ddfa99b`) |
 | Single bolt until the end stages; twin bolts only from the 4th lair power-up, no triple shot (playtest feedback) | Done |
-| Overworld encounters: Hoard Dragon, Deceiving Dryad (+ poison status, antidote), Food Trees + Angry Treant, Graveyard + Grave Lord | In progress |
+| Overworld encounters: Hoard Dragon, Deceiving Dryad (+ poison status, antidote), Food Trees + Angry Treant, Graveyard + Grave Lord — one-time, save-flagged, map markers, old saves load | H, V (snapshots 50–61 reviewed); not yet playtested for feel or on hardware |
 | Better-looking dungeon entrances (playtest feedback) | Queued |
 | Less childish boss art (playtest feedback) | Queued |
 | Mini-boss batch 1: Mimic Chest, Treasure Goblin, Bandit Raccoon, Wandering Merchant Ogre | Queued |

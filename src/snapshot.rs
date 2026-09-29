@@ -241,8 +241,8 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(10);
     t.shot("09_shop");
     t.g.debug_set_gold(100);
-    t.g.debug_set_player(80.0, 150.0, b'u');
-    t.walk_to(80.0, 136.0, 60);
+    t.g.debug_set_player(56.0, 150.0, b'u');
+    t.walk_to(56.0, 136.0, 60);
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_gold() == 85, "shop purchasing still works (roast for 15 gold)");
@@ -255,8 +255,8 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check((4.0..=6.0).contains(&mp), &format!("mana regenerates at about 0.5 MP per second ({mp:.1} MP after 10 s)"));
     let p0 = t.g.debug_potions();
     t.g.debug_set_mp(10.0, 40);
-    t.g.debug_set_player(128.0, 150.0, b'u');
-    t.walk_to(128.0, 136.0, 60);
+    t.g.debug_set_player(104.0, 150.0, b'u');
+    t.walk_to(104.0, 136.0, 60);
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_potions() == p0 + 1 && t.g.debug_gold() == 60, "buying a potion puts it in the pack (25 gold)");
@@ -278,12 +278,29 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(2);
     t.check(t.g.debug_potions() == 5 && t.g.debug_mp() >= 29.0, "with a full pack a found potion restores 30 MP instead");
     t.g.debug_set_gold(100);
-    t.g.debug_set_player(128.0, 150.0, b'u');
-    t.walk_to(128.0, 136.0, 60);
+    t.g.debug_set_player(104.0, 150.0, b'u');
+    t.walk_to(104.0, 136.0, 60);
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_gold() == 100, "the shop won't sell a potion when the pack is full");
     t.shot("09b_potion_hud");
+    // Antidotes: bought and carried, cure poison with the potion button.
+    t.g.debug_set_player(152.0, 150.0, b'u');
+    t.walk_to(152.0, 136.0, 60);
+    t.frames(2);
+    t.tap(Btn::Fire);
+    t.check(t.g.debug_antidotes() == 1 && t.g.debug_gold() == 80, "the shop sells an antidote (20 gold) that goes in the pack");
+    t.g.debug_set_player(128.0, 176.0, b'u');
+    let hp_before = t.g.debug_hp();
+    t.g.debug_set_poison(400);
+    t.frames(80);
+    t.check(t.g.debug_hp() < hp_before, "poison drains health over time");
+    t.shot("09c_poisoned");
+    t.tap(Btn::Potion);
+    t.check(t.g.debug_poison() == 0 && t.g.debug_antidotes() == 0, "with poison and an antidote, the potion button cures it");
+    t.g.debug_set_poison(100);
+    t.frames(120);
+    t.check(t.g.debug_poison() == 0, "poison wears off on its own");
 
     // ---------------------------------------------------------------- fire: travelling bolt + burning DOT
     println!("[fire] firebolt and burning");
@@ -393,6 +410,9 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check(shots == vec![1, 1, 2], &format!("single bolt until the end stages, twin bolts at magic level 3 (got {shots:?})"));
     t.g.debug_set_spell_lv(1);
     t.g.debug_god();
+
+    // ---------------------------------------------------------------- overworld encounters
+    encounters(&mut t);
 
     // ---------------------------------------------------------------- dungeons, puzzles, stairs, bosses
     for n in 1..=6 {
@@ -741,4 +761,280 @@ fn food_room(t: &mut T, n: usize) {
     t.go_room(back, R_ENTRY);
     t.g.debug_god();
     t.g.debug_set_player(128.0, 150.0, b'u');
+}
+
+/// The four overworld encounters: Hoard Dragon, Deceiving Dryad, fruit trees + treant, graveyard.
+fn encounters(t: &mut T) {
+    let mob_hp = |t: &T, id: u32| t.g.debug_mobs().into_iter().find(|m| m.id == id).map_or(0.0, |m| m.hp);
+
+    // ---------------------------------------------------------------- hoard dragon
+    println!("[encounter] hoard dragon");
+    t.release();
+    t.g.debug_god();
+    t.g.debug_set_element(2);
+    let Some(room) = t.g.debug_mini_room(1) else {
+        t.check(false, "a hoard dragon screen exists");
+        return;
+    };
+    t.g.debug_play_room(room, 128.0, 200.0);
+    t.frames(5);
+    let coins = t.g.debug_items().iter().filter(|i| i.3).count();
+    let asleep = t.g.debug_mob("HoardDragon").map_or(false, |d| d.mode == 0);
+    t.check(asleep && coins == 24, &format!("the hoard dragon sleeps on its gold ({coins} coins)"));
+    t.check(t.g.debug_mini_seen(1), "the hoard screen is marked as discovered");
+    t.shot("50_hoard_asleep");
+    t.g.debug_set_player(128.0, 170.0, b'u');
+    t.tap(Btn::Fire);
+    t.frames(40);
+    let woke = t.g.debug_mob("HoardDragon").map_or(false, |d| d.mode != 0 && d.hp >= 9999.0);
+    t.check(woke, "shooting the dragon wakes it, but it can't be hurt");
+    let anger0 = t.g.debug_hoard_anger();
+    let mut shots = false;
+    for _ in 0..240 {
+        t.frames(1);
+        shots |= t.g.debug_enemy_bullets() > 0;
+    }
+    t.check(shots, "the awake dragon fights back with swipes and fire breath");
+    t.shot("51_hoard_awake");
+    let gold0 = t.g.debug_gold();
+    let pile: Vec<(f32, f32)> = t.g.debug_items().iter().filter(|i| i.3).map(|i| (i.1, i.2)).collect();
+    for (k, &(x, y)) in pile.iter().enumerate() {
+        t.g.debug_set_player(x, y, b'u');
+        t.frames(2);
+        if k == pile.len() / 2 {
+            t.check(t.g.debug_hoard_anger() > anger0, "taking its gold makes the dragon angrier");
+            t.shot("52_hoard_looting");
+        }
+    }
+    t.check(t.g.debug_hoard_left() == 0 && t.g.debug_gold() > gold0 + 100, "the hoard's gold is the reward");
+    t.check(t.g.debug_mini_done(1), "with the gold gone the encounter is finished (saved)");
+    t.frames(40);
+    t.shot("53_hoard_flies_off");
+    t.frames(120);
+    t.check(t.g.debug_mob("HoardDragon").is_none(), "the dragon flies away for good");
+    t.g.debug_play_room(room, 128.0, 200.0);
+    t.frames(5);
+    t.check(t.g.debug_mob("HoardDragon").is_none() && t.g.debug_items().iter().all(|i| !i.3), "revisiting: no dragon and no gold left");
+
+    // ---------------------------------------------------------------- deceiving dryad
+    println!("[encounter] deceiving dryad");
+    let Some(a) = t.g.debug_mini_room(2) else {
+        t.check(false, "a dryad screen exists");
+        return;
+    };
+    let (b, dir) = t.g.debug_pool_room().unwrap();
+    t.g.debug_play_room(a, 128.0, 200.0);
+    t.frames(5);
+    let d = t.g.debug_mob("Dryad");
+    t.check(d.as_ref().map_or(false, |d| d.mode == 0), "a friendly 'villager' waits on the dryad's screen");
+    t.shot("54_dryad_disguised");
+    // Attacking her early reveals her (fresh world afterwards so the lure can be tested too).
+    if let Some(d) = d {
+        t.g.debug_set_player(d.x, d.y + 30.0, b'u');
+        t.tap(Btn::Fire);
+        t.frames(30);
+    }
+    t.check(t.g.debug_mob("Dryad").map_or(false, |d| d.mode == 1), "attacking the villager early reveals the dryad");
+    t.g.debug_new_world(2);
+    t.g.debug_god();
+    t.g.debug_play_room(a, 128.0, 200.0);
+    t.frames(5);
+    let mut wilted = 0;
+    for _ in 0..700 {
+        let Some(d) = t.g.debug_mob("Dryad") else { break };
+        let (px, py) = t.g.debug_player();
+        let (dx, dy) = (d.x - px, d.y - py);
+        let far = dx.hypot(dy) > 30.0;
+        t.input.set_key(Btn::Left, far && dx < -2.0);
+        t.input.set_key(Btn::Right, far && dx > 2.0);
+        t.input.set_key(Btn::Up, far && dy < -2.0);
+        t.input.set_key(Btn::Down, far && dy > 2.0);
+        t.frames(1);
+        wilted = wilted.max(t.g.debug_wilt_marks());
+    }
+    t.release();
+    t.check(wilted > 0, "flowers wilt where the 'villager' walks (a tell)");
+    t.check(t.g.debug_dryad_stage() == 1, "she leads the player off toward the next screen");
+    let entry = match dir {
+        0 => (128.0, 222.0),
+        1 => (128.0, 44.0),
+        2 => (18.0, 136.0),
+        _ => (238.0, 136.0),
+    };
+    t.g.debug_play_room(b, entry.0, entry.1);
+    t.frames(5);
+    t.check(t.g.debug_mob("Dryad").map_or(false, |d| d.mode == 0), "she waits beyond her pool on the next screen");
+    t.shot("55_dryad_beckons");
+    t.walk_to(128.0, 124.0, 300);
+    t.frames(3);
+    t.check(t.g.debug_poison() > 0, "stepping into the pool poisons the player");
+    t.check(t.g.debug_mob("Dryad").map_or(false, |d| d.mode == 1), "then the dryad reveals herself and attacks");
+    t.shot("56_dryad_revealed");
+    let mut fought = false;
+    for _ in 0..200 {
+        t.frames(1);
+        fought |= t.g.debug_enemy_bullets() > 0 || t.g.debug_hazards() > 0;
+    }
+    t.check(fought, "the revealed dryad throws thorns and lashes with vines");
+    if let Some(d) = t.g.debug_mob("Dryad") {
+        let h0 = d.hp;
+        t.g.debug_hit(d.id, 3.0, 0);
+        t.check((h0 - mob_hp(t, d.id) - 6.0).abs() < 0.01, "the dryad is weak to fire (double damage)");
+        let mh0 = t.g.debug_max().0;
+        t.g.debug_hit(d.id, 999.0, 0);
+        t.frames(3);
+        t.check(t.g.debug_mini_done(2) && t.g.debug_max().0 == mh0 + 4, "defeating the dryad gives a heart container");
+    }
+
+    // ---------------------------------------------------------------- fruit trees + angry treant
+    println!("[encounter] fruit trees and the angry treant");
+    t.g.debug_god();
+    t.g.debug_set_element(2);
+    let treant_room = t.g.debug_mini_room(3).unwrap();
+    let plain = t.g.debug_fruit_rooms().into_iter().find(|&r| r != treant_room).unwrap();
+    t.g.debug_play_room(plain, 128.0, 200.0);
+    t.g.debug_kill_enemies();
+    t.frames(40);
+    let apples = |t: &T| t.g.debug_items().iter().filter(|i| i.0 == "Apple").count();
+    let trees = t.g.debug_trees();
+    t.check(!trees.is_empty(), "fruit trees grow on some screens");
+    let (c, r, _, _, _) = trees[0];
+    let (x, y) = tc(c, r);
+    let a0 = apples(t);
+    t.fire_from(x, y + 30.0, b'u');
+    t.check(apples(t) == a0 + 1, "shooting a fruit tree knocks down an apple");
+    t.g.debug_set_player(x + 18.0, y, b'l');
+    t.hold_until(Btn::Left, 34, |_| false);
+    let (_, _, left, regrow, _) = t.g.debug_trees()[0];
+    t.check(left == 0 && regrow > 0 && apples(t) >= a0 + 3, "bumping the tree shakes loose more apples until it's bare");
+    let bare = apples(t);
+    t.fire_from(x, y + 30.0, b'u');
+    t.check(apples(t) == bare, "a bare tree drops nothing until it regrows");
+    t.g.debug_regrow_now();
+    t.frames(2);
+    t.check(t.g.debug_trees()[0].2 == 3, "the tree restocks after a few minutes");
+    t.shot("57_fruit_trees");
+    t.g.debug_play_room(treant_room, 128.0, 200.0);
+    t.g.debug_kill_enemies();
+    t.frames(40);
+    t.check(t.g.debug_mini_seen(3), "the treant's screen is marked as discovered");
+    if let Some(tr) = t.g.debug_trees().into_iter().find(|t| t.4) {
+        let (x, y) = tc(tr.0, tr.1);
+        // Shoot from whichever side has open ground.
+        if tr.0 < 8 {
+            t.fire_from(x + 28.0, y, b'l');
+        } else {
+            t.fire_from(x - 28.0, y, b'r');
+        }
+        t.frames(40);
+        t.check(t.g.debug_mob("Treant").is_some() && t.g.debug_tile(tr.0, tr.1) == T_FLOOR, "one 'fruit tree' is a disguised treant that wakes when shaken");
+        let mut fought = false;
+        for _ in 0..300 {
+            t.frames(1);
+            fought |= t.g.debug_hazards() > 0 || t.g.debug_enemy_bullets() > 0;
+        }
+        t.check(fought, "the angry treant attacks with roots, thrown apples and slams");
+        t.shot("58_angry_treant");
+        if let Some(m) = t.g.debug_mob("Treant") {
+            let h0 = m.hp;
+            t.g.debug_hit(m.id, 2.0, 2);
+            t.check((h0 - mob_hp(t, m.id) - 4.0).abs() < 0.01, "the treant is weak to storm");
+            if let Some(m2) = t.g.debug_mob("Treant") {
+                let (px, py) = if m2.x < 128.0 { (m2.x + 80.0, m2.y) } else { (m2.x - 80.0, m2.y) };
+                t.g.debug_set_player(px, py, b'd');
+            }
+            t.g.debug_hit(m.id, 999.0, 2);
+            t.frames(3);
+        }
+        let ga = t.g.debug_items().into_iter().find(|i| i.0 == "GoldenApple");
+        t.check(ga.is_some() && t.g.debug_mini_done(3), "the treant leaves a golden apple");
+        if let Some(g) = ga {
+            t.g.debug_set_food(10.0);
+            t.g.debug_set_hp(5, 40);
+            t.g.debug_set_player(g.1, g.2, b'u');
+            t.frames(2);
+            t.check(t.g.debug_food() >= 99.9 && t.g.debug_hp() == 40, "the golden apple restores all food and health");
+        }
+    } else {
+        t.check(false, "the treant screen has a disguised tree");
+    }
+
+    // ---------------------------------------------------------------- graveyard
+    println!("[encounter] graveyard");
+    t.g.debug_god();
+    let gr = t.g.debug_mini_room(4).unwrap();
+    t.g.debug_play_room(gr, 128.0, 200.0);
+    t.frames(3);
+    let graves = t.g.debug_graves();
+    t.check(graves.len() >= 6, &format!("tombstones stand in the graveyard ({})", graves.len()));
+    t.shot("59_graveyard");
+    let below = |g: (i32, i32)| {
+        let (x, y) = tc(g.0, g.1);
+        (x, y + 26.0)
+    };
+    t.g.debug_set_element(0);
+    let (sx, sy) = below(graves[4]);
+    t.fire_from(sx, sy, b'u');
+    t.check(t.g.debug_zombies() == 0 && t.g.debug_mob("Zombie").is_none(), "fire doesn't disturb the dead");
+    t.g.debug_set_element(2);
+    t.fire_from(sx, sy, b'u');
+    t.frames(45);
+    t.check(t.g.debug_zombies() == 1 && t.g.debug_mob("Zombie").is_some(), "a storm bolt raises a zombie from its grave");
+    t.check(t.g.debug_items().iter().filter(|i| i.0 == "Coin").count() >= 2, "opened graves give up gold");
+    if let Some(z) = t.g.debug_mob("Zombie") {
+        let h0 = z.hp;
+        t.g.debug_hit(z.id, 2.0, 0);
+        t.check((h0 - mob_hp(t, z.id) - 4.0).abs() < 0.01, "zombies are weak to fire");
+    }
+    t.g.debug_kill_enemies();
+    t.g.debug_set_player(128.0, 136.0, b'u');
+    t.frames(2);
+    t.tap(Btn::Sub);
+    t.frames(45);
+    t.check(t.g.debug_zombies() >= 3, &format!("Chain Bolt raises several zombies at once ({} raised)", t.g.debug_zombies()));
+    for &g in graves.iter() {
+        if t.g.debug_mob("GraveLord").is_some() {
+            break;
+        }
+        t.g.debug_kill_enemies();
+        let (x, y) = below(g);
+        t.fire_from(x, y, b'u');
+    }
+    t.frames(70);
+    t.check(t.g.debug_mob("GraveLord").is_some(), "after six zombies the Grave Lord rises");
+    t.shot("60_grave_lord");
+    let mut fought = false;
+    for _ in 0..300 {
+        t.frames(1);
+        fought |= t.g.debug_enemy_bullets() > 0 || t.g.debug_mobs().iter().filter(|m| m.kind == "Zombie").count() > 0;
+    }
+    t.check(fought, "the Grave Lord summons the dead and hurls dark orbs");
+    if let Some(l) = t.g.debug_mob("GraveLord") {
+        let h0 = l.hp;
+        t.g.debug_hit(l.id, 2.0, 0);
+        t.check((h0 - mob_hp(t, l.id) - 4.0).abs() < 0.01, "the Grave Lord is weak to fire");
+        let mp0 = t.g.debug_max().1;
+        t.g.debug_hit(l.id, 999.0, 0);
+        t.frames(3);
+        t.check(t.g.debug_mini_done(4) && t.g.debug_max().1 == mp0 + 20, "defeating the Grave Lord gives gold and his amulet (max MP up)");
+    }
+    t.g.debug_play_room(gr, 128.0, 200.0);
+    t.frames(3);
+    t.fire_from(sx, sy, b'u');
+    t.frames(45);
+    t.check(t.g.debug_mob("Zombie").is_some() && t.g.debug_mob("GraveLord").is_none(), "afterwards, lightning only raises ordinary zombies");
+
+    // ---------------------------------------------------------------- map markers
+    // (The dryad test reset the world, so drop by the hoard screen again first.)
+    t.g.debug_play_room(room, 128.0, 200.0);
+    t.frames(3);
+    t.g.debug_kill_enemies();
+    t.frames(2);
+    t.tap(Btn::Start);
+    t.frames(2);
+    let all_seen = (1..=4).all(|i| t.g.debug_mini_seen(i));
+    t.check(t.g.debug_paused() && all_seen, "every encounter shows on the map once discovered");
+    t.shot("61_map_markers");
+    t.tap(Btn::Start);
+    t.release();
 }

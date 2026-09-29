@@ -416,7 +416,7 @@ impl Game {
         let food: Vec<(IK, f32, f32)> = d.larder[cur].clone();
         self.dungeon_flush();
         for (kind, x, y) in food {
-            self.items.push(Item { kind, x, y, val: 0, el: Elem::Neutral, life: LARDER_LIFE, dead: false });
+            self.items.push(Item { kind, x, y, val: 0, el: Elem::Neutral, life: LARDER_LIFE, dead: false, tag: 0 });
         }
         if combat {
             self.spawn_pack(5, th, false);
