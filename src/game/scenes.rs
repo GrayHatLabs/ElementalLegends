@@ -397,6 +397,7 @@ impl Game {
         self.pl.x = self.walk_from.0 + (GATE_X - self.walk_from.0) * p;
         self.pl.y = self.walk_from.1 + (GATE_Y - 12.0 - self.walk_from.1) * p;
         self.pl.walk += 1;
+        self.pl.moving = t < 30;
         if t >= 60 {
             let n = self.gate_n;
             self.start_dungeon(n);
@@ -440,6 +441,7 @@ impl Game {
         let bottom = sy + 22.0;
         self.pl.dir = b'u';
         self.pl.inv = 0;
+        self.pl.moving = (20..130).contains(&t);
         if t < 20 {
             if t % 3 == 0 {
                 let ox = self.rng.range(-14.0, 14.0);

@@ -314,14 +314,32 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
 /// Re-draw a room's static image from its tiles (call after tiles change).
 pub fn render(r: &mut Room, th: &Theme) {
     let mut img = Sprite::new(W, RR as i32 * TS);
+    // Stable per-tile hash so each room keeps the same tile variants.
+    let seed = r.seed ^ (r.i as u32).wrapping_mul(0x9e37_79b9);
+    let hash = |x: usize, y: usize| -> u32 {
+        let mut h = (x as u32).wrapping_mul(73_856_093) ^ (y as u32).wrapping_mul(19_349_663) ^ seed;
+        h ^= h >> 13;
+        h = h.wrapping_mul(0x5bd1_e995);
+        h ^ (h >> 15)
+    };
+    let floor_at = |x: usize, y: usize| -> &Sprite {
+        let v = match hash(x, y) % 10 {
+            0..=3 => 0,
+            4..=7 => 1,
+            8 => 2,
+            _ => 3,
+        };
+        &th.floors[v.min(th.floors.len() - 1)]
+    };
+    let wall_at = |x: usize, y: usize| -> &Sprite { &th.walls[(hash(x, y) >> 4) as usize % th.walls.len()] };
     for y in 0..RR {
         for x in 0..RC {
             let (px, py) = (x as i32 * TS, y as i32 * TS);
             let t = r.tiles[y][x];
             match t {
-                T_WALL => img.draw(&th.wall, px, py),
+                T_WALL => img.draw(wall_at(x, y), px, py),
                 T_CRACK => {
-                    img.draw(&th.wall, px, py);
+                    img.draw(wall_at(x, y), px, py);
                     let c = rgb(0x181010);
                     for &(cx, cy) in &[(7, 2), (6, 3), (7, 4), (8, 5), (8, 6), (7, 7), (9, 7), (10, 8), (6, 8), (5, 9), (7, 10), (8, 11), (8, 12)] {
                         img.fill(px + cx, py + cy, 1, 1, c);
@@ -354,7 +372,7 @@ pub fn render(r: &mut Room, th: &Theme) {
                     }
                 }
                 T_SEAL => {
-                    img.draw(&th.floor, px, py);
+                    img.draw(floor_at(x, y), px, py);
                     for bx in [1, 5, 9, 13] {
                         img.fill(px + bx, py, 2, TS, rgb(0x5c5c64));
                         img.fill(px + bx, py, 1, TS, rgb(0x9c9ca4));
@@ -364,6 +382,7 @@ pub fn render(r: &mut Room, th: &Theme) {
                 }
                 T_PLATE => {
                     img.draw(&th.floor, px, py);
+                    img.blend(px + 1, py + 1, 14, 14, BLACK, 0.35);
                     img.fill(px + 2, py + 2, 12, 12, rgb(0x303038));
                     img.fill(px + 3, py + 3, 10, 10, rgb(0x747480));
                     img.fill(px + 3, py + 3, 10, 1, rgb(0xa0a0ac));
@@ -376,7 +395,7 @@ pub fn render(r: &mut Room, th: &Theme) {
                         img.fill(px, py + s * 4, TS, 3, c);
                     }
                 }
-                _ => img.draw(&th.floor, px, py),
+                _ => img.draw(floor_at(x, y), px, py),
             }
         }
     }
@@ -387,11 +406,33 @@ pub fn render(r: &mut Room, th: &Theme) {
             }
             let (px, py) = (x as i32 * TS, y as i32 * TS);
             let wallish = |t: u8| matches!(t, T_WALL | T_CRACK | T_LOCK);
+            // Soft two-step ambient-occlusion shadow cast by walls onto the floor.
             if y > 0 && wallish(r.tiles[y - 1][x]) {
-                img.blend(px, py, TS, 3, BLACK, 0.4);
+                img.blend(px, py, TS, 2, BLACK, 0.45);
+                img.blend(px, py + 2, TS, 3, BLACK, 0.22);
             }
             if x > 0 && wallish(r.tiles[y][x - 1]) {
-                img.blend(px, py, 3, TS, BLACK, 0.4);
+                img.blend(px, py, 2, TS, BLACK, 0.4);
+                img.blend(px + 2, py, 2, TS, BLACK, 0.18);
+            }
+        }
+    }
+    if th.bevel {
+        // Raised masonry: a lit top edge and a shadowed front face where walls meet floor.
+        let wallish = |t: u8| matches!(t, T_WALL | T_CRACK);
+        for y in 0..RR {
+            for x in 0..RC {
+                if !wallish(r.tiles[y][x]) {
+                    continue;
+                }
+                let (px, py) = (x as i32 * TS, y as i32 * TS);
+                if y + 1 < RR && !wallish(r.tiles[y + 1][x]) {
+                    img.blend(px, py + 10, TS, 6, BLACK, 0.3);
+                    img.blend(px, py + 15, TS, 1, BLACK, 0.4);
+                }
+                if y > 0 && !wallish(r.tiles[y - 1][x]) {
+                    img.blend(px, py, TS, 2, WHITE, 0.16);
+                }
             }
         }
     }

@@ -222,10 +222,12 @@ struct Player {
     scd: i32,
     inv: i32,
     cast: i32,
+    /// Walking this frame (drives the walk-cycle animation).
+    moving: bool,
 }
 impl Player {
     fn at(x: f32, y: f32) -> Self {
-        Player { x, y, w: 10.0, h: 12.0, fx: 0.0, fy: -1.0, dir: b'u', walk: 0, cd: 0, scd: 10, inv: 30, cast: 0 }
+        Player { x, y, w: 10.0, h: 12.0, fx: 0.0, fy: -1.0, dir: b'u', walk: 0, cd: 0, scd: 10, inv: 30, cast: 0, moving: false }
     }
 }
 
@@ -1115,6 +1117,7 @@ impl Game {
         let mut dx = (self.held(Btn::Right) as i32 - self.held(Btn::Left) as i32) as f32;
         let mut dy = (self.held(Btn::Down) as i32 - self.held(Btn::Up) as i32) as f32;
         let (ix, iy) = (dx, dy);
+        p.moving = dx != 0.0 || dy != 0.0;
         let mut blocked = (false, false);
         if dx != 0.0 || dy != 0.0 {
             let l = dx.hypot(dy);

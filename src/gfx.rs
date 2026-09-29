@@ -206,6 +206,43 @@ impl Screen {
         }
     }
 
+    /// Darken a band of the screen by a light map: `grid` holds darkness (0..1) at the
+    /// corners of `cell`-sized squares, bilinearly interpolated per pixel and mixed
+    /// toward `tint`. Used for dungeon lighting.
+    pub fn light_map(&mut self, y0: i32, grid: &[f32], gw: usize, gh: usize, cell: i32, tint: u32) {
+        let (tr, tg, tb) = (((tint >> 16) & 255) as f32, ((tint >> 8) & 255) as f32, (tint & 255) as f32);
+        let rows = ((gh - 1) as i32 * cell).min(H - y0);
+        for py in 0..rows {
+            let sy = py + y0 + self.oy;
+            if sy < self.clip[1] || sy >= self.clip[3] {
+                continue;
+            }
+            let gy = (py / cell) as usize;
+            let fy = (py % cell) as f32 / cell as f32;
+            let row = (sy * W) as usize;
+            for px in 0..W.min((gw - 1) as i32 * cell) {
+                let sx = px + self.ox;
+                if sx < self.clip[0] || sx >= self.clip[2] {
+                    continue;
+                }
+                let gx = (px / cell) as usize;
+                let fx = (px % cell) as f32 / cell as f32;
+                let i = gy * gw + gx;
+                let top = grid[i] + (grid[i + 1] - grid[i]) * fx;
+                let bot = grid[i + gw] + (grid[i + gw + 1] - grid[i + gw]) * fx;
+                let a = top + (bot - top) * fy;
+                if a <= 0.01 {
+                    continue;
+                }
+                let p = &mut self.px[row + sx as usize];
+                let c = *p;
+                let (r, g, b) = (((c >> 16) & 255) as f32, ((c >> 8) & 255) as f32, (c & 255) as f32);
+                let (r, g, b) = (r + (tr - r) * a, g + (tg - g) * a, b + (tb - b) * a);
+                *p = 0xFF00_0000 | ((r as u32) << 16) | ((g as u32) << 8) | b as u32;
+            }
+        }
+    }
+
     /// Translucent filled circle (glows, halos, overlays).
     pub fn blend_disc(&mut self, cx: i32, cy: i32, r: i32, c: u32, a: f32) {
         for y in -r..=r {

@@ -6,7 +6,7 @@ Last updated: 2026-09-29
 
 | Level | Meaning |
 |---|---|
-| **H** | Headless-verified: `scripts/test.sh` (8 unit tests + 250 scripted self-test checks through the real game loop, real input and collisions) passes |
+| **H** | Headless-verified: `scripts/test.sh` (8 unit tests + 256 scripted self-test checks through the real game loop, real input and collisions) passes |
 | **S** | Screenshot-reviewed: rendered frames from the self-test inspected by eye |
 | **D** | Desktop-played: run interactively in the SDL window on desktop (WSL) |
 | **HW** | Verified on the ANBERNIC RG35XX H hardware |
@@ -57,6 +57,7 @@ Headless checks prove logic and render output. They do **not** prove feel, timin
 | 8 | Feast hall (dungeon 1) and hidden pantries behind cracked walls (dungeons 2-6) | H S | Safe rooms off the entrance hall. Uneaten food stays while you're in the dungeon and restocks on your next visit |
 | 9 | Bolt range: about 7 tiles at magic level 1, 10 at level 2, full screen at level 3. Shrinks to about half at low health | H | Range measured by the self-test: 118 / 65 (low HP) / 241 px |
 | 10 | Mana as a resource: 0.5 MP/s regen, carry up to 5 potions, drink with the potion button (Y/L1/R1, keyboard C/L/Shift) | H S | Shop potions go to the pack. Pickups go to the pack, or give +30 MP when it's full. No drink at full MP |
+| 11 | Graphics pass 1: auto-shaded sprites with coloured outlines, 4-frame mage walk cycle, drop shadows, textured tile variants, raised masonry walls, dungeon/arena lighting (light map with torches, bolts, burning foes, shrines, stairs, boss), polished HUD | H S | Measured update+draw about 0.26 ms/frame on desktop (p99 about 0.4 ms). **Handheld frame time not yet measured on hardware** |
 | 7 | Bosses: Treant, Undead Guardian, Stone Golem, Crimson Dragon, Arcane Sorcerer, Dark Sorcerer | H S | Each: telegraphs, ≥3 attacks, 2 phases (Dark Sorcerer 3), hit flash, intro, defeat sequence |
 
 ## Known issues / next steps

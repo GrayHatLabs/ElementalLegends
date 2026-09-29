@@ -604,6 +604,7 @@ fn boss_fight(t: &mut T, n: usize) {
     let mut saw_hazard = false;
     let mut saw_shots = false;
     let mut strafe_kept = true;
+    let mut frame_ms: Vec<f64> = Vec::with_capacity(2400);
     t.g.debug_set_player(128.0, 200.0, b'u');
     t.input.set_key(Btn::Fire, true);
     let limit = 2400;
@@ -623,7 +624,11 @@ fn boss_fight(t: &mut T, n: usize) {
             t.input.set_key(Btn::Right, b.x > px + 3.0);
         }
         saw_shots |= t.g.debug_enemy_bullets() > 0;
+        let t0 = std::time::Instant::now();
         t.frames(1);
+        t.g.draw(&mut t.scr);
+        let ms = t0.elapsed().as_secs_f64() * 1000.0;
+        frame_ms.push(ms);
         if t.g.debug_dir() != b'u' && t.g.debug_mode() == Mode::Play {
             strafe_kept = false;
         }
@@ -655,6 +660,14 @@ fn boss_fight(t: &mut T, n: usize) {
     t.release();
     let name = t.g.debug_boss().map_or("?", |b| b.name);
     println!("  boss {name}: attacks {:?}, max phase {max_phase}", attacks);
+    if !frame_ms.is_empty() {
+        let avg = frame_ms.iter().sum::<f64>() / frame_ms.len() as f64;
+        let mut sorted = frame_ms.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let p99 = sorted[(sorted.len() * 99 / 100).min(sorted.len() - 1)];
+        println!("  perf: update+draw avg {avg:.2} ms, p99 {p99:.2} ms per frame on this machine");
+        t.check(p99 < 4.0, &format!("boss {n}: frame cost stays low (p99 {p99:.2} ms, budget 16.7 ms)"));
+    }
     t.check(attacks.len() >= 3, &format!("boss {n} ({name}) uses at least three distinct attacks"));
     t.check(max_phase >= 2, &format!("boss {n} ({name}) enters a second phase"));
     t.check(saw_hazard || saw_shots, &format!("boss {n} ({name}) creates hazards or projectiles"));

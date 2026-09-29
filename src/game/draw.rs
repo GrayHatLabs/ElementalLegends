@@ -117,7 +117,7 @@ impl Game {
         }
         if r.special == SP_SHOP {
             self.draw_cottage(scr, ox, oy);
-            let sage = &self.spr.mage_d[4];
+            let sage = &self.spr.mage_d[4][0];
             scr.spr(&sage.img, 128.0 + ox as f32, HUDF + 58.0 + oy as f32, false);
             let prices = [15, 25, self.s.heart_price];
             for i in 0..3 {
@@ -300,13 +300,15 @@ impl Game {
             return;
         }
         let e = self.s.el.min(3);
+        let frame = if p.moving { ((p.walk / 7) % 4) as usize } else { 0 };
         let s = match p.dir {
-            b'u' => &self.spr.mage_u[e],
-            b'd' => &self.spr.mage_d[e],
-            _ => &self.spr.mage_s[e],
+            b'u' => &self.spr.mage_u[e][frame],
+            b'd' => &self.spr.mage_d[e][frame],
+            _ => &self.spr.mage_s[e][frame],
         };
-        let bob = ((p.walk >> 3) & 1) as f32;
+        let bob = if frame % 2 == 1 { 1.0 } else { 0.0 };
         let (x, y) = (p.x + ox, p.y + oy - 2.0 - bob);
+        scr.blend_ellipse(x as i32, (p.y + oy + 6.0) as i32, 6, 2, BLACK, 0.35);
         scr.spr(&s.img, x, y, p.dir == b'l');
         if p.cast > 0 {
             let sx = if p.dir == b'l' { x - 6.0 } else { x + 6.0 };
@@ -350,6 +352,10 @@ impl Game {
         } else {
             &set.img
         };
+        // Ground shadow: flyers hover above theirs.
+        let flying = matches!(e.k, EK::Bat | EK::Ghost);
+        let (sy, sr, sa) = if flying { (e.y + e.h / 2.0 + 6.0, e.w / 2.0 - 2.0, 0.22) } else { (e.y + e.h / 2.0, e.w / 2.0, 0.32) };
+        scr.blend_ellipse(e.x as i32, sy as i32, sr as i32, 2, BLACK, sa);
         scr.spr(img, e.x, e.y + bob, flip);
         if e.st.frozen() {
             draw_ice_block(scr, e.x, e.y, e.w, e.h, e.st.encase(), self.frame);
@@ -487,11 +493,16 @@ impl Game {
                     continue;
                 }
             };
+            scr.blend_ellipse(it.x as i32, it.y as i32 + 5, 4, 1, BLACK, 0.3);
             scr.spr(&s.img, it.x, it.y + if it.kind == IK::Coin { 0.0 } else { bob }, false);
         }
     }
     pub(super) fn draw_parts(&self, scr: &mut Screen) {
-        for p in &self.parts {
+        self.draw_parts_pass(scr, false);
+        self.draw_parts_pass(scr, true);
+    }
+    fn draw_parts_pass(&self, scr: &mut Screen, text: bool) {
+        for p in self.parts.iter().filter(|p| matches!(p.kind, PK::Text(_)) == text) {
             let q = 1.0 - p.life as f32 / p.max.max(1) as f32; // 0 -> 1 over the lifetime
             let (x, y) = (p.x.round() as i32, p.y.round() as i32);
             match &p.kind {
@@ -599,6 +610,10 @@ impl Game {
                 self.draw_room_objs(scr, sc.to, nx, ny);
             }
             self.draw_hero(scr, nx as f32, ny as f32);
+            if sc.dun {
+                let light = vec![(self.pl.x + nx as f32, self.pl.y + ny as f32 - 2.0, 88.0, 1.0)];
+                self.apply_light(scr, &light, 0.5);
+            }
         } else {
             // The descent camera follows the mage by shifting the whole view.
             let base_oy = scr.oy;
@@ -626,7 +641,9 @@ impl Game {
                 }
             }
             self.draw_bullets(scr);
-            self.draw_parts(scr);
+            self.draw_parts_pass(scr, false);
+            self.draw_lighting(scr);
+            self.draw_parts_pass(scr, true);
             scr.oy = base_oy;
         }
         scr.unclip();
@@ -657,10 +674,106 @@ impl Game {
         }
     }
 
+    // ------------------------------------------------------------ lighting
+    /// Dungeons and boss arenas are dark; light comes from the mage, torches, bolts,
+    /// burning things, shrines, the stairs and the boss itself.
+    fn draw_lighting(&self, scr: &mut Screen) {
+        if self.overworld() {
+            return;
+        }
+        let ambient = if self.in_lair > 0 { 0.38 } else { 0.5 };
+        let f = self.frame as f32;
+        let flick = |k: f32| 1.0 + (f * 0.31 + k).sin() * 0.03 + (f * 0.77 + k * 2.0).sin() * 0.02;
+        let mut lights: Vec<(f32, f32, f32, f32)> = Vec::with_capacity(48);
+        lights.push((self.pl.x, self.pl.y - 2.0, 88.0 * flick(0.0), 1.0));
+        if let (Some(d), 0) = (&self.dungeon, self.in_lair) {
+            for o in d.objs[d.cur].iter().filter(|o| o.visible) {
+                let (x, y) = o.pos();
+                match o.k {
+                    OK::Torch if o.on => lights.push((x, y - 6.0, 62.0 * flick(x), 1.0)),
+                    OK::Shrine(_) => lights.push((x, y - 4.0, 42.0, 0.8)),
+                    OK::Chest if !o.on => lights.push((x, y, 22.0, 0.5)),
+                    _ => {}
+                }
+            }
+            let room = &d.rooms[d.cur];
+            if d.cur == R_STAIRS {
+                let (sx, sy) = tile_center(STAIRS_C, STAIRS_R);
+                let lit = room.tiles[STAIRS_R as usize][STAIRS_C as usize] == T_STAIRS;
+                lights.push((sx + 8.0, sy + 8.0, if lit { 52.0 } else { 44.0 }, 0.8));
+            }
+            if d.cur == R_ENTRY {
+                lights.push((128.0, HF - 6.0, 64.0, 0.75)); // daylight through the way out
+            }
+            if d.cur == R_FEAST {
+                for row in [4, 8] {
+                    let y = (HUD + row * TS - 5) as f32;
+                    for x in [4 * TS + 5, 12 * TS - 4] {
+                        lights.push((x as f32, y, 40.0 * flick(x as f32), 0.9));
+                    }
+                }
+            }
+        }
+        for b in &self.pb {
+            lights.push((b.x, b.y, if b.el == Elem::Fire { 36.0 } else { 24.0 }, 0.9));
+        }
+        for b in &self.eb {
+            if matches!(b.style, Shot::Flame | Shot::Fireball | Shot::Dark) || b.el != Elem::Neutral {
+                lights.push((b.x, b.y, 18.0, 0.6));
+            }
+        }
+        for e in self.enemies.iter().filter(|e| e.spawn <= 0) {
+            if e.st.burning() {
+                lights.push((e.x, e.y, 30.0 * flick(e.x), 0.85));
+            } else if e.k == EK::Ghost || e.st.frozen() {
+                lights.push((e.x, e.y, 20.0, 0.4));
+            }
+        }
+        if let Some(b) = self.boss.as_ref().filter(|b| !b.gone) {
+            lights.push((b.x, b.y - b.z, 64.0, 0.7));
+        }
+        for p in self.parts.iter().take(160) {
+            let life = p.life as f32 / p.max.max(1) as f32;
+            match p.kind {
+                PK::Burst(_, r) => lights.push((p.x, p.y, r * 3.0, life)),
+                PK::Glow(r) => lights.push((p.x, p.y, r * 2.5, life * 0.8)),
+                PK::Crystal => lights.push((p.x, p.y, 22.0, life * 0.6)),
+                _ => {}
+            }
+        }
+        self.apply_light(scr, &lights, ambient);
+    }
+    fn apply_light(&self, scr: &mut Screen, lights: &[(f32, f32, f32, f32)], ambient: f32) {
+        const CELL: i32 = 8;
+        let (gw, gh) = ((W / CELL + 1) as usize, ((H - HUD) / CELL + 1) as usize);
+        let mut grid = vec![ambient; gw * gh];
+        for gy in 0..gh {
+            let y = (HUD + gy as i32 * CELL) as f32;
+            for gx in 0..gw {
+                let x = (gx as i32 * CELL) as f32;
+                let mut bright = 0.0f32;
+                for &(lx, ly, r, s) in lights {
+                    let (dx, dy) = (x - lx, y - ly);
+                    let d2 = dx * dx + dy * dy;
+                    if d2 < r * r {
+                        let q = 1.0 - d2.sqrt() / r;
+                        bright = bright.max(q * q * (3.0 - 2.0 * q) * s);
+                    }
+                }
+                grid[gy * gw + gx] = ambient * (1.0 - bright.min(1.0));
+            }
+        }
+        scr.light_map(HUD, &grid, gw, gh, CELL, rgb(0x06040e));
+    }
     // ------------------------------------------------------------ HUD & maps
     fn draw_hud(&self, scr: &mut Screen) {
-        scr.fill(0, 0, W, HUD, BLACK);
+        // Gradient panel with a bevelled lower edge.
+        for y in 0..HUD {
+            scr.fill(0, y, W, 1, mix(rgb(0x100c20), rgb(0x2a2044), y as f32 / HUD as f32));
+        }
+        scr.fill(0, HUD - 3, W, 1, rgb(0x7c68b0));
         scr.fill(0, HUD - 2, W, 1, rgb(0x5c4880));
+        scr.fill(0, HUD - 1, W, 1, rgb(0x08040c));
         scr.text("HP", 4, 5, rgb(0xfc7460), Align::Left, 8);
         let per = ((self.s.max_hp + 41) / 42).max(2);
         let segs = (self.s.max_hp + per - 1) / per;
@@ -675,17 +788,27 @@ impl Game {
                 rgb(0x301000)
             };
             scr.fill(24 + i * 4, 5, 3, 8, c);
+            if v > 0 {
+                scr.fill(24 + i * 4, 5, 3, 1, mix(c, WHITE, 0.45));
+                scr.fill(24 + i * 4, 12, 3, 1, mix(c, BLACK, 0.35));
+            }
         }
         scr.spr(&self.spr.coin.img, 197.0, 9.0, false);
         scr.text(&format!("{:04}", self.s.gold), 204, 5, rgb(0xfcbc3c), Align::Left, 8);
         scr.text("MP", 4, 19, rgb(0x3cbcfc), Align::Left, 8);
-        scr.fill(24, 20, 44, 6, rgb(0x001030));
-        scr.fill(24, 20, (44.0 * self.s.mp / self.s.max_mp as f32) as i32, 6, rgb(0x3cbcfc));
+        let bar = |scr: &mut Screen, x: i32, frac: f32, bg: u32, fg: u32| {
+            scr.frame_rect(x - 1, 19, 46, 8, rgb(0x08040c));
+            scr.fill(x, 20, 44, 6, bg);
+            let w = (44.0 * frac.clamp(0.0, 1.0)) as i32;
+            scr.fill(x, 20, w, 6, fg);
+            scr.fill(x, 20, w, 1, mix(fg, WHITE, 0.5));
+            scr.fill(x, 25, w, 1, mix(fg, BLACK, 0.35));
+        };
+        bar(scr, 24, self.s.mp / self.s.max_mp as f32, rgb(0x001030), rgb(0x3cbcfc));
         scr.spr(&self.spr.apple.img, 78.0, 22.0, false);
         let hungry = self.s.food <= 25.0 && (self.frame >> 3) & 1 == 1;
-        scr.fill(84, 20, 44, 6, rgb(0x301800));
         let fc = if hungry { WHITE } else if self.s.food <= 25.0 { rgb(0xd82800) } else { rgb(0xfc9838) };
-        scr.fill(84, 20, (44.0 * self.s.food / 100.0) as i32, 6, fc);
+        bar(scr, 84, self.s.food / 100.0, rgb(0x301800), fc);
         let el = self.el();
         scr.disc(139, 22, 3, el.main());
         scr.pset(138, 21, el.light());
@@ -831,7 +954,7 @@ impl Game {
         scr.text("LEGENDS", 130, 52, rgb(0x881400), Align::Center, 32);
         scr.text("LEGENDS", 128, 50, rgb(0xfcbc3c), Align::Center, 32);
         let e = ((self.frame / 60) % 4) as usize;
-        let s = &self.spr.mage_d[e];
+        let s = &self.spr.mage_d[e][((self.frame / 8) % 4) as usize];
         let bob = ((self.frame as f32 * 0.06).sin() * 2.0) as i32;
         scr.blit_scaled(&s.img, 128 - 16, 90 + bob, 2);
         let opts = self.menu_opts();
@@ -856,7 +979,7 @@ impl Game {
             if sel {
                 scr.frame_rect(cx - 24, 48, 48, 60, EL_LIGHT[i]);
             }
-            scr.blit_scaled(&self.spr.mage_d[i].img, cx - 16, 58 + bob, 2);
+            scr.blit_scaled(&self.spr.mage_d[i][if sel { ((self.frame / 8) % 4) as usize } else { 0 }].img, cx - 18, 56 + bob, 2);
             scr.text(Elem::from_idx(i).name(), cx, 96, if sel { EL_LIGHT[i] } else { rgb(0x747474) }, Align::Center, 8);
         }
         let desc: [[&str; 3]; 4] = [
