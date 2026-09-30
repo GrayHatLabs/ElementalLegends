@@ -1099,15 +1099,23 @@ impl Game {
     }
 
     // ------------------------------------------------------------ menus
+    /// The generated wizard facing the viewer (walking or standing), for menus.
+    fn mage_hd(&self, el: usize, walking: bool) -> Option<&Sprite> {
+        let sh = self.art.sheet(["mage_fire", "mage_ice", "mage_storm", "mage_earth"][el.min(3)])?;
+        let a = sh.anim(if walking { "walk_down" } else { "idle_down" })?;
+        Some(a.at(self.frame as u32))
+    }
     fn draw_title(&self, scr: &mut Screen) {
         self.draw_stars(scr);
         scr.text("ELEMENTAL", 128, 30, rgb(0x3cbcfc), Align::Center, 16);
         scr.text("LEGENDS", 130, 52, rgb(0x881400), Align::Center, 32);
         scr.text("LEGENDS", 128, 50, rgb(0xfcbc3c), Align::Center, 32);
         let e = ((self.frame / 60) % 4) as usize;
-        let s = &self.spr.mage_d[e][((self.frame / 8) % 4) as usize];
         let bob = ((self.frame as f32 * 0.06).sin() * 2.0) as i32;
-        scr.blit_scaled(&s.img, 128 - 16, 90 + bob, 2);
+        match self.mage_hd(e, true) {
+            Some(img) => scr.blit_hd(img, (128 - img.w / 2) as f32, (90 + bob) as f32, false),
+            None => scr.blit_scaled(&self.spr.mage_d[e][((self.frame / 8) % 4) as usize].img, 128 - 16, 90 + bob, 2),
+        }
         let opts = self.menu_opts();
         for (i, o) in opts.iter().enumerate() {
             let sel = i == self.menu;
@@ -1128,10 +1136,13 @@ impl Game {
             let sel = i == self.menu;
             let bob = if sel { ((self.frame as f32 * 0.15).sin() * 3.0) as i32 } else { 0 };
             if sel {
-                scr.frame_rect(cx - 24, 48, 48, 60, EL_LIGHT[i]);
+                scr.frame_rect(cx - 24, 48, 48, 68, EL_LIGHT[i]);
             }
-            scr.blit_scaled(&self.spr.mage_d[i][if sel { ((self.frame / 8) % 4) as usize } else { 0 }].img, cx - 18, 56 + bob, 2);
-            scr.text(Elem::from_idx(i).name(), cx, 96, if sel { EL_LIGHT[i] } else { rgb(0x747474) }, Align::Center, 8);
+            match self.mage_hd(i, sel) {
+                Some(img) => scr.blit_hd(img, (cx - img.w / 2) as f32, (60 + bob) as f32, false),
+                None => scr.blit_scaled(&self.spr.mage_d[i][if sel { ((self.frame / 8) % 4) as usize } else { 0 }].img, cx - 18, 56 + bob, 2),
+            }
+            scr.text(Elem::from_idx(i).name(), cx, 104, if sel { EL_LIGHT[i] } else { rgb(0x747474) }, Align::Center, 8);
         }
         let desc: [[&str; 3]; 4] = [
             ["FIREBOLTS SET FOES ABLAZE", "SPELL: FLAME RING", "STRONG VS ICE FOES"],
