@@ -860,8 +860,18 @@ fn boss_fight(t: &mut T, n: usize) {
             t.frames(30);
             t.shot(&format!("39b_sealed_{n}"));
             t.walk_to(128.0, 138.0, 80);
-            t.frames(20);
-            t.check(t.g.debug_dungeon().is_none() && t.g.debug_msg().map_or(false, |m| m.contains("RUNE STONE")), &format!("dungeon {n}: a rune stone seals the conquered lair"));
+            t.frames(14);
+            t.shot(&format!("39c_stone_opens_{n}"));
+            let back_in = t.hold_until(Btn::Up, 120, move |g| g.debug_dungeon().map_or(false, |d| d.0 == n) && g.debug_mode() == Mode::Play);
+            t.check(back_in, &format!("dungeon {n}: the rune stone slides aside to let the mage back in"));
+            t.check(t.g.debug_msg().map_or(false, |m| m.contains("QUIET")), &format!("dungeon {n}: the conquered lair is quiet"));
+            t.g.debug_droom(4);
+            let (sx, sy) = tc(7, 3);
+            t.g.debug_set_player(sx + 8.0, sy + 22.0, b'u');
+            t.frames(10);
+            t.check(t.g.debug_mode() == Mode::Play && t.g.debug_msg().map_or(false, |m| m.contains("SILENT")), &format!("dungeon {n}: its stairs no longer lead to the boss"));
+            let gate = t.g.debug_gate_room(n);
+            t.g.debug_play_room(gate, 128.0, 176.0);
         }
     }
 }

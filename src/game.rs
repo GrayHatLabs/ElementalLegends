@@ -1771,15 +1771,17 @@ impl Game {
             // Only right at the doorway, below the building (not anywhere north of it).
             let at_door = (px - GATE_X).abs() < 12.0 && py < GATE_Y + 8.0 && py > GATE_Y - 14.0;
             if at_door {
-                if self.gate_state(gate) == 1 {
+                // Open lairs, and conquered ones (their rune stone slides aside).
+                if self.gate_state(gate) >= 1 {
+                    if self.s.cleared[gate] {
+                        self.sfx(Sfx::Rumble);
+                    }
                     self.begin_enter_dungeon(gate);
                     return;
                 }
                 if !self.gate_warned {
                     self.gate_warned = true;
-                    if self.s.cleared[gate] {
-                        self.show_msg("A RUNE STONE SEALS THE DOORWAY. ITS GUARDIAN HAS FALLEN.");
-                    } else if gate == 6 {
+                    if gate == 6 {
                         self.show_msg("THE DARK TOWER IS SEALED. GATHER ALL FIVE RUNES.");
                     } else {
                         self.show_msg(format!("A MAGIC SEAL BARS THE WAY. CONQUER LAIR {} FIRST.", gate - 1));

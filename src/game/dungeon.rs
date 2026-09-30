@@ -521,7 +521,11 @@ impl Game {
         self.enter_droom();
         self.follow_cam(true);
         if !cave && n != shop::SHOP_N {
-            self.show_msg(format!("{}. FIND THE KEY AND BREAK THE SEAL ON THE STAIRS.", self.dname(n)));
+            if self.s.cleared[n.min(6)] {
+                self.show_msg(format!("THE RUNE STONE GRINDS ASIDE. {} LIES QUIET NOW.", self.dname(n)));
+            } else {
+                self.show_msg(format!("{}. FIND THE KEY AND BREAK THE SEAL ON THE STAIRS.", self.dname(n)));
+            }
         }
         let song = self.area_song();
         self.play_song(Some(song));
@@ -886,7 +890,16 @@ impl Game {
             let (sx, sy) = tile_center(STAIRS_C, STAIRS_R);
             let (cx, cy) = (sx + 8.0, sy + 8.0);
             let near = (px - cx).abs() < 18.0 && py < cy + 20.0;
-            if near {
+            let cleared = self.dungeon.as_ref().map_or(false, |d| self.s.cleared[d.n.min(6)]);
+            if near && cleared {
+                // The guardian is gone: the stairs lead nowhere now.
+                if !self.dungeon.as_ref().map_or(true, |d| d.warned) {
+                    if let Some(d) = self.dungeon.as_mut() {
+                        d.warned = true;
+                    }
+                    self.show_msg("THE LAIR BELOW IS SILENT. ITS GUARDIAN HAS FALLEN.");
+                }
+            } else if near {
                 if self.tile_at(STAIRS_C, STAIRS_R) == T_STAIRS {
                     self.begin_descend();
                     return;

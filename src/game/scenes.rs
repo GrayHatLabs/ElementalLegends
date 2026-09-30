@@ -383,18 +383,23 @@ impl Game {
                     scr.pset(cx - 5 + i * 3, by - 2 - ph / 2, door_glow);
                 }
             }
-            _ => self.draw_rune_stone(scr, n, dx, dy, dw, dh),
+            _ => {
+                // Walking back in: the stone grinds aside into the wall.
+                let slide = if self.mode == Mode::EnterDungeon && self.gate_n == n { (self.t * 2).min(dw + 8) } else { 0 };
+                self.draw_rune_stone(scr, n, dx, dy, dw, dh, slide);
+            }
         }
     }
 
     /// A carved stone slab bearing the lair's rune seals a conquered lair's doorway. With
     /// generated building art the slab covers the doorway painted in the art.
-    fn draw_rune_stone(&self, scr: &mut Screen, n: usize, dx: i32, dy: i32, dw: i32, dh: i32) {
+    fn draw_rune_stone(&self, scr: &mut Screen, n: usize, dx: i32, dy: i32, dw: i32, dh: i32, slide: i32) {
         let (cx, by) = (dx + dw / 2, dy + dh);
         let (x, y, w, h) = match self.art_doorway(n) {
             Some((x0, y0, x1, y1)) => (cx + x0 - 1, by + y0 - 1, (x1 - x0 + 3).max(10), (y1 - y0 + 2).max(12)),
             None => (dx - 2, dy - 2, dw + 4, dh + 2),
         };
+        let x = x + slide;
         scr.fill(x, y, w, h, rgb(0x6c6c78));
         scr.fill(x, y, w, 2, rgb(0x9c9ca8));
         scr.fill(x, y, 2, h, rgb(0x8c8c98));

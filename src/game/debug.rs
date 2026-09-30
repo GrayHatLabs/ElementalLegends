@@ -218,6 +218,13 @@ impl Game {
         self.levels.add(file, text, "self-test");
         self.levels.by_name.contains_key(file.trim_end_matches(".json"))
     }
+    /// Jump to a room of the current dungeon.
+    pub fn debug_droom(&mut self, room: usize) {
+        if let Some(d) = self.dungeon.as_mut() {
+            d.cur = room;
+        }
+        self.enter_droom();
+    }
     pub fn debug_room_dist(&self, i: usize) -> i32 {
         self.rooms[i].dist
     }
