@@ -185,6 +185,7 @@ impl Room {
     fn free(&self, start: usize, shop: usize) -> bool {
         !self.big()
             && self.i != start
+            && self.dist >= 2
             && self.i != shop
             && self.gate == 0
             && !self.tank
@@ -391,7 +392,10 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
     // The village (shop, inn, notice board) is a single screen two or three areas out from the
     // monolith, so the mage has to explore a little to find it.
     let village = |want: &dyn Fn(i32) -> bool| {
-        let mut v: Vec<usize> = (0..rooms.len()).filter(|&i| i != start && !rooms[i].big() && want(rooms[i].dist)).collect();
+        // Also at least two map squares from the monolith, so it isn't simply next door.
+        let far = |r: &Room| r.x.abs_diff(START_X) + r.y.abs_diff(START_Y) >= 2;
+        let mut v: Vec<usize> =
+            (0..rooms.len()).filter(|&i| i != start && !rooms[i].big() && far(&rooms[i]) && want(rooms[i].dist)).collect();
         v.sort_by_key(|&i| (rooms[i].dist, rooms[i].seed));
         v.first().copied()
     };
@@ -905,6 +909,7 @@ mod tests {
         assert!(rooms.iter().any(|r| r.big()), "some 2x2 wilderness areas exist");
         assert!(!rooms[start].big() && !rooms[shop].big(), "monolith and shop are single screens");
         assert!((2..=3).contains(&rooms[shop].dist), "the village is two or three areas from the monolith");
+        assert!(rooms[shop].x.abs_diff(START_X) + rooms[shop].y.abs_diff(START_Y) >= 2, "the village isn't next door on the map");
         for n in 1..=6 {
             let g: Vec<&Room> = rooms.iter().filter(|r| r.gate == n).collect();
             assert_eq!(g.len(), 1, "exactly one building for lair {n}");

@@ -8,9 +8,9 @@ pub(super) const INN_PRICE: i32 = 10;
 pub(super) const INNKEEPER: (f32, f32) = (64.0, (HUD + 11 * TS + 6) as f32);
 /// The spot in front of the notice board.
 pub(super) const BOARD: (f32, f32) = ((BOARD_TILE.0 as i32 * TS + 8) as f32, (HUD + BOARD_TILE.1 as i32 * TS + 8) as f32);
-/// Prompt latches in `shop_armed` for the inn and the board (0..4 are the shop pedestals).
-const ARM_INN: usize = 4;
-const ARM_BOARD: usize = 5;
+/// Prompt latches in `shop_armed` for the inn and the board (0..6 are the shop pedestals).
+const ARM_INN: usize = 6;
+const ARM_BOARD: usize = 7;
 
 impl Game {
     pub(super) fn near_innkeeper(&self) -> bool {

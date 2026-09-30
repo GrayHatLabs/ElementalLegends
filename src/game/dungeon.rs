@@ -532,7 +532,7 @@ impl Game {
             }
         }
     }
-    fn break_crack(&mut self, c: i32, r: i32) {
+    pub(super) fn break_crack(&mut self, c: i32, r: i32) {
         let cur = self.dungeon.as_ref().map_or(0, |d| d.cur);
         if cur == R_ENTRY {
             // The pantry wall: the whole doorway crumbles at once.

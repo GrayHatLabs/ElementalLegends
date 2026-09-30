@@ -22,6 +22,7 @@ mod draw;
 mod dungeon;
 mod minis;
 mod scenes;
+mod bag;
 mod status;
 mod village;
 
@@ -31,6 +32,8 @@ use minis::enemy_mult;
 use status::Status;
 
 pub const GATE_X: f32 = 128.0;
+/// Pedestals in the village shop.
+const SHOP_ITEMS: usize = 6;
 pub const GATE_Y: f32 = (HUD + 6 * TS + 8) as f32;
 /// Visible part of the world in logic units (320x208 screen pixels at 1.5x zoom).
 pub const VIEW_W: f32 = SW as f32 / ZOOM;
@@ -72,14 +75,16 @@ pub enum Btn {
     Potion,
     Start,
     Mute,
+    /// Pick the next relic-bag item (Select); with the game paused it mutes instead.
+    Bag,
 }
 
 #[derive(Clone, Copy, Default)]
 pub struct Input {
-    keys: [bool; 9],
-    pad: [bool; 9],
-    axis: [bool; 9],
-    pressed: [bool; 9],
+    keys: [bool; 10],
+    pad: [bool; 10],
+    axis: [bool; 10],
+    pressed: [bool; 10],
     /// Right analog stick (-1..1), for optional twin-stick aiming.
     aim: (f32, f32),
 }
@@ -112,7 +117,7 @@ impl Input {
         self.set(b as usize, d, 2)
     }
     pub fn clear_pressed(&mut self) {
-        self.pressed = [false; 9];
+        self.pressed = [false; 10];
     }
     pub fn release_all(&mut self) {
         *self = Input::default();
@@ -404,7 +409,6 @@ struct Part {
 }
 
 struct Scroll {
-    d: usize,
     t: f32,
     from: usize,
     to: usize,
@@ -461,6 +465,10 @@ pub struct SaveData {
     zombies: i32,
     /// Antidotes carried.
     antidotes: i32,
+    /// Relic bag: bombs and elixirs carried, and the selected slot (bag::SLOTS).
+    bombs: i32,
+    elixirs: i32,
+    bag_sel: usize,
 }
 
 impl SaveData {
@@ -490,6 +498,9 @@ impl SaveData {
             hoard_left: -1,
             zombies: 0,
             antidotes: 0,
+            bombs: 0,
+            elixirs: 0,
+            bag_sel: 0,
         }
     }
     fn mini_done(&self, id: u8) -> bool {
@@ -500,11 +511,11 @@ impl SaveData {
         let l = |v: &[usize]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         let dp = self.dprog.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         format!(
-            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\n",
+            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\n",
             SAVE_VERSION, self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
             b(&self.cleared), l(&self.tanks), l(&self.caches), l(&self.opened), l(&self.visited), self.room,
             self.time, self.heart_price, dp, self.potions, self.mini_seen, self.mini_done, self.hoard_left,
-            self.zombies, self.antidotes
+            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel
         )
     }
     fn from_text(txt: &str) -> Option<Self> {
@@ -548,6 +559,9 @@ impl SaveData {
                 "hoard_left" => s.hoard_left = num() as i32,
                 "zombies" => s.zombies = num() as i32,
                 "antidotes" => s.antidotes = (num() as i32).clamp(0, 3),
+                "bombs" => s.bombs = (num() as i32).clamp(0, bag::MAX_BOMBS),
+                "elixirs" => s.elixirs = (num() as i32).clamp(0, bag::MAX_ELIXIRS),
+                "bag_sel" => s.bag_sel = (num() as usize).min(bag::SLOTS.len() - 1),
                 "dprog" => {
                     for (i, x) in v.split(',').enumerate().take(7) {
                         s.dprog[i] = x.trim().parse().unwrap_or(0);
@@ -627,6 +641,7 @@ pub struct Game {
     /// Fade-in from black after scene changes (frames remaining).
     fade: i32,
     paused: bool,
+    bombs: Vec<bag::Bomb>,
     boss: Option<Boss>,
     boss_dead: bool,
     clear_t: i32,
@@ -656,7 +671,7 @@ pub struct Game {
     starve_t: i32,
     hungry_warned: bool,
     starving_warned: bool,
-    shop_armed: [bool; 6],
+    shop_armed: [bool; 8],
     /// Player statuses: poison frames left (drains HP, green tint).
     poison: i32,
     /// Overworld encounter runtime state (see minis.rs).
@@ -703,6 +718,7 @@ impl Game {
             shake: 0,
             fade: 0,
             paused: false,
+            bombs: vec![],
             boss: None,
             boss_dead: false,
             clear_t: 0,
@@ -729,7 +745,7 @@ impl Game {
             starve_t: 0,
             hungry_warned: false,
             starving_warned: false,
-            shop_armed: [true; 6],
+            shop_armed: [true; 8],
             poison: 0,
             dryad_stage: 0,
             fruit: vec![],
@@ -987,7 +1003,7 @@ impl Game {
     pub fn update(&mut self, inp: &Input) {
         self.inp = *inp;
         self.frame += 1;
-        if self.p(Btn::Mute) {
+        if self.p(Btn::Mute) || (self.paused && self.p(Btn::Bag)) {
             self.muted = !self.muted;
             let m = self.muted;
             if let Some(a) = self.audio.as_mut() {
@@ -1097,6 +1113,7 @@ impl Game {
 
     // ------------------------------------------------------------ overworld
     fn clear_entities(&mut self) {
+        self.bombs.clear();
         self.enemies.clear();
         self.pb.clear();
         self.eb.clear();
@@ -1117,7 +1134,7 @@ impl Game {
         self.pl = Player::at(x, y);
         self.clear_entities();
         self.msg = None;
-        self.shop_armed = [true; 6];
+        self.shop_armed = [true; 8];
         self.enter_room(spawn);
         self.follow_cam(true);
         let song = self.area_song();
@@ -1292,7 +1309,7 @@ impl Game {
         y = y.clamp(HUDF + 10.0, tr.hf() - 10.0);
         let cam1 = Self::cam_target(tr, x, y);
         let cam0 = self.cam;
-        self.scroll = Some(Scroll { d, t: 0.0, from, to, dun, nx, ny, cam0, cam1 });
+        self.scroll = Some(Scroll { t: 0.0, from, to, dun, nx, ny, cam0, cam1 });
         self.clear_entities();
         self.pl.x = x;
         self.pl.y = y;
@@ -1339,6 +1356,13 @@ impl Game {
             self.sfx(Sfx::Select);
         }
         if self.paused {
+            // The pause menu picks the bag item with Left / Right.
+            if self.p(Btn::Left) {
+                self.cycle_bag(-1);
+            }
+            if self.p(Btn::Right) {
+                self.cycle_bag(1);
+            }
             return;
         }
         self.s.time += 1;
@@ -1459,13 +1483,12 @@ impl Game {
             self.cast_spell();
         }
         if self.p(Btn::Potion) {
-            // The same button cures poison first when you carry an antidote.
-            if self.poison > 0 && self.s.antidotes > 0 {
-                self.use_antidote();
-            } else {
-                self.drink_potion();
-            }
+            self.use_bag();
         }
+        if self.p(Btn::Bag) {
+            self.cycle_bag(1);
+        }
+        self.update_bombs();
         self.update_pbullets();
         self.update_enemies();
         self.update_boss();
@@ -1561,7 +1584,7 @@ impl Game {
         self.sfx(Sfx::Eat);
     }
     /// Drink a carried potion: refills mana completely.
-    fn drink_potion(&mut self) {
+    pub(super) fn drink_potion(&mut self) {
         let (x, y) = (self.pl.x, self.pl.y);
         if self.s.potions <= 0 {
             self.float("NO POTIONS", x - 40.0, y - 18.0, rgb(0x747474));
@@ -1777,18 +1800,18 @@ impl Game {
         self.village_talk_spot()
             || (self.overworld()
                 && self.room == self.shop_room
-                && (0..4).any(|i| (self.pl.x - Self::shop_x(i)).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0))
+                && (0..SHOP_ITEMS).any(|i| (self.pl.x - Self::shop_x(i)).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0))
     }
-    /// Shop pedestals: roast, mana potion, antidote, heart container.
+    /// Shop pedestals: roast, mana potion, antidote, bomb, elixir, heart container.
     fn shop_x(i: usize) -> f32 {
-        56.0 + i as f32 * 48.0
+        38.0 + i as f32 * 36.0
     }
-    fn shop_prices(&self) -> [i32; 4] {
-        [15, 25, 20, self.s.heart_price]
+    fn shop_prices(&self) -> [i32; SHOP_ITEMS] {
+        [15, 25, 20, 30, 120, self.s.heart_price]
     }
     fn shop(&mut self) {
         let prices = self.shop_prices();
-        for i in 0..4 {
+        for i in 0..SHOP_ITEMS {
             let x = Self::shop_x(i);
             let near = (self.pl.x - x).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0;
             if !near {
@@ -1797,7 +1820,7 @@ impl Game {
             }
             if self.shop_armed[i] {
                 self.shop_armed[i] = false;
-                let what = ["A HEARTY ROAST", "A MANA POTION TO CARRY", "AN ANTIDOTE FOR POISON", "A HEART CONTAINER"][i];
+                let what = ["A HEARTY ROAST", "A MANA POTION TO CARRY", "AN ANTIDOTE FOR POISON", "A BOMB FOR YOUR BAG", "AN ELIXIR: FULL LIFE AND MAGIC", "A HEART CONTAINER"][i];
                 self.show_msg(format!("{} FOR {} GOLD. PRESS A TO BUY.", what, prices[i]));
                 if let Some(m) = self.msg.as_mut() {
                     m.1 = 120;
@@ -1816,6 +1839,16 @@ impl Game {
                 self.sfx(Sfx::Deny);
                 continue;
             }
+            if i == 3 && self.s.bombs >= bag::MAX_BOMBS {
+                self.show_msg("YOUR BAG CAN'T HOLD ANY MORE BOMBS.");
+                self.sfx(Sfx::Deny);
+                continue;
+            }
+            if i == 4 && self.s.elixirs >= bag::MAX_ELIXIRS {
+                self.show_msg("YOU CAN ONLY CARRY THREE ELIXIRS.");
+                self.sfx(Sfx::Deny);
+                continue;
+            }
             if self.s.gold < prices[i] {
                 self.show_msg("NOT ENOUGH GOLD, MAGE. SLAY MONSTERS AND OPEN CHESTS.");
                 self.sfx(Sfx::Deny);
@@ -1829,7 +1862,7 @@ impl Game {
                 }
                 1 => {
                     self.s.potions += 1;
-                    self.show_msg(format!("A MANA POTION FOR YOUR PACK ({}/{}). PRESS Y OR C TO DRINK IT.", self.s.potions, MAX_POTIONS));
+                    self.show_msg(format!("A MANA POTION FOR YOUR PACK: {} OF {}. PRESS Y OR C TO DRINK IT.", self.s.potions, MAX_POTIONS));
                     self.sfx(Sfx::Pickup);
                 }
                 2 => {
@@ -1837,8 +1870,18 @@ impl Game {
                         self.cure_poison();
                     } else {
                         self.s.antidotes += 1;
-                        self.show_msg(format!("AN ANTIDOTE FOR YOUR PACK ({}/3). IF POISONED, PRESS Y OR C TO DRINK.", self.s.antidotes));
+                        self.show_msg(format!("AN ANTIDOTE FOR YOUR PACK: {} OF 3. IF POISONED, PRESS Y OR C TO DRINK.", self.s.antidotes));
                     }
+                    self.sfx(Sfx::Pickup);
+                }
+                3 => {
+                    self.s.bombs += 1;
+                    self.show_msg(format!("A BOMB FOR YOUR BAG: {} OF {}. SELECT PICKS IT, Y DROPS IT.", self.s.bombs, bag::MAX_BOMBS));
+                    self.sfx(Sfx::Pickup);
+                }
+                4 => {
+                    self.s.elixirs += 1;
+                    self.show_msg(format!("AN ELIXIR FOR YOUR BAG: {} OF {}. SELECT PICKS IT, Y DRINKS IT.", self.s.elixirs, bag::MAX_ELIXIRS));
                     self.sfx(Sfx::Pickup);
                 }
                 _ => {
@@ -1958,6 +2001,9 @@ mod tests {
         s.hoard_left = 7;
         s.zombies = 3;
         s.antidotes = 2;
+        s.bombs = 5;
+        s.elixirs = 1;
+        s.bag_sel = 2;
         let back = SaveData::from_text(&s.to_text()).expect("parse");
         assert_eq!(back, s);
     }

@@ -136,8 +136,4 @@ impl Art {
     pub fn terrain(&self, theme: usize) -> Option<&TerrainArt> {
         self.terrain.iter().find(|t| t.0 == theme).map(|t| &t.1)
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.sheets.is_empty() && self.terrain.is_empty()
-    }
 }

@@ -30,6 +30,7 @@ fn map_key(sc: Scancode) -> Option<Btn> {
         C | L | LShift | RShift => Btn::Potion,
         Return | Escape | P => Btn::Start,
         M => Btn::Mute,
+        Tab | V | Q => Btn::Bag,
         _ => return None,
     })
 }
@@ -44,7 +45,7 @@ fn map_button(b: Button) -> Option<Btn> {
         Button::B => Btn::Sub,
         Button::Y | Button::LeftShoulder | Button::RightShoulder => Btn::Potion,
         Button::Start => Btn::Start,
-        Button::Back => Btn::Mute,
+        Button::Back => Btn::Bag,
         _ => return None,
     })
 }
@@ -150,7 +151,6 @@ fn main() -> Result<(), String> {
                         Axis::RightY => input.set_aim_y(v as f32 / 32767.0),
                         Axis::TriggerRight => input.set_axis(Btn::Fire, v > 12000),
                         Axis::TriggerLeft => input.set_axis(Btn::Sub, v > 12000),
-                        _ => {}
                     }
                 }
                 Event::Window { win_event: WindowEvent::FocusLost, .. } => input.release_all(),

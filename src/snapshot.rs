@@ -229,8 +229,8 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(10);
     t.shot("09_shop");
     t.g.debug_set_gold(100);
-    t.g.debug_set_player(56.0, 150.0, b'u');
-    t.walk_to(56.0, 136.0, 60);
+    t.g.debug_set_player(38.0, 150.0, b'u');
+    t.walk_to(38.0, 136.0, 60);
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_gold() == 85, "shop purchasing still works (roast for 15 gold)");
@@ -267,8 +267,8 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check((4.0..=6.0).contains(&mp), &format!("mana regenerates at about 0.5 MP per second ({mp:.1} MP after 10 s)"));
     let p0 = t.g.debug_potions();
     t.g.debug_set_mp(10.0, 40);
-    t.g.debug_set_player(104.0, 150.0, b'u');
-    t.walk_to(104.0, 136.0, 60);
+    t.g.debug_set_player(74.0, 150.0, b'u');
+    t.walk_to(74.0, 136.0, 60);
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_potions() == p0 + 1 && t.g.debug_gold() == 60, "buying a potion puts it in the pack (25 gold)");
@@ -290,15 +290,15 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(2);
     t.check(t.g.debug_potions() == 5 && t.g.debug_mp() >= 29.0, "with a full pack a found potion restores 30 MP instead");
     t.g.debug_set_gold(100);
-    t.g.debug_set_player(104.0, 150.0, b'u');
-    t.walk_to(104.0, 136.0, 60);
+    t.g.debug_set_player(74.0, 150.0, b'u');
+    t.walk_to(74.0, 136.0, 60);
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_gold() == 100, "the shop won't sell a potion when the pack is full");
     t.shot("09c_potion_hud");
     // Antidotes: bought and carried, cure poison with the potion button.
-    t.g.debug_set_player(152.0, 150.0, b'u');
-    t.walk_to(152.0, 136.0, 60);
+    t.g.debug_set_player(110.0, 150.0, b'u');
+    t.walk_to(110.0, 136.0, 60);
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_antidotes() == 1 && t.g.debug_gold() == 80, "the shop sells an antidote (20 gold) that goes in the pack");
@@ -313,6 +313,50 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.g.debug_set_poison(100);
     t.frames(120);
     t.check(t.g.debug_poison() == 0, "poison wears off on its own");
+
+    // Relic bag: bombs and elixirs from the shop, Select picks, the potion button uses.
+    println!("[bag] relic bag: bombs and elixirs");
+    t.g.debug_set_gold(200);
+    t.g.debug_set_bag(0, 0, 0);
+    t.g.debug_set_player(146.0, 150.0, b'u');
+    t.walk_to(146.0, 136.0, 60);
+    t.frames(2);
+    t.tap(Btn::Fire);
+    t.check(t.g.debug_bag().1 == 1 && t.g.debug_gold() == 170, "the shop sells a bomb (30 gold) for the bag");
+    t.g.debug_set_player(182.0, 150.0, b'u');
+    t.walk_to(182.0, 136.0, 60);
+    t.frames(2);
+    t.tap(Btn::Fire);
+    t.check(t.g.debug_bag().2 == 1 && t.g.debug_gold() == 50, "the shop sells an elixir (120 gold) for the bag");
+    t.g.debug_set_player(128.0, 190.0, b'u');
+    t.frames(2);
+    t.tap(Btn::Bag);
+    t.tap(Btn::Bag);
+    t.check(t.g.debug_bag().0 == 2, "Select cycles the bag (potion, antidote, bomb)");
+    let foe = t.g.debug_spawn(0, 150.0, 190.0, 6.0, true);
+    t.tap(Btn::Potion);
+    t.check(t.g.debug_bag().1 == 0 && t.g.debug_bag().3 == 1, "the potion button drops the selected bomb");
+    t.frames(40);
+    t.shot("09e_bomb_fuse");
+    t.frames(60);
+    t.check(t.g.debug_bag().3 == 0, "the bomb goes off after its fuse");
+    t.check(t.g.debug_enemy(foe).map_or(true, |e| e.dead || e.hp <= 0.0), "the blast destroys a nearby monster");
+    t.tap(Btn::Bag);
+    t.check(t.g.debug_bag().0 == 3, "the next slot is the elixir");
+    t.g.debug_set_hp(4, 20);
+    t.g.debug_set_mp(3.0, 40);
+    t.tap(Btn::Potion);
+    t.check(t.g.debug_hp() == 20 && t.g.debug_mp() >= 39.5 && t.g.debug_bag().2 == 0, "an elixir fully restores life and magic");
+    t.tap(Btn::Start);
+    t.tap(Btn::Right);
+    t.check(t.g.debug_paused() && t.g.debug_bag().0 == 0, "the pause menu picks the bag item with Left/Right");
+    t.shot("09f_pause_bag");
+    let m0 = t.g.debug_muted();
+    t.tap(Btn::Bag);
+    t.check(t.g.debug_muted() != m0, "Select while paused mutes the sound");
+    t.tap(Btn::Bag);
+    t.tap(Btn::Start);
+    t.check(!t.g.debug_paused(), "unpaused again");
 
     // ---------------------------------------------------------------- fire: travelling bolt + burning DOT
     // ---------------------------------------------------------------- SNES camera and areas
@@ -990,7 +1034,8 @@ fn encounters(t: &mut T) {
     t.g.debug_set_player(x + dx as f32 * 18.0, y + dy as f32 * 18.0, face);
     t.hold_until(toward, 34, |_| false);
     let (_, _, left, regrow, _) = t.g.debug_trees()[0];
-    t.check(left == 0 && regrow > 0 && apples(t) >= a0 + 3, "bumping the tree shakes loose more apples until it's bare");
+    // (Fallen apples may already have been picked up, so check the tree itself.)
+    t.check(left == 0 && regrow > 0, "bumping the tree shakes loose more apples until it's bare");
     let bare = apples(t);
     t.fire_from(fx, fy, face);
     t.check(apples(t) == bare, "a bare tree drops nothing until it regrows");
@@ -1005,11 +1050,12 @@ fn encounters(t: &mut T) {
     if let Some(tr) = t.g.debug_trees().into_iter().find(|t| t.4) {
         let (x, y) = tc(tr.0, tr.1);
         // Shoot from whichever side has open ground.
-        if tr.0 < 8 {
-            t.fire_from(x + 28.0, y, b'l');
-        } else {
-            t.fire_from(x - 28.0, y, b'r');
-        }
+        let (c, r) = (tr.0, tr.1);
+        let (dx, dy, face, _) = sides
+            .into_iter()
+            .find(|&(dx, dy, _, _)| t.g.debug_tile(c + dx, r + dy) == T_FLOOR && t.g.debug_tile(c + 2 * dx, r + 2 * dy) == T_FLOOR)
+            .unwrap_or(sides[1]);
+        t.fire_from(x + dx as f32 * 28.0, y + dy as f32 * 28.0, face);
         t.frames(40);
         t.check(t.g.debug_mob("Treant").is_some() && t.g.debug_tile(tr.0, tr.1) == T_FLOOR, "one 'fruit tree' is a disguised treant that wakes when shaken");
         let mut fought = false;

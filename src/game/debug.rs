@@ -256,6 +256,18 @@ impl Game {
         self.enemies.push(e);
         id
     }
+    /// (selected slot, bombs, elixirs, lit bombs on the ground)
+    pub fn debug_bag(&self) -> (usize, i32, i32, usize) {
+        (self.s.bag_sel, self.s.bombs, self.s.elixirs, self.bombs.len())
+    }
+    pub fn debug_set_bag(&mut self, sel: usize, bombs: i32, elixirs: i32) {
+        self.s.bag_sel = sel;
+        self.s.bombs = bombs;
+        self.s.elixirs = elixirs;
+    }
+    pub fn debug_muted(&self) -> bool {
+        self.muted
+    }
     pub fn debug_enemy(&self, id: u32) -> Option<DebugEnemy> {
         self.enemies.iter().find(|e| e.id == id).map(|e| DebugEnemy {
             hp: e.hp, burn: e.st.burn, chill: e.st.chill, freeze: e.st.freeze, dead: e.dead,

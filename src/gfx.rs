@@ -327,12 +327,6 @@ impl Screen {
         self.blit_px(s, dx0, dy0, flip, None);
     }
 
-    /// Native sprite with every opaque pixel replaced by `tint` (hit flash etc.).
-    pub fn spr_hd_tint(&mut self, s: &Sprite, cx: f32, cy: f32, flip: bool, tint: u32) {
-        let (dx0, dy0) = (self.tx(cx) - s.w / 2, self.ty(cy) - s.h / 2);
-        self.blit_px(s, dx0, dy0, flip, Some(tint));
-    }
-
     /// Native sprite anchored by a point inside it: pixel (ax, ay) of the sprite lands on
     /// logic position (x, y). Used for characters whose feet sit at their position.
     pub fn spr_hd_anchor(&mut self, s: &Sprite, x: f32, y: f32, ax: i32, ay: i32, flip: bool, fx: Tint) {
@@ -566,6 +560,8 @@ fn glyph(c: char) -> Option<&'static [&'static str; 7]> {
         '!' => &["  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "     ", "  #  "],
         '?' => &[" ### ", "#   #", "    #", "   # ", "  #  ", "     ", "  #  "],
         '/' => &["    #", "    #", "   # ", "  #  ", " #   ", "#    ", "#    "],
+        '(' => &["   # ", "  #  ", " #   ", " #   ", " #   ", "  #  ", "   # "],
+        ')' => &[" #   ", "  #  ", "   # ", "   # ", "   # ", "  #  ", " #   "],
         '>' => &[" #   ", "  #  ", "   # ", "    #", "   # ", "  #  ", " #   "],
         '<' => &["   # ", "  #  ", " #   ", "#    ", " #   ", "  #  ", "   # "],
         '+' => &["     ", "  #  ", "  #  ", "#####", "  #  ", "  #  ", "     "],

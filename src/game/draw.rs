@@ -190,19 +190,23 @@ impl Game {
                 None => scr.spr(&self.spr.mage_d[4][0].img, mx, my, false),
             }
             let prices = self.shop_prices();
-            for i in 0..4 {
+            for i in 0..SHOP_ITEMS {
                 let px = Self::shop_x(i) as i32 + ox;
                 let py = GATE_Y as i32 + oy;
-                scr.fill(px - 8, py + 4, 16, 5, rgb(0x6c3c10));
-                scr.fill(px - 8, py + 4, 16, 1, rgb(0xa86030));
+                scr.fill(px - 7, py + 4, 14, 5, rgb(0x6c3c10));
+                scr.fill(px - 7, py + 4, 14, 1, rgb(0xa86030));
                 let (s, name) = match i {
                     0 => (&self.spr.meat, "meat"),
                     1 => (&self.spr.potion, "mana_potion"),
                     2 => (&self.spr.antidote, "antidote"),
+                    3 => (&self.spr.potion, "bomb"),
+                    4 => (&self.spr.potion, "elixir"),
                     _ => (&self.spr.big_heart, "heart_container"),
                 };
                 match self.item_named(name) {
                     Some(img) => scr.spr_hd(img, px as f32, py as f32 - 2.0, false),
+                    None if i == 3 => draw_bomb_icon(scr, px, py - 2),
+                    None if i == 4 => draw_elixir_icon(scr, px, py - 2),
                     None => scr.spr(&s.img, px as f32, py as f32 - 2.0, false),
                 }
                 scr.text(&prices[i].to_string(), px + 1, py + 12, rgb(0xfcbc3c), Align::Center, 8);
@@ -884,6 +888,7 @@ impl Game {
                 self.draw_dungeon_overlays(scr);
             }
             self.draw_items(scr);
+            self.draw_bombs(scr, false);
             self.draw_hazards(scr);
             for e in &self.enemies {
                 self.draw_enemy(scr, e);
@@ -899,6 +904,7 @@ impl Game {
                     self.draw_hero(scr, 0.0, 0.0);
                 }
             }
+            self.draw_bombs(scr, true);
             self.draw_bullets(scr);
             self.draw_parts_pass(scr, false);
             self.draw_ambience(scr);
@@ -1133,10 +1139,19 @@ impl Game {
         let w = (48.0 * (self.s.food / 100.0).clamp(0.0, 1.0)) as i32;
         scr.fill(45, 17, w, 6, fc);
         scr.fill(45, 17, w, 1, mix(fc, WHITE, 0.5));
-        // Counters: potions, runes (or keys in a dungeon), gold.
-        scr.spr(&self.spr.potion.img, 102.0, 20.0, false);
-        let pc = if self.s.potions > 0 { rgb(0x3cbcfc) } else { rgb(0x747474) };
-        scr.text(&self.s.potions.to_string(), 108, 16, pc, Align::Left, 8);
+        // Counters: the selected bag item in its box, runes (or keys in a dungeon), gold.
+        use super::bag::Slot;
+        let slot = self.slot();
+        let n = self.slot_count(slot);
+        scr.frame_rect(93, 11, 14, 18, rgb(0x5c4880));
+        match slot {
+            Slot::Potion => scr.spr(&self.spr.potion.img, 100.0, 20.0, false),
+            Slot::Antidote => scr.spr(&self.spr.antidote.img, 100.0, 20.0, false),
+            Slot::Bomb => draw_bomb_icon(scr, 100, 20),
+            Slot::Elixir => draw_elixir_icon(scr, 100, 20),
+        }
+        let pc = if n > 0 { rgb(0x3cbcfc) } else { rgb(0x747474) };
+        scr.text(&n.to_string(), 109, 16, pc, Align::Left, 8);
         if self.dungeon.is_some() && self.in_lair == 0 {
             scr.spr(&self.spr.key.img, 126.0, 20.0, false);
             scr.text(&format!("X{}", self.dungeon_keys()), 132, 16, rgb(0xfcbc3c), Align::Left, 8);
@@ -1232,7 +1247,8 @@ impl Game {
         let y = oy + WH as i32 * ch + 6;
         let el = self.el();
         scr.text(&format!("{} MAGIC: {}", el.name(), SPELL_NAMES[el.idx()]), 128, y, el.light(), Align::Center, 8);
-        scr.text(&format!("LV{} RUNES {}/5 POT{} ANTI{}", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count(), self.s.potions, self.s.antidotes), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
+        let slot = self.slot();
+        scr.text(&format!("LV{} RUNES {}/5  BAG: < {} X{} >", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count(), slot.name(), self.slot_count(slot)), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
         scr.text("M MONOLITH V VILLAGE RED ENCOUNTER", 128, y + 26, rgb(0x747474), Align::Center, 8);
     }
     fn draw_dungeon_map(&self, scr: &mut Screen) {
@@ -1441,4 +1457,19 @@ fn draw_heart(scr: &mut Screen, x: i32, y: i32, c: u32, cols: i32) {
             }
         }
     }
+}
+/// Code-drawn bag icons (until the items sheet has "bomb" / "elixir"), centred on (x, y).
+pub(super) fn draw_bomb_icon(scr: &mut Screen, x: i32, y: i32) {
+    scr.disc(x, y + 1, 5, rgb(0x2c2c3c));
+    scr.disc(x - 2, y - 1, 1, rgb(0x8c8ca8));
+    scr.fill(x - 1, y - 5, 3, 2, rgb(0x5c5c64));
+    scr.line(x + 1, y - 5, x + 3, y - 8, rgb(0xa86030));
+    scr.fill(x + 3, y - 9, 2, 2, rgb(0xfce040));
+}
+pub(super) fn draw_elixir_icon(scr: &mut Screen, x: i32, y: i32) {
+    scr.fill(x - 1, y - 7, 3, 2, rgb(0xa86030));
+    scr.fill(x - 2, y - 5, 5, 2, rgb(0xd8d8e8));
+    scr.disc(x, y + 1, 5, rgb(0xd8d8e8));
+    scr.disc(x, y + 1, 4, rgb(0xfcbc3c));
+    scr.fill(x - 2, y - 1, 2, 2, rgb(0xfce078));
 }
