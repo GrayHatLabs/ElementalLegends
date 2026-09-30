@@ -1043,6 +1043,9 @@ fn encounters(t: &mut T) {
     t.check(chest.map_or(false, |c| !c.2), "a closed treasure chest waits there");
     if let Some((c, r, _, _)) = chest {
         let (x, y) = tc(c, r);
+        t.g.debug_set_player(x - 30.0, y + 36.0, b'u');
+        t.frames(30);
+        t.shot("72a_cave_chest");
         t.g.debug_set_player(x, y + 20.0, b'u');
         t.walk_to(x, y + 10.0, 60);
         t.frames(3);

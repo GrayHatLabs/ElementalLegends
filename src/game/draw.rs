@@ -191,6 +191,25 @@ impl Game {
             scr.fill(x + 23, base - 18, 8, 5, rgb(0x58d854));
         }
     }
+    /// A treasure chest centred on (x, y): the big generated chest, else the classic
+    /// one-tile chest. Closed chests twinkle so they are easy to spot.
+    fn draw_chest(&self, scr: &mut Screen, x: f32, y: f32, open: bool) {
+        scr.blend_ellipse(x as i32, y as i32 + 7, 9, 2, BLACK, 0.3);
+        let art = if open { "obj_chest_open" } else { "obj_chest_closed" };
+        if !self.obj_hd(scr, art, x, y + 8.0) {
+            scr.spr(&if open { &self.spr.chest_open } else { &self.spr.chest }.img, x, y, false);
+        }
+        if !open {
+            // A four-point sparkle on the lid every second or so.
+            let ph = (self.frame + (x as u64 * 7 + y as u64 * 3)) % 60;
+            if ph < 10 {
+                let (sx, sy) = (x as i32 + 5, y as i32 - 7);
+                let r = if ph < 5 { ph as i32 / 2 + 1 } else { (10 - ph as i32) / 2 + 1 };
+                scr.fill(sx - r, sy, r * 2 + 1, 1, WHITE);
+                scr.fill(sx, sy - r, 1, r * 2 + 1, WHITE);
+            }
+        }
+    }
     pub(super) fn draw_room_objs(&self, scr: &mut Screen, ri: usize, ox: i32, oy: i32) {
         let r = &self.rooms[ri];
         let (gx, gy) = r.center();
@@ -219,10 +238,7 @@ impl Game {
         }
         if let Some((cx, cy, _, _)) = r.chest {
             let open = self.s.opened.contains(&ri);
-            match self.item_named(if open { "chest_open" } else { "chest_closed" }) {
-                Some(img) => scr.spr_hd(img, cx + ox as f32, cy + oy as f32, false),
-                None => scr.spr(&if open { &self.spr.chest_open } else { &self.spr.chest }.img, cx + ox as f32, cy + oy as f32, false),
-            }
+            self.draw_chest(scr, cx + ox as f32, cy + oy as f32, open);
         }
         if let Some(se) = r.shrine {
             self.draw_shrine(scr, x, y, Elem::from_idx(se));
@@ -310,15 +326,7 @@ impl Game {
                 scr.line(x, y + 2, ex, y - 7, rgb(0xa0a0ac));
                 scr.disc(ex, y - 8, 2, knob);
             }
-            OK::Chest => {
-                match self.item_named(if o.on { "chest_open" } else { "chest_closed" }) {
-                    Some(img) => scr.spr_hd(img, fx, fy, false),
-                    None => scr.spr(&if o.on { &self.spr.chest_open } else { &self.spr.chest }.img, fx, fy, false),
-                }
-                if !o.on && self.frame % 30 < 4 {
-                    scr.pset(x + 6, y - 6, WHITE);
-                }
-            }
+            OK::Chest => self.draw_chest(scr, fx, fy, o.on),
             OK::Shrine(el) => self.draw_shrine(scr, x, y, el),
         }
     }
