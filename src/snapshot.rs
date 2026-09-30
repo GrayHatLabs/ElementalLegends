@@ -221,28 +221,11 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(720);
     t.check(t.g.debug_food() < f0 - 8.0, "food still drains over time");
 
-    // Walk to the shop through the connecting doorway.
-    let (sx, sy) = t.g.debug_room_xy(start);
-    let (hx, hy) = t.g.debug_room_xy(shop);
-    let (btn, door) = if hx > sx {
-        (Btn::Right, (238.0, 136.0))
-    } else if hx < sx {
-        (Btn::Left, (18.0, 136.0))
-    } else if hy < sy {
-        (Btn::Up, (128.0, 44.0))
-    } else {
-        (Btn::Down, (128.0, 226.0))
-    };
-    t.g.debug_set_player(128.0, 150.0, b'd');
-    t.walk_to(128.0, 136.0, 200);
-    if matches!(btn, Btn::Up) {
-        // Go around the monolith, which stands between the clearing and the north door.
-        t.walk_to(96.0, 136.0, 120);
-        t.walk_to(96.0, 44.0, 200);
-    }
-    t.walk_to(door.0, door.1, 300);
-    let reached = t.hold_until(btn, 200, move |g| g.debug_room() == shop && !g.debug_scrolling());
-    t.check(reached, "the shop is reached by walking out of the monolith clearing");
+    // The village is found by exploring: two or three areas out from the monolith.
+    let d = t.g.debug_room_dist(shop);
+    t.check((2..=3).contains(&d), &format!("the village is {d} areas from the monolith (2-3)"));
+    t.check(t.g.debug_room_special(start) == 1, "the monolith start is unchanged");
+    t.g.debug_play_room(shop, 128.0, 170.0);
     t.frames(10);
     t.shot("09_shop");
     t.g.debug_set_gold(100);
@@ -251,6 +234,30 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_gold() == 85, "shop purchasing still works (roast for 15 gold)");
+
+    // The inn restores life and magic for gold; the notice board can be read.
+    println!("[village] inn and notice board");
+    t.g.debug_set_hp(4, 20);
+    t.g.debug_set_mp(5.0, 40);
+    t.g.debug_set_player(80.0, 218.0, b'l');
+    t.walk_to(76.0, 218.0, 60);
+    t.frames(2);
+    t.check(t.g.debug_msg().map_or(false, |m| m.contains("INNKEEPER")), "the innkeeper offers a room");
+    let bolts0 = t.g.debug_player_bolts().len();
+    t.tap(Btn::Fire);
+    t.check(t.g.debug_hp() == 20 && t.g.debug_mp() >= 39.5 && t.g.debug_gold() == 75, "resting at the inn restores life and magic for 10 gold");
+    t.check(t.g.debug_player_bolts().len() == bolts0, "talking to the innkeeper doesn't cast a bolt");
+    t.frames(2);
+    t.tap(Btn::Fire);
+    t.check(t.g.debug_gold() == 75, "a rested mage isn't charged again");
+    t.frames(10);
+    t.shot("09a_village_inn");
+    t.g.debug_set_player(180.0, 218.0, b'r');
+    t.walk_to(200.0, 218.0, 60);
+    t.frames(2);
+    t.check(t.g.debug_msg().map_or(false, |m| m.contains("NOTICE")), "the notice board can be read");
+    t.shot("09b_village_board");
+    t.g.debug_set_gold(85);
 
     // Mana is a resource: slow regen, potions carried and drunk on demand.
     println!("[mana] regen and carried potions");
@@ -288,7 +295,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_gold() == 100, "the shop won't sell a potion when the pack is full");
-    t.shot("09b_potion_hud");
+    t.shot("09c_potion_hud");
     // Antidotes: bought and carried, cure poison with the potion button.
     t.g.debug_set_player(152.0, 150.0, b'u');
     t.walk_to(152.0, 136.0, 60);
@@ -300,7 +307,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.g.debug_set_poison(400);
     t.frames(80);
     t.check(t.g.debug_hp() < hp_before, "poison drains health over time");
-    t.shot("09c_poisoned");
+    t.shot("09d_poisoned");
     t.tap(Btn::Potion);
     t.check(t.g.debug_poison() == 0 && t.g.debug_antidotes() == 0, "with poison and an antidote, the potion button cures it");
     t.g.debug_set_poison(100);

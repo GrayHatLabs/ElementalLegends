@@ -90,8 +90,11 @@ impl Game {
         }
     }
     fn draw_cottage(&self, scr: &mut Screen, ox: i32, oy: i32) {
-        let (x, y) = (128 + ox, HUD + 16 + oy);
-        if self.obj_hd(scr, "obj_cottage", x as f32, y as f32 + 32.0) {
+        self.draw_house(scr, "obj_cottage", 128 + ox, HUD + 16 + oy, (0xa81000, 0x681008));
+    }
+    /// A village house whose base (ground line) is at y + 32; `roof` = (colour, dark edge).
+    fn draw_house(&self, scr: &mut Screen, art: &str, x: i32, y: i32, roof: (u32, u32)) {
+        if self.obj_hd(scr, art, x as f32, y as f32 + 32.0) {
             return;
         }
         scr.fill(x - 28, y + 10, 56, 22, rgb(0x8c6c4c));
@@ -101,7 +104,7 @@ impl Game {
         scr.fill(x - 28, y + 20, 56, 2, rgb(0x5c3c20));
         for row in 0..14 {
             let w = 34 - row * 34 / 14;
-            scr.fill(x - w, y + 10 - row, w * 2, 1, if row == 0 { rgb(0x681008) } else { rgb(0xa81000) });
+            scr.fill(x - w, y + 10 - row, w * 2, 1, if row == 0 { rgb(roof.1) } else { rgb(roof.0) });
         }
         scr.fill(x - 5, y + 18, 10, 14, rgb(0x5c3410));
         scr.fill(x + 2, y + 25, 1, 1, rgb(0xfcbc3c));
@@ -111,6 +114,35 @@ impl Game {
         }
         if (self.frame / 30) % 2 == 0 {
             scr.blend_disc(x + 18, y - 6, 2, rgb(0x747474), 0.4);
+        }
+    }
+    /// The inn with its innkeeper and the notice board (the shop is drawn separately).
+    fn draw_village(&self, scr: &mut Screen, ox: i32, oy: i32) {
+        use super::village::{BOARD, INNKEEPER};
+        let inn_x = ((*INN_COLS.start() + *INN_COLS.end() + 1) as i32 * TS / 2) + ox;
+        let inn_base = HUD + (*INN_ROWS.end() as i32 + 1) * TS + oy;
+        self.draw_house(scr, "obj_inn", inn_x, inn_base - 32, (0x8c5020, 0x5c3410));
+        let (kx, ky) = (INNKEEPER.0 + ox as f32, INNKEEPER.1 + oy as f32);
+        scr.blend_ellipse(kx as i32, ky as i32 + 7, 6, 2, BLACK, 0.3);
+        let keeper = ["npc_innkeeper", "npc_merchant"]
+            .iter()
+            .find_map(|n| self.art.sheet(n).and_then(|sh| sh.anim("idle_down").map(|a| (sh.cell, a, *n))));
+        match keeper {
+            Some((cell, a, n)) => {
+                let fx = if n == "npc_merchant" { Tint::Mix(rgb(0xd87838), 0.3) } else { Tint::None };
+                scr.spr_hd_anchor(a.at(self.frame as u32), kx, ky + 7.0, cell.0 / 2, cell.1 - 2, false, fx);
+            }
+            None => scr.spr(&self.spr.mage_d[4][0].img, kx, ky, false),
+        }
+        let (bx, by) = (BOARD.0 as i32 + ox, BOARD.1 as i32 + 8 + oy);
+        if !self.obj_hd(scr, "obj_notice_board", bx as f32, by as f32) {
+            scr.fill(bx - 7, by - 16, 2, 16, rgb(0x5c3410));
+            scr.fill(bx + 5, by - 16, 2, 16, rgb(0x5c3410));
+            scr.fill(bx - 9, by - 18, 18, 11, rgb(0x8c5020));
+            scr.fill(bx - 9, by - 18, 18, 1, rgb(0xb87838));
+            for &(px, py) in &[(-7, -16), (-1, -15), (3, -16), (-5, -11)] {
+                scr.fill(bx + px, by + py, 4, 4, rgb(0xf0e0b8));
+            }
         }
     }
     pub(super) fn draw_room_objs(&self, scr: &mut Screen, ri: usize, ox: i32, oy: i32) {
@@ -147,6 +179,7 @@ impl Game {
             self.draw_shrine(scr, x, y, Elem::from_idx(se));
         }
         if r.special == SP_SHOP {
+            self.draw_village(scr, ox, oy);
             self.draw_cottage(scr, ox, oy);
             let (mx, my) = (128.0 + ox as f32, HUDF + 58.0 + oy as f32);
             match self.art.sheet("npc_merchant").and_then(|sh| sh.anim("idle_down").map(|a| (sh.cell, a))) {
@@ -787,7 +820,10 @@ impl Game {
         scr.sx = 0;
         scr.sy = 0;
         let h = lines.len() as i32 * 11 + 10;
-        let y = SH - h - 6;
+        // Like A Link to the Past: the box moves to the top when the mage is low on screen.
+        let mage_y = HUD_PX as f32 + (self.pl.y - self.cam.1) * ZOOM;
+        let low = self.mode == Mode::Play && mage_y > (SH - h - 20) as f32;
+        let y = if low { HUD_PX + 6 } else { SH - h - 6 };
         scr.blend(8, y, SW - 16, h, rgb(0x080418), 0.88);
         scr.frame_rect(8, y, SW - 16, h, rgb(0xd8d0f8));
         scr.frame_rect(10, y + 2, SW - 20, h - 4, rgb(0x5c4880));
@@ -1180,7 +1216,7 @@ impl Game {
                 scr.text("M", x + cw / 2 + 1, y + 5, rgb(0xa4e4fc), Align::Center, 8);
             }
             if r.special == SP_SHOP {
-                scr.text("S", x + cw / 2 + 1, y + 5, rgb(0xfcbc3c), Align::Center, 8);
+                scr.text("V", x + cw / 2 + 1, y + 5, rgb(0xfcbc3c), Align::Center, 8);
             }
             // Discovered encounters: a red diamond until finished, then grey.
             if let Some(c) = self.mini_marker(r.mini) {
@@ -1197,7 +1233,7 @@ impl Game {
         let el = self.el();
         scr.text(&format!("{} MAGIC: {}", el.name(), SPELL_NAMES[el.idx()]), 128, y, el.light(), Align::Center, 8);
         scr.text(&format!("LV{} RUNES {}/5 POT{} ANTI{}", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count(), self.s.potions, self.s.antidotes), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
-        scr.text("M MONOLITH S SHOP RED ENCOUNTER", 128, y + 26, rgb(0x747474), Align::Center, 8);
+        scr.text("M MONOLITH V VILLAGE RED ENCOUNTER", 128, y + 26, rgb(0x747474), Align::Center, 8);
     }
     fn draw_dungeon_map(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };

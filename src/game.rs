@@ -23,6 +23,7 @@ mod dungeon;
 mod minis;
 mod scenes;
 mod status;
+mod village;
 
 use bosses::Boss;
 use dungeon::Dungeon;
@@ -655,7 +656,7 @@ pub struct Game {
     starve_t: i32,
     hungry_warned: bool,
     starving_warned: bool,
-    shop_armed: [bool; 4],
+    shop_armed: [bool; 6],
     /// Player statuses: poison frames left (drains HP, green tint).
     poison: i32,
     /// Overworld encounter runtime state (see minis.rs).
@@ -728,7 +729,7 @@ impl Game {
             starve_t: 0,
             hungry_warned: false,
             starving_warned: false,
-            shop_armed: [true; 4],
+            shop_armed: [true; 6],
             poison: 0,
             dryad_stage: 0,
             fruit: vec![],
@@ -1116,7 +1117,7 @@ impl Game {
         self.pl = Player::at(x, y);
         self.clear_entities();
         self.msg = None;
-        self.shop_armed = [true; 4];
+        self.shop_armed = [true; 6];
         self.enter_room(spawn);
         self.follow_cam(true);
         let song = self.area_song();
@@ -1138,7 +1139,7 @@ impl Game {
             self.play_song(Some(song));
         }
         if r == self.shop_room {
-            self.show_msg("MERCHANT: WELCOME, MAGE! STAND ON AN ITEM AND PRESS A TO BUY.");
+            self.show_msg("WELCOME TO THE VILLAGE! STAND ON AN ITEM AND PRESS A TO BUY. THE INN AND NOTICE BOARD ARE DOWN THE PATH.");
             if let Some(m) = self.msg.as_mut() {
                 m.1 = 170;
             }
@@ -1754,6 +1755,7 @@ impl Game {
         }
         if ri == self.shop_room {
             self.shop();
+            self.village();
         }
     }
     fn open_chest(&mut self, cx: f32, cy: f32, content: u8, val: i32) {
@@ -1772,9 +1774,10 @@ impl Game {
         self.float("TREASURE!", cx - 36.0, cy - 28.0, WHITE);
     }
     fn on_pedestal(&self) -> bool {
-        self.overworld()
-            && self.room == self.shop_room
-            && (0..4).any(|i| (self.pl.x - Self::shop_x(i)).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0)
+        self.village_talk_spot()
+            || (self.overworld()
+                && self.room == self.shop_room
+                && (0..4).any(|i| (self.pl.x - Self::shop_x(i)).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0))
     }
     /// Shop pedestals: roast, mana potion, antidote, heart container.
     fn shop_x(i: usize) -> f32 {

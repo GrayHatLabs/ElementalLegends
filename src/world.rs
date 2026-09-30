@@ -76,6 +76,10 @@ pub const CH_MEAT: u8 = 4;
 pub const SP_NONE: u8 = 0;
 pub const SP_MONOLITH: u8 = 1;
 pub const SP_SHOP: u8 = 2;
+/// Village layout (tile columns / rows on the village screen).
+pub const INN_COLS: std::ops::RangeInclusive<usize> = 2..=5;
+pub const INN_ROWS: std::ops::RangeInclusive<usize> = 9..=10;
+pub const BOARD_TILE: (usize, usize) = (12, 10);
 
 /// A doorway on side `d` (n, s, e, w) of an area, in edge segment `seg` (one per cell
 /// along that side), leading to area `to`.
@@ -275,7 +279,7 @@ fn partition(rng: &mut Mul) -> (Vec<(usize, usize, usize)>, Vec<usize>) {
         let quad = [(x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)];
         if quad.iter().all(|&(qx, qy)| {
             let q = qy * WW + qx;
-            // The monolith and the village screen beside it stay single screens.
+            // The monolith and the screen beside it stay single screens (keeps the world layout stable).
             owner[q] == usize::MAX && q != start && q != start - 1
         }) {
             let id = areas.len();
@@ -384,12 +388,17 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
     for r in rooms.iter_mut() {
         r.theme = ((r.dist * 4) / (max_d + 1)).min(3) as usize;
     }
-    // The village shop is the single screen just west of the monolith, always connected.
-    let shop = owner[START_Y * WW + START_X - 1];
-    if !rooms[start].links.iter().any(|l| l.to == shop) {
-        let segs = cand[&(start, shop)].clone();
-        link(&mut rooms, start, shop, segs[0]);
-    }
+    // The village (shop, inn, notice board) is a single screen two or three areas out from the
+    // monolith, so the mage has to explore a little to find it.
+    let village = |want: &dyn Fn(i32) -> bool| {
+        let mut v: Vec<usize> = (0..rooms.len()).filter(|&i| i != start && !rooms[i].big() && want(rooms[i].dist)).collect();
+        v.sort_by_key(|&i| (rooms[i].dist, rooms[i].seed));
+        v.first().copied()
+    };
+    let shop = village(&|d| d == 2)
+        .or_else(|| village(&|d| d == 3))
+        .or_else(|| village(&|d| d >= 1))
+        .expect("a single screen for the village");
     rooms[start].special = SP_MONOLITH;
     if shop != start {
         rooms[shop].special = SP_SHOP;
@@ -493,12 +502,19 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
             }
         }
         SP_SHOP => {
-            // The merchant's cottage along the north wall.
+            // The village: the merchant's cottage along the north wall, the inn in the
+            // south-west corner and the notice board to the south-east.
             for y in 1..=2 {
                 for x in 6..=9 {
                     r.tiles[y][x] = T_DECOR;
                 }
             }
+            for y in INN_ROWS {
+                for x in INN_COLS {
+                    r.tiles[y][x] = T_DECOR;
+                }
+            }
+            r.tiles[BOARD_TILE.1][BOARD_TILE.0] = T_DECOR;
         }
         _ => {
             let clean = r.clean();
@@ -888,7 +904,7 @@ mod tests {
         assert!(cover.iter().all(|&n| n == 1), "cells covered exactly once");
         assert!(rooms.iter().any(|r| r.big()), "some 2x2 wilderness areas exist");
         assert!(!rooms[start].big() && !rooms[shop].big(), "monolith and shop are single screens");
-        assert!(rooms[start].links.iter().any(|l| l.to == shop), "the shop is next to the monolith");
+        assert!((2..=3).contains(&rooms[shop].dist), "the village is two or three areas from the monolith");
         for n in 1..=6 {
             let g: Vec<&Room> = rooms.iter().filter(|r| r.gate == n).collect();
             assert_eq!(g.len(), 1, "exactly one building for lair {n}");

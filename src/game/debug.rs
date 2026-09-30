@@ -172,6 +172,9 @@ impl Game {
     pub fn debug_room(&self) -> usize {
         self.room
     }
+    pub fn debug_room_dist(&self, i: usize) -> i32 {
+        self.rooms[i].dist
+    }
     pub fn debug_room_special(&self, i: usize) -> u8 {
         self.rooms[i].special
     }
