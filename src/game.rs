@@ -35,6 +35,10 @@ use minis::enemy_mult;
 use status::Status;
 
 pub const GATE_X: f32 = 128.0;
+/// Scale on every monster's walking speed.
+const ENEMY_SPEED: f32 = 0.8;
+/// Scale on damage the mage takes (at least 1 per hit).
+const DAMAGE_TAKEN: f32 = 0.6;
 /// Pedestals in the village shop.
 const SHOP_ITEMS: usize = 6;
 pub const GATE_Y: f32 = (HUD + 6 * TS + 8) as f32;
@@ -1226,6 +1230,8 @@ impl Game {
             _ => 1.0,
         };
         let hp = hp + th as f32 * per;
+        // Monsters move a little slower than their base speed (playtest feedback).
+        let spd = spd * ENEMY_SPEED;
         let el = match k {
             EK::Slime => REGION[th],
             EK::Bat => Elem::Storm,
@@ -1581,6 +1587,8 @@ impl Game {
         if self.pl.inv > 0 || self.mode != Mode::Play {
             return;
         }
+        // The mage takes about 40% less damage than monsters deal (playtest feedback).
+        let d = ((d as f32 * DAMAGE_TAKEN).round() as i32).max(1);
         self.s.hp -= d;
         self.pl.inv = 60;
         self.shake = 8;
