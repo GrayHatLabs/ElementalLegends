@@ -1759,7 +1759,8 @@ impl Game {
         }
         if gate > 0 {
             // The building's doorway sits just below its footprint.
-            let at_door = (px - GATE_X).abs() < 12.0 && py < GATE_Y + 8.0;
+            // Only right at the doorway, below the building (not anywhere north of it).
+            let at_door = (px - GATE_X).abs() < 12.0 && py < GATE_Y + 8.0 && py > GATE_Y - 14.0;
             if at_door {
                 if self.gate_state(gate) == 1 {
                     self.begin_enter_dungeon(gate);

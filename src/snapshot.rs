@@ -562,6 +562,12 @@ fn run_dungeon(t: &mut T, n: usize) {
     t.frames(4);
     t.check(t.g.debug_tile(7, 4) == T_DECOR, &format!("dungeon {n}: entrance building occupies its footprint"));
     t.shot(&format!("20_building_{n}"));
+    // Walking behind the building (e.g. arriving through a north doorway) must not pull you in.
+    t.g.debug_set_player(128.0, 56.0, b'u');
+    t.frames(6);
+    t.check(t.g.debug_mode() == Mode::Play && t.g.debug_dungeon().is_none(), &format!("dungeon {n}: standing behind the building doesn't enter it"));
+    t.g.debug_set_player(128.0, 176.0, b'u');
+    t.frames(2);
     let entered = t.hold_until(Btn::Up, 120, |g| g.debug_mode() == Mode::EnterDungeon);
     t.check(entered, &format!("dungeon {n}: walking into the doorway starts the entry transition"));
     t.frames(30);
