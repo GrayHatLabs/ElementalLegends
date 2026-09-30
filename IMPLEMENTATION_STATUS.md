@@ -1,6 +1,6 @@
 # Implementation Status — Elemental Legends
 
-Last updated: 2026-09-30 (branch `snes-upgrade`)
+Last updated: 2026-09-30 (main)
 
 ## Verification levels
 
@@ -21,7 +21,7 @@ Headless checks prove logic and render output. They do **not** prove feel, timin
 | Handheld cross-build (`scripts/build-handheld.sh`) | Succeeds: aarch64 ELF + `dist/ElementalLegends-aarch64.zip`, needs glibc ≥ 2.35 |
 | Running on RG35XX H | **Not yet verified (needs hardware)** |
 
-## SNES upgrade (branch snes-upgrade, not merged — user plays it first)
+## SNES upgrade (merged into main on 2026-09-30 at the user's request)
 
 Decisions (2026-09-30): 24px tiles, 320x240, A Link to the Past camera, bigger 8x8 world, keep the grey wizard art, ALttP look, SNES-style music, optional twin-stick, fresh saves.
 
@@ -93,7 +93,7 @@ Decisions (2026-09-30): 24px tiles, 320x240, A Link to the Past camera, bigger 8
 | 11 | Graphics pass 1: auto-shaded sprites with coloured outlines, 4-frame mage walk cycle, drop shadows, textured tile variants, raised masonry walls, dungeon/arena lighting (light map with torches, bolts, burning foes, shrines, stairs, boss), polished HUD | H S | Measured update+draw about 0.26 ms/frame on desktop (p99 about 0.4 ms). **Handheld frame time not yet measured on hardware** |
 | 7 | Bosses: Treant, Undead Guardian, Stone Golem, Crimson Dragon, Arcane Sorcerer, Dark Sorcerer | H S | Each: telegraphs, ≥3 attacks, 2 phases (Dark Sorcerer 3), hit flash, intro, defeat sequence |
 
-## Side content (2026-09-30 plan, on branch snes-upgrade)
+## Side content (2026-09-30 plan)
 
 The rune/monolith start is unchanged (user decision).
 
@@ -103,6 +103,12 @@ The rune/monolith start is unchanged (user decision).
 | 2 Relic bag: potion, antidote, bomb, elixir | H S | Y/L1 (keyboard C) uses the selected item; Select (Tab/V/Q) cycles; Left/Right pick it on the pause map; Select while paused mutes. Bombs: 1.5 s fuse, 8 damage in a 30-unit blast, break cracked walls. Shop has 6 stands (bomb 30, elixir 120). Bombs and elixirs are code-drawn icons for now |
 | 3 Optional caves (8) | H S | 2-3 rooms each: sealed fight or freeze-plate puzzle (freeze a tough monster and shove it onto each plate; frozen monsters are solid and pushable in caves; lost puzzle monsters are replaced so there is no soft-lock), then a treasure chest (bombs, elixirs, heart container or mana crystal). Map marker C, flag once cleared. PixelLab cave-mouth art per region. Cave walls reuse lair tilesets (a dedicated rock tileset would look more cave-like) |
 | 4 Spellbook side quest and Arcane Blink | H S | 5 pages in the chests of caves 2, 3, 4, 6 and 8; the village scholar teaches Blink (R1 / keyboard E): up to 3 tiles, 6 MP, through monsters, bullets and water but not walls. Quest line on the pause map |
+| Shop inside the cottage | H S | Walk through the cottage door into a shop room (merchant behind the counter, six stands); the south door leads back out. PixelLab wood-floor tileset (theme 10) and furniture |
+| Bigger treasure chests | H S | 26 px generated chest (closed/open) with a twinkle |
+| Fix: walking behind a lair building pulled you inside | H | Entrance only at the doorway; regression check for all six buildings |
+| Chunky SNES proportions for humanoids | H S | Mage, skeletons, imps, zombie, merchant, dryad, grave lord ~26-28 px; new innkeeper and scholar. Old tall sheets kept in ElementalLegends-art/sheets/_old_tall |
+| Level files (JSON) for caves and lairs | H | docs/LEVEL_FORMAT.md; built in via scripts/import_levels.py, overridden by a levels/ folder; bad files skipped with warnings |
+| Browser level editor | In progress | tools/level-editor |
 | Later puzzle batch: sliding ice blocks, element crystals | Queued | User picked these for the next batch |
 
 ## Requested backlog (in agreed order; report back after each)
