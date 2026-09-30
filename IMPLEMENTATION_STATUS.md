@@ -93,6 +93,18 @@ Decisions (2026-09-30): 24px tiles, 320x240, A Link to the Past camera, bigger 8
 | 11 | Graphics pass 1: auto-shaded sprites with coloured outlines, 4-frame mage walk cycle, drop shadows, textured tile variants, raised masonry walls, dungeon/arena lighting (light map with torches, bolts, burning foes, shrines, stairs, boss), polished HUD | H S | Measured update+draw about 0.26 ms/frame on desktop (p99 about 0.4 ms). **Handheld frame time not yet measured on hardware** |
 | 7 | Bosses: Treant, Undead Guardian, Stone Golem, Crimson Dragon, Arcane Sorcerer, Dark Sorcerer | H S | Each: telegraphs, ≥3 attacks, 2 phases (Dark Sorcerer 3), hit flash, intro, defeat sequence |
 
+## Side content (2026-09-30 plan, on branch snes-upgrade)
+
+The rune/monolith start is unchanged (user decision).
+
+| Step | Status | Notes |
+|---|---|---|
+| 1 Village: shop moved 2-3 areas (and at least 2 map squares) from the monolith; inn and notice board | H S | Inn: full life, magic and cure for 10 gold. Board: runes, caves cleared, spellbook pages. PixelLab inn and board art. Dialogue box moves to the top when the mage is low on screen (as in A Link to the Past) |
+| 2 Relic bag: potion, antidote, bomb, elixir | H S | Y/L1 (keyboard C) uses the selected item; Select (Tab/V/Q) cycles; Left/Right pick it on the pause map; Select while paused mutes. Bombs: 1.5 s fuse, 8 damage in a 30-unit blast, break cracked walls. Shop has 6 stands (bomb 30, elixir 120). Bombs and elixirs are code-drawn icons for now |
+| 3 Optional caves (8) | H S | 2-3 rooms each: sealed fight or freeze-plate puzzle (freeze a tough monster and shove it onto each plate; frozen monsters are solid and pushable in caves; lost puzzle monsters are replaced so there is no soft-lock), then a treasure chest (bombs, elixirs, heart container or mana crystal). Map marker C, flag once cleared. PixelLab cave-mouth art per region. Cave walls reuse lair tilesets (a dedicated rock tileset would look more cave-like) |
+| 4 Spellbook side quest and Arcane Blink | H S | 5 pages in the chests of caves 2, 3, 4, 6 and 8; the village scholar teaches Blink (R1 / keyboard E): up to 3 tiles, 6 MP, through monsters, bullets and water but not walls. Quest line on the pause map |
+| Later puzzle batch: sliding ice blocks, element crystals | Queued | User picked these for the next batch |
+
 ## Requested backlog (in agreed order; report back after each)
 
 | Item | Status |
@@ -100,8 +112,8 @@ Decisions (2026-09-30): 24px tiles, 320x240, A Link to the Past camera, bigger 8
 | Shorter bolt range (playtest feedback) | Done (`ddfa99b`) |
 | Single bolt until the end stages; twin bolts only from the 4th lair power-up, no triple shot (playtest feedback) | Done |
 | Overworld encounters: Hoard Dragon, Deceiving Dryad (+ poison status, antidote), Food Trees + Angry Treant, Graveyard + Grave Lord — one-time, save-flagged, map markers, old saves load | H, V (snapshots 50–61 reviewed); not yet playtested for feel or on hardware |
-| Better-looking dungeon entrances (playtest feedback) | Queued |
-| Less childish boss art (playtest feedback) | Queued |
+| Better-looking dungeon entrances (playtest feedback) | Done in the SNES upgrade (generated building art) |
+| Less childish boss art (playtest feedback) | Done in the SNES upgrade (generated boss art) |
 | Mini-boss batch 1: Mimic Chest, Treasure Goblin, Bandit Raccoon, Wandering Merchant Ogre | Queued |
 | Mini-boss batch 2: Mushroom Ring Fairy King, Honey Bear, Headless Knight, Banshee | Queued |
 | Mini-boss batch 3: Bog Witch, Giant Toad, Will-o'-wisp, Salamander Queen, Lava Golem Forge, Phoenix | Queued |
