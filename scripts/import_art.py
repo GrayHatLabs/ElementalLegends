@@ -48,10 +48,12 @@ def main():
         old.unlink()
     sprites, terrain = [], []
 
-    manifest = SHEETS / "manifest.json"
-    if manifest.exists():
-        m = json.loads(manifest.read_text())
-        for name, sp in sorted(m.get("sprites", {}).items()):
+    # manifest.json plus any manifest_*.json (separate files let several generators work at once).
+    merged = {}
+    for manifest in sorted(SHEETS.glob("manifest*.json")):
+        merged.update(json.loads(manifest.read_text()).get("sprites", {}))
+    if merged:
+        for name, sp in sorted(merged.items()):
             src = SHEETS / sp["file"]
             if not src.exists():
                 print("missing", src)

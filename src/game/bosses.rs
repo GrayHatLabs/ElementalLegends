@@ -1143,6 +1143,51 @@ impl Game {
         }
     }
 
+    /// Generated boss art (sheet `boss_<kind>` with idle / attack / optional hurt rows).
+    /// The sprite's feet sit on the boss's ground point; during the entrance it rises out
+    /// of the floor. Returns false to fall back to the procedural drawing.
+    fn draw_boss_hd(&self, scr: &mut Screen, b: &Boss, shake: f32, intro_p: f32, dark: f32) -> bool {
+        let name = match b.kind {
+            BKind::Treant => "boss_treant",
+            BKind::Guardian => "boss_guardian",
+            BKind::Golem => "boss_golem",
+            BKind::Dragon => "boss_dragon",
+            BKind::Sorcerer => "boss_sorcerer",
+            BKind::DarkSorcerer => "boss_darksorcerer",
+        };
+        let Some(sh) = self.art.sheet(name) else { return false };
+        let attacking = matches!(b.state, BState::Tele | BState::Act);
+        let anim = if b.hurt_t > 0 && b.alive { sh.anim("hurt") } else { None }
+            .or_else(|| if attacking { sh.anim("attack") } else { None })
+            .or_else(|| sh.anim("idle"));
+        let Some(anim) = anim else { return false };
+        let img = anim.at(if b.st.immobile() { 0 } else { b.t as u32 });
+        let fx = if b.flash > 0 {
+            Tint::Solid(WHITE)
+        } else if dark > 0.0 {
+            Tint::Mix(BLACK, dark)
+        } else if b.st.frozen() {
+            Tint::Mix(rgb(0xc4ecfc), 0.5)
+        } else {
+            Tint::None
+        };
+        let ground = b.y + b.h / 2.0;
+        let feet = ground - b.z;
+        scr.blend_ellipse(b.x as i32, ground as i32, (b.w * 0.6) as i32, 4, BLACK, 0.35);
+        let (ax, ay) = (sh.cell.0 / 2, sh.cell.1 - 2);
+        if intro_p < 1.0 {
+            // Rise out of the ground: clip at the floor line and slide up.
+            let sink = (1.0 - intro_p) * sh.cell.1 as f32 / ZOOM;
+            let line = scr.ty(ground);
+            scr.clip_screen(0, HUD_PX, SW, line.max(HUD_PX));
+            scr.spr_hd_anchor(img, b.x + shake, feet + sink, ax, ay, false, fx);
+            scr.reset_clip();
+        } else {
+            scr.spr_hd_anchor(img, b.x + shake, feet, ax, ay, false, fx);
+        }
+        true
+    }
+
     pub(super) fn draw_boss(&self, scr: &mut Screen) {
         let Some(b) = &self.boss else { return };
         if b.gone {
@@ -1160,18 +1205,20 @@ impl Game {
             return;
         }
         let intro_p = if b.state == BState::Intro { (b.intro as f32 / 110.0).min(1.0) } else { 1.0 };
-        let mut pen = Pen { s: scr, white: b.flash > 0, dark: if dying { (self.clear_t as f32 / 140.0).min(0.7) } else { 0.0 } };
+        let dark = if dying { (self.clear_t as f32 / 140.0).min(0.7) } else { 0.0 };
         let shake = if b.hurt_t > 0 { (b.hurt_t % 2) * 2 - 1 } else { 0 };
         let (x, y) = (b.x as i32 + shake, (b.y - b.z) as i32);
         let t = b.t;
-        match b.kind {
-            BKind::Treant => draw_treant(&mut pen, b, x, y, t, intro_p, dying, self.clear_t),
-            BKind::Guardian => draw_guardian(&mut pen, b, x, y, t, intro_p),
-            BKind::Golem => draw_golem(&mut pen, b, x, y, t, intro_p, dying, self.clear_t),
-            BKind::Dragon => draw_dragon(&mut pen, b, x, y, t),
-            BKind::Sorcerer | BKind::DarkSorcerer => draw_sorcerer(&mut pen, b, x, y, t, intro_p),
+        if !self.draw_boss_hd(scr, b, shake as f32, intro_p, dark) {
+            let mut pen = Pen { s: &mut *scr, white: b.flash > 0, dark };
+            match b.kind {
+                BKind::Treant => draw_treant(&mut pen, b, x, y, t, intro_p, dying, self.clear_t),
+                BKind::Guardian => draw_guardian(&mut pen, b, x, y, t, intro_p),
+                BKind::Golem => draw_golem(&mut pen, b, x, y, t, intro_p, dying, self.clear_t),
+                BKind::Dragon => draw_dragon(&mut pen, b, x, y, t),
+                BKind::Sorcerer | BKind::DarkSorcerer => draw_sorcerer(&mut pen, b, x, y, t, intro_p),
+            }
         }
-        let scr = pen.s;
         let (bx, by, bw, bh) = (x, y, b.w as i32, b.h as i32);
         // Status overlays follow the boss.
         if b.st.chilled() {
