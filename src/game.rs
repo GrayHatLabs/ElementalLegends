@@ -744,6 +744,27 @@ impl Game {
         g
     }
 
+    /// Background music for where the mage is: village at the monolith and shop, a theme
+    /// per overworld region, the dungeon theme below ground and the boss theme in lairs.
+    fn area_song(&self) -> Song {
+        if self.in_lair > 0 {
+            return Song::Lair;
+        }
+        if self.dungeon.is_some() {
+            return Song::Dungeon;
+        }
+        let r = &self.rooms[self.room];
+        if r.special != SP_NONE {
+            return Song::Village;
+        }
+        match r.theme {
+            1 => Song::Crypt,
+            2 => Song::Swamp,
+            3 => Song::Volcano,
+            _ => Song::Field,
+        }
+    }
+
     /// Give each theme its generated 24 px tilesets, if the art has them.
     fn attach_terrain_art(&mut self) {
         for (i, th) in self.themes.iter_mut().enumerate() {
@@ -1082,7 +1103,8 @@ impl Game {
         self.shop_armed = [true; 4];
         self.enter_room(spawn);
         self.follow_cam(true);
-        self.play_song(Some(Song::Field));
+        let song = self.area_song();
+        self.play_song(Some(song));
     }
     fn enter_room(&mut self, spawn: bool) {
         let r = self.room;
@@ -1095,6 +1117,10 @@ impl Game {
         }
         // Encounters appear whenever their screen is entered, even without regular spawns.
         self.enter_mini_room();
+        if self.mode == Mode::Play {
+            let song = self.area_song();
+            self.play_song(Some(song));
+        }
         if r == self.shop_room {
             self.show_msg("MERCHANT: WELCOME, MAGE! STAND ON AN ITEM AND PRESS A TO BUY.");
             if let Some(m) = self.msg.as_mut() {

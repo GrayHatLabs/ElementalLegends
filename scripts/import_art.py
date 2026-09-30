@@ -71,6 +71,8 @@ def main():
             entry = {"index": idx}
             for kind in ("wall", "water"):
                 f = th.get(f"{kind}_atlas") or th.get(kind) or f"theme{idx}_{kind}.png"
+                if isinstance(f, dict):
+                    f = f.get("file", f"theme{idx}_{kind}.png")
                 src = SHEETS / "terrain" / Path(f).name
                 if src.exists():
                     blob(src, OUT / f"terrain{idx}_{kind}.bin")

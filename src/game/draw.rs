@@ -809,6 +809,9 @@ impl Game {
                 let (x, y) = scr.to_world(gx as i32 * CELL, HUD_PX + gy as i32 * CELL);
                 let mut bright = 0.0f32;
                 for &(lx, ly, r, s) in lights {
+                    // The zoomed-in view shows less of the world, so pools of light are kept
+                    // tighter than in world units to keep the edges of the screen dark.
+                    let r = r * 0.75;
                     let (dx, dy) = (x - lx, y - ly);
                     let d2 = dx * dx + dy * dy;
                     if d2 < r * r {

@@ -51,7 +51,7 @@ impl Game {
             self.mode = Mode::Play;
             self.monolith_used = false;
             self.show_msg("YOU AWAKEN BEFORE THE ANCIENT MONOLITH. TOUCH IT TO RESTORE YOUR STRENGTH, THEN SEEK THE VILLAGE.");
-            self.play_song(Some(Song::Field));
+            self.play_song(Some(Song::Village));
         }
     }
     pub(super) fn draw_awaken(&self, scr: &mut Screen) {

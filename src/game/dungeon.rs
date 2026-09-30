@@ -373,7 +373,7 @@ impl Game {
         self.enter_droom();
         self.follow_cam(true);
         self.show_msg(format!("{}. FIND THE KEY AND BREAK THE SEAL ON THE STAIRS.", dungeon_name(n)));
-        self.play_song(Some(Song::Field));
+        self.play_song(Some(Song::Dungeon));
     }
 
     /// Room entry: spawns, combat seals, block resets and hints.

@@ -759,6 +759,66 @@ fn render_hd(r: &Room, th: &Theme, wall: &[Sprite]) -> Sprite {
             img.draw(tile, i * HD_TS - half, j * HD_TS - half);
         }
     }
+    // Break up the repeated floor tile with small deterministic details in its own colours:
+    // grass tufts outdoors in Greenwood, pebbles and cracks everywhere else.
+    let base = {
+        let f = &wall[0];
+        let (mut sr, mut sg, mut sb, mut n) = (0u32, 0u32, 0u32, 0u32);
+        for &p in f.px.iter().filter(|&&p| p != 0) {
+            sr += (p >> 16) & 255;
+            sg += (p >> 8) & 255;
+            sb += p & 255;
+            n += 1;
+        }
+        let n = n.max(1);
+        rgb(((sr / n) << 16) | ((sg / n) << 8) | (sb / n))
+    };
+    let (dark, light) = (mix(base, BLACK, 0.3), mix(base, WHITE, 0.2));
+    let grassy = th.name == "GREENWOOD";
+    let cell_hash = |c: i32, rr: i32, salt: u32| -> u32 {
+        let mut h = (c as u32).wrapping_mul(0x27d4_eb2d) ^ (rr as u32).wrapping_mul(0x1656_67b1) ^ r.seed ^ salt;
+        h ^= h >> 15;
+        h = h.wrapping_mul(0x85eb_ca6b);
+        h ^ (h >> 13)
+    };
+    for rr in 0..rows {
+        for c in 0..cols {
+            if t(c, rr) != T_FLOOR {
+                continue;
+            }
+            for k in 0..2u32 {
+                let h = cell_hash(c, rr, k * 0x9e37);
+                if h % 100 >= if grassy { 55 } else { 30 } {
+                    continue;
+                }
+                let (x, y) = (c * HD_TS + 3 + (h >> 8) as i32 % 18, rr * HD_TS + 3 + (h >> 16) as i32 % 18);
+                if grassy {
+                    img.fill(x, y, 1, 2, dark);
+                    img.fill(x + 2, y, 1, 2, dark);
+                    img.fill(x + 1, y + 1, 1, 2, dark);
+                    img.fill(x + 1, y, 1, 1, light);
+                } else {
+                    img.fill(x, y, 2, 1, dark);
+                    img.fill(x + 1, y + 1, 1, 1, dark);
+                    img.fill(x, y - 1, 1, 1, light);
+                }
+            }
+        }
+    }
+    if r.special == SP_MONOLITH {
+        // Wildflowers around the clearing (same placement as the code-drawn version).
+        let mut fr = Mul(r.seed ^ 0x5eed);
+        for _ in 0..90 {
+            let (x, y) = ((fr.f() * 224.0) as i32 + 16, (fr.f() * 176.0) as i32 + 16);
+            let (tx, ty) = (x / TS, y / TS);
+            let c = [rgb(0xf878f8), rgb(0xfce040), WHITE, rgb(0xa4e4fc)][(fr.f() * 4.0) as usize];
+            if t(tx, ty) == T_FLOOR {
+                let (hx, hy) = (x * HD_TS / TS, y * HD_TS / TS);
+                img.fill(hx, hy, 2, 2, c);
+                img.fill(hx, hy + 2, 1, 2, rgb(0x2c7c1c));
+            }
+        }
+    }
     // Props scattered on open ground (overworld only, deterministic per room).
     let plain = r.special == SP_NONE && r.gate == 0 && r.mini == 0 && r.pool.is_none();
     if plain && !th.hd_deco.is_empty() {

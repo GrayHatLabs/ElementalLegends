@@ -6,7 +6,7 @@ Last updated: 2026-09-30 (branch `snes-upgrade`)
 
 | Level | Meaning |
 |---|---|
-| **H** | Headless-verified: `scripts/test.sh` (11 unit tests + 310 scripted self-test checks through the real game loop, real input and collisions) passes |
+| **H** | Headless-verified: `scripts/test.sh` (13 unit tests + 310 scripted self-test checks through the real game loop, real input and collisions) passes |
 | **S** | Screenshot-reviewed: rendered frames from the self-test inspected by eye |
 | **D** | Desktop-played: run interactively in the SDL window on desktop (WSL) |
 | **HW** | Verified on the ANBERNIC RG35XX H hardware |
@@ -30,9 +30,9 @@ Decisions (2026-09-30): 24px tiles, 320x240, A Link to the Past camera, bigger 8
 | M1 Engine: 320x240 framebuffer (fills the 640x480 screen at 2x), camera + 1.5x world zoom (16-unit tiles drawn 24 px), follow camera, SNES slide between areas | H S | Game logic unchanged (same units), so all balance/puzzles/bosses keep working. Text and HUD drawn crisp at screen resolution |
 | M1 World: 8x8 cells, 11 wilderness areas of 2x2 screens + single screens (31 areas), doorway links per edge segment, shop always beside the monolith | H S | Specials (buildings, shop, monolith, encounters, hearts, hoards) stay on single screens; big areas get 4 obstacle patterns, bigger hordes, 2 generator rolls and a chest. Unit tests check coverage, reachability, symmetric links and carved gaps |
 | M2 Art pipeline (native 24px PNG sheets + manifest, fallback to code-drawn art) | H S | `scripts/import_art.py` embeds art in the binary. Generated wizard in game. Dual-grid corner-tileset terrain renderer ready for the generated tilesets |
-| M3 Generated terrain (10 themes) | In progress | PixelLab, 32px generated then downscaled to 24px |
+| M3 Generated terrain (10 themes) | H S | PixelLab floor/wall and floor/water(lava) corner tilesets for all 10 themes + 12 overworld props (135 generations). Dual-grid edges, procedural floor detail, monolith wildflowers. Dungeon light radii scaled to 75% for the zoomed view. Weaker themes noted in `ElementalLegends-art` report: Greenwood wall repetition, Mirefen banks, Shrine walls look like the crypt, Dark Tower low contrast |
 | M4 Generated characters, enemies, bosses, mini-bosses | Queued | Styled to match the existing grey wizard |
-| M5 SNES-style music and sound | Queued | |
+| M5 SNES-style music and sound | H | Stereo synth with ADSR instruments (flute, strings, harp, brass, organ, bells, basses, drum kit), SNES-style echo, 8 themes (title, village, Greenwood, Old Crypt, Mirefen, Emberpeak, dungeon, boss) chosen by location. `--render-music <dir>` writes WAVs; unit test checks every song is audible without clipping. **Not yet listened to by a human** |
 | M6 Optional twin-stick aiming (RG35XX Pro right stick) | H | Right stick faces and casts that way while the left stick moves; unused without a right stick, so the H plays as before. Needs a hardware check of the Pro's axis mapping |
 | HUD/menus redesigned for 320 width | Queued | Currently the 256-wide layouts are centred |
 

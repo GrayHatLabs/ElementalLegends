@@ -51,6 +51,11 @@ fn map_button(b: Button) -> Option<Btn> {
 
 fn main() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--render-music") {
+        let dir = args.get(i + 1).map(String::as_str).unwrap_or("music");
+        audio::render_music(dir, 32.0).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
     if let Some(i) = args.iter().position(|a| a == "--snapshot" || a == "--selftest") {
         let dir = args.get(i + 1).map(String::as_str).filter(|d| !d.starts_with("--"));
         let dir = if args[i] == "--snapshot" { Some(dir.unwrap_or("snapshots")) } else { dir };

@@ -1,5 +1,10 @@
-// A tiny NES-flavoured synth: square / triangle / saw / sine / noise voices with
-// exponential pitch and volume sweeps, plus a step sequencer for the music.
+// SNES-flavoured synth, generated entirely in code.
+//
+// * Music: a step sequencer playing multi-track songs written as note text, through
+//   instrument patches (flute, strings, harp, brass, organ, bells, basses, drums) with
+//   ADSR envelopes, vibrato, detune, low-pass filters and stereo panning, all fed into
+//   a stereo echo (the classic SNES "echo buffer" sound).
+// * Sound effects: pitch/volume-sweep voices (dry, with a little echo send).
 use sdl2::audio::{AudioCallback, AudioDevice, AudioSpecDesired};
 use sdl2::AudioSubsystem;
 use std::f32::consts::TAU;
@@ -44,13 +49,322 @@ pub enum Sfx {
 }
 pub const SFX_COUNT: usize = 26;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Song {
     Title,
+    /// Greenwood and the default overworld theme.
     Field,
     Lair,
+    /// Monolith clearing and the village shop.
+    Village,
+    Crypt,
+    Swamp,
+    Volcano,
+    Dungeon,
+}
+const SONG_COUNT: usize = 8;
+
+// ---------------------------------------------------------------- instruments
+#[derive(Clone, Copy, PartialEq)]
+enum Osc {
+    Pulse(f32),
+    Tri,
+    Saw,
+    /// Three detuned saws spread across the stereo field.
+    SuperSaw,
+    Sine,
+    /// Sine with 2nd and 3rd harmonics.
+    Organ,
+    /// Sine plus a fast-decaying inharmonic partial.
+    Bell,
+    Noise,
 }
 
+#[derive(Clone, Copy)]
+struct Patch {
+    osc: Osc,
+    a: f32,
+    d: f32,
+    s: f32,
+    r: f32,
+    gain: f32,
+    pan: f32,
+    /// Low-pass cutoff (Hz); `cut_env` multiplies it at note start and decays back.
+    cut: f32,
+    cut_env: f32,
+    cut_decay: f32,
+    vib_rate: f32,
+    vib_depth: f32,
+    vib_delay: f32,
+    /// Exponential pitch drop over the note (drums), as a ratio reached after 0.1 s.
+    drop: f32,
+    /// Extra second oscillator an octave down (bass body).
+    sub: f32,
+}
+
+const fn patch(osc: Osc) -> Patch {
+    Patch {
+        osc, a: 0.01, d: 0.1, s: 0.8, r: 0.1, gain: 0.2, pan: 0.0, cut: 8000.0, cut_env: 1.0, cut_decay: 0.2,
+        vib_rate: 0.0, vib_depth: 0.0, vib_delay: 0.0, drop: 1.0, sub: 0.0,
+    }
+}
+
+const P_FLUTE: usize = 0;
+const P_STRINGS: usize = 1;
+const P_HARP: usize = 2;
+const P_BRASS: usize = 3;
+const P_BASS: usize = 4;
+const P_PBASS: usize = 5;
+const P_ORGAN: usize = 6;
+const P_BELL: usize = 7;
+const P_LEAD: usize = 8;
+const P_KICK: usize = 9;
+const P_SNARE: usize = 10;
+const P_HAT: usize = 11;
+const P_TOM: usize = 12;
+
+fn patches() -> Vec<Patch> {
+    let mut v = vec![patch(Osc::Sine); 13];
+    v[P_FLUTE] = Patch {
+        osc: Osc::Tri, a: 0.05, d: 0.2, s: 0.75, r: 0.18, gain: 0.16, pan: 0.15, cut: 3200.0, vib_rate: 5.2,
+        vib_depth: 0.006, vib_delay: 0.18, ..patch(Osc::Tri)
+    };
+    v[P_STRINGS] = Patch { osc: Osc::SuperSaw, a: 0.28, d: 0.3, s: 0.85, r: 0.5, gain: 0.07, cut: 1900.0, ..patch(Osc::SuperSaw) };
+    v[P_HARP] = Patch {
+        osc: Osc::Saw, a: 0.002, d: 0.45, s: 0.0, r: 0.3, gain: 0.11, pan: -0.35, cut: 900.0, cut_env: 4.5,
+        cut_decay: 0.12, ..patch(Osc::Saw)
+    };
+    v[P_BRASS] = Patch {
+        osc: Osc::Saw, a: 0.03, d: 0.25, s: 0.75, r: 0.1, gain: 0.12, pan: 0.2, cut: 1300.0, cut_env: 2.4,
+        cut_decay: 0.18, vib_rate: 5.5, vib_depth: 0.004, vib_delay: 0.25, ..patch(Osc::Saw)
+    };
+    v[P_BASS] = Patch { osc: Osc::Tri, a: 0.004, d: 0.3, s: 0.8, r: 0.05, gain: 0.3, cut: 2000.0, sub: 0.5, ..patch(Osc::Tri) };
+    v[P_PBASS] = Patch {
+        osc: Osc::Pulse(0.25), a: 0.003, d: 0.12, s: 0.6, r: 0.04, gain: 0.13, cut: 1100.0, cut_env: 2.0,
+        cut_decay: 0.08, sub: 0.35, ..patch(Osc::Pulse(0.25))
+    };
+    v[P_ORGAN] = Patch { osc: Osc::Organ, a: 0.06, d: 0.2, s: 0.9, r: 0.25, gain: 0.1, pan: -0.15, cut: 2600.0, ..patch(Osc::Organ) };
+    v[P_BELL] = Patch { osc: Osc::Bell, a: 0.002, d: 1.3, s: 0.0, r: 0.6, gain: 0.14, pan: 0.3, ..patch(Osc::Bell) };
+    v[P_LEAD] = Patch {
+        osc: Osc::Pulse(0.5), a: 0.01, d: 0.2, s: 0.7, r: 0.1, gain: 0.08, pan: 0.1, cut: 3500.0, vib_rate: 5.8,
+        vib_depth: 0.007, vib_delay: 0.2, ..patch(Osc::Pulse(0.5))
+    };
+    v[P_KICK] = Patch { osc: Osc::Sine, a: 0.001, d: 0.16, s: 0.0, r: 0.05, gain: 0.55, drop: 0.3, ..patch(Osc::Sine) };
+    v[P_SNARE] = Patch { osc: Osc::Noise, a: 0.001, d: 0.14, s: 0.0, r: 0.05, gain: 0.2, cut: 5200.0, pan: 0.05, ..patch(Osc::Noise) };
+    v[P_HAT] = Patch { osc: Osc::Noise, a: 0.001, d: 0.035, s: 0.0, r: 0.02, gain: 0.07, cut: 11000.0, pan: -0.25, ..patch(Osc::Noise) };
+    v[P_TOM] = Patch { osc: Osc::Sine, a: 0.001, d: 0.22, s: 0.0, r: 0.05, gain: 0.35, drop: 0.55, pan: 0.2, ..patch(Osc::Sine) };
+    v
+}
+
+// ---------------------------------------------------------------- songs (note text)
+//
+// Each track: patch, volume, then steps separated by spaces. A step is a note ("C4",
+// "F#3", "Bb2"), a chord ("D3+F3+A3"), "." (silence) or "-" (hold the previous note).
+// Drum tracks use k (kick), s (snare), h (hat), t (tom). "|" marks bars (ignored).
+struct SongText {
+    bpm: f32,
+    /// Steps per beat (4 = sixteenth notes).
+    div: f32,
+    tracks: &'static [(usize, f32, &'static str)],
+}
+
+const TITLE: SongText = SongText {
+    bpm: 78.0,
+    div: 4.0,
+    tracks: &[
+        (P_STRINGS, 1.0, "D3+F3+A3 - - - - - - - - - - - - - - - | Bb2+D3+F3 - - - - - - - - - - - - - - - | C3+E3+G3 - - - - - - - - - - - - - - - | A2+C#3+E3 - - - - - - - - - - - - - - -"),
+        (P_HARP, 1.0, "D4 F4 A4 D5 A4 F4 D4 F4 A4 D5 F5 D5 A4 F4 D4 A3 | Bb3 D4 F4 Bb4 F4 D4 Bb3 D4 F4 Bb4 D5 Bb4 F4 D4 Bb3 F3 | C4 E4 G4 C5 G4 E4 C4 E4 G4 C5 E5 C5 G4 E4 C4 G3 | A3 C#4 E4 A4 E4 C#4 A3 C#4 E4 A4 C#5 A4 E4 C#4 A3 E3"),
+        (P_FLUTE, 1.0, "A4 - - - - - - - D5 - - - E5 - F5 - | F5 - - - E5 - D5 - C5 - - - D5 - - - | E5 - - - - - G5 - F5 - E5 - C5 - - - | C#5 - - - - - - - E5 - - - - - - -"),
+        (P_BASS, 0.8, "D2 - - - - - - - D2 - - - A2 - - - | Bb1 - - - - - - - Bb1 - - - F2 - - - | C2 - - - - - - - C2 - - - G2 - - - | A1 - - - - - - - A1 - - - E2 - - -"),
+    ],
+};
+
+const VILLAGE: SongText = SongText {
+    bpm: 96.0,
+    div: 4.0,
+    tracks: &[
+        (P_FLUTE, 1.0, "E5 - - - G5 - - - C6 - - - B5 - A5 - | A5 - - - - - G5 - E5 - - - D5 - - - | F5 - - - A5 - - - C6 - - - A5 - - - | G5 - - - - - - - D5 - E5 - F5 - G5 -"),
+        (P_HARP, 0.9, "C4 E4 G4 C5 G4 E4 C4 G3 C4 E4 G4 C5 E5 C5 G4 E4 | A3 C4 E4 A4 E4 C4 A3 E3 A3 C4 E4 A4 C5 A4 E4 C4 | F3 A3 C4 F4 C4 A3 F3 C3 F3 A3 C4 F4 A4 F4 C4 A3 | G3 B3 D4 G4 D4 B3 G3 D3 G3 B3 D4 G4 B4 G4 D4 B3"),
+        (P_STRINGS, 0.7, "C4+E4+G4 - - - - - - - - - - - - - - - | A3+C4+E4 - - - - - - - - - - - - - - - | F3+A3+C4 - - - - - - - - - - - - - - - | G3+B3+D4 - - - - - - - - - - - - - - -"),
+        (P_BASS, 0.7, "C2 - - - - - - - G2 - - - - - - - | A1 - - - - - - - E2 - - - - - - - | F1 - - - - - - - C2 - - - - - - - | G1 - - - - - - - D2 - - - - - - -"),
+        (P_HAT, 0.6, ". . h . . . h . . . h . . . h h | . . h . . . h . . . h . . . h . | . . h . . . h . . . h . . . h h | . . h . . . h . . . h . h . h ."),
+    ],
+};
+
+const FIELD: SongText = SongText {
+    bpm: 132.0,
+    div: 4.0,
+    tracks: &[
+        (P_BRASS, 1.0, "A4 - - - C5 - E5 - A5 - - - G5 - E5 - | F5 - - - E5 - D5 - C5 - - - D5 - E5 - | E5 - - - G5 - - - C6 - - - B5 - G5 - | B5 - - - - - A5 - G5 - - - D5 - - - | A4 - - - C5 - E5 - A5 - - - G5 - E5 - | F5 - - - A5 - C6 - B5 - - - A5 - G5 - | A5 - - - G5 - E5 - C5 - - - D5 - E5 - | E5 - - - - - - - - - - - . . . ."),
+        (P_STRINGS, 0.9, "A3+C4+E4 - - - - - - - - - - - - - - - | F3+A3+C4 - - - - - - - - - - - - - - - | C4+E4+G4 - - - - - - - - - - - - - - - | G3+B3+D4 - - - - - - - - - - - - - - - | A3+C4+E4 - - - - - - - - - - - - - - - | F3+A3+C4 - - - - - - - - - - - - - - - | C4+E4+G4 - - - - - - - - - - - - - - - | E3+G#3+B3 - - - - - - - - - - - - - - -"),
+        (P_PBASS, 1.0, "A2 - A2 - A3 - A2 - A2 - A2 - E3 - A2 - | F2 - F2 - F3 - F2 - F2 - F2 - C3 - F2 - | C3 - C3 - C4 - C3 - C3 - C3 - G3 - C3 - | G2 - G2 - G3 - G2 - G2 - G2 - D3 - G2 - | A2 - A2 - A3 - A2 - A2 - A2 - E3 - A2 - | F2 - F2 - F3 - F2 - F2 - F2 - C3 - F2 - | C3 - C3 - C4 - C3 - C3 - C3 - G3 - C3 - | E2 - E2 - E3 - E2 - E2 - E2 - B2 - E2 -"),
+        (P_KICK, 1.0, "k . . . . . . k k . . . . . . . | k . . . . . . k k . . . . . k ."),
+        (P_SNARE, 1.0, ". . . . s . . . . . . . s . . . | . . . . s . . . . . . . s . s s"),
+        (P_HAT, 1.0, ". . h . . . h . . . h . . . h h"),
+    ],
+};
+
+const CRYPT: SongText = SongText {
+    bpm: 70.0,
+    div: 4.0,
+    tracks: &[
+        (P_ORGAN, 1.0, "E3+G3+B3 - - - - - - - - - - - - - - - | F3+A3+C4 - - - - - - - - - - - - - - - | E3+G3+B3 - - - - - - - - - - - - - - - | D#3+F#3+B3 - - - - - - - - - - - - - - -"),
+        (P_BELL, 1.0, "E5 - - - . . . . G5 - - - . . F5 - | E5 - - - - - - - . . . . B4 - - - | C5 - - - . . B4 - A4 - - - G4 - - - | F#4 - - - - - - - B4 - - - - - - -"),
+        (P_BASS, 0.8, "E2 - - - - - - - - - - - - - - - | F2 - - - - - - - - - - - - - - - | E2 - - - - - - - - - - - - - - - | B1 - - - - - - - - - - - - - - -"),
+        (P_TOM, 0.8, "t . . . . . . . . . . . . . . . | t . . . . . . . . . . . t . . ."),
+    ],
+};
+
+const SWAMP: SongText = SongText {
+    bpm: 104.0,
+    div: 4.0,
+    tracks: &[
+        (P_PBASS, 1.2, "D2 . D2 F2 . D2 C2 . D2 . D2 F2 . G2 A2 . | G2 . G2 Bb2 . G2 F2 . G2 . G2 Bb2 . C3 D3 . | D2 . D2 F2 . D2 C2 . D2 . D2 F2 . G2 A2 . | A1 . A1 C2 . A1 G1 . A1 . C2 . E2 . G2 ."),
+        (P_BELL, 0.9, "A4 . C5 . D5 - - . F5 . E5 . D5 . C5 . | B4 . D5 . E5 - - . G5 . F5 . E5 . D5 . | A4 . C5 . D5 - - . F5 . A5 . G5 . F5 . | E5 - - - C#5 - - - E5 - - - . . . ."),
+        (P_STRINGS, 0.6, "D3+F3+A3+C4 - - - - - - - - - - - - - - - | G3+B3+D4+F4 - - - - - - - - - - - - - - - | D3+F3+A3+C4 - - - - - - - - - - - - - - - | A2+C#3+E3+G3 - - - - - - - - - - - - - - -"),
+        (P_KICK, 1.0, "k . . . . . . . k . k . . . . ."),
+        (P_SNARE, 0.8, ". . . . . . s . . . . . . . s ."),
+        (P_HAT, 0.9, ". . h . . h . . . . h . . h . h"),
+    ],
+};
+
+const VOLCANO: SongText = SongText {
+    bpm: 150.0,
+    div: 4.0,
+    tracks: &[
+        (P_BRASS, 1.0, "C5 - - - Eb5 - G5 - C6 - - - Bb5 - G5 - | Ab5 - - - G5 - F5 - Eb5 - - - F5 - G5 - | Bb5 - - - Ab5 - G5 - F5 - - - G5 - Ab5 - | G5 - - - - - - - D5 - F5 - B5 - - -"),
+        (P_PBASS, 1.0, "C2 C3 C2 C3 C2 C3 C2 C3 C2 C3 C2 C3 C2 C3 G2 G3 | Ab1 Ab2 Ab1 Ab2 Ab1 Ab2 Ab1 Ab2 Ab1 Ab2 Ab1 Ab2 Ab1 Ab2 Eb2 Eb3 | Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 F2 F3 | G1 G2 G1 G2 G1 G2 G1 G2 G1 G2 G1 G2 B1 B2 D2 D3"),
+        (P_STRINGS, 0.8, "C4+Eb4+G4 - - - - - - - - - - - - - - - | Ab3+C4+Eb4 - - - - - - - - - - - - - - - | Bb3+D4+F4 - - - - - - - - - - - - - - - | G3+B3+D4 - - - - - - - - - - - - - - -"),
+        (P_KICK, 1.0, "k . . . k . . . k . . . k . k ."),
+        (P_SNARE, 1.0, ". . s . . . s . . . s . . . s s"),
+        (P_HAT, 1.0, "h . h h h . h h h . h h h . h h"),
+    ],
+};
+
+const DUNGEON: SongText = SongText {
+    bpm: 108.0,
+    div: 4.0,
+    tracks: &[
+        (P_HARP, 0.9, "A3 C4 E4 A4 E4 C4 A3 C4 E4 A4 C5 A4 E4 C4 A3 E3 | D3 F3 A3 D4 A3 F3 D3 F3 A3 D4 F4 D4 A3 F3 D3 A2 | E3 G#3 B3 E4 B3 G#3 E3 G#3 B3 E4 G#4 E4 B3 G#3 E3 B2 | A3 C4 E4 A4 E4 C4 A3 C4 E4 A4 C5 A4 E4 C4 A3 E3"),
+        (P_FLUTE, 0.9, "E5 - - - - - - - C5 - - - D5 - E5 - | F5 - - - - - E5 - D5 - - - A4 - - - | G#4 - - - - - B4 - D5 - - - C5 - B4 - | A4 - - - - - - - - - - - . . . ."),
+        (P_STRINGS, 0.6, "A2+E3+A3 - - - - - - - - - - - - - - - | D3+F3+A3 - - - - - - - - - - - - - - - | E3+G#3+B3 - - - - - - - - - - - - - - - | A2+E3+A3 - - - - - - - - - - - - - - -"),
+        (P_BASS, 0.7, "A1 - - - - - - - E2 - - - - - - - | D2 - - - - - - - A1 - - - - - - - | E2 - - - - - - - B1 - - - - - - - | A1 - - - - - - - E2 - - - - - - -"),
+        (P_KICK, 0.7, "k . . . . . . . . . . . . . . . | k . . . . . . . k . . . . . . ."),
+        (P_HAT, 0.6, ". . . . h . . . . . . . h . . ."),
+    ],
+};
+
+const LAIR: SongText = SongText {
+    bpm: 168.0,
+    div: 4.0,
+    tracks: &[
+        (P_LEAD, 1.2, "E5 F5 E5 D#5 E5 - B4 - C5 B4 A#4 B4 - - E4 - | E5 F5 E5 D#5 E5 - G5 - F#5 E5 D#5 E5 - - B4 - | C5 D5 C5 B4 C5 - G4 - A4 G4 F#4 G4 - - C5 - | B4 C5 B4 A#4 B4 - F#5 - D#5 - B4 - F#4 - - -"),
+        (P_PBASS, 1.1, "E2 E2 E3 E2 E2 E3 E2 F2 E2 E2 E3 E2 F2 F3 F2 E2 | E2 E2 E3 E2 E2 E3 E2 F2 E2 E2 E3 E2 G2 G3 F#2 E2 | C2 C2 C3 C2 C2 C3 C2 D2 C2 C2 C3 C2 D2 D3 C2 B1 | B1 B1 B2 B1 B1 B2 B1 C2 B1 B1 B2 B1 F#2 F#2 B1 B1"),
+        (P_STRINGS, 0.8, "E3+G3+B3 - - - . . . . E3+G3+B3 - - - . . . . | E3+G3+B3 - - - . . . . E3+G3+C4 - - - . . . . | C3+E3+G3 - - - . . . . C3+E3+A3 - - - . . . . | B2+D#3+F#3 - - - - - - - B2+D#3+F#3 - - - - - - -"),
+        (P_KICK, 1.0, "k . . . k . . . k . . . k . k k"),
+        (P_SNARE, 1.0, ". . s . . . s . . . s . . . s s"),
+        (P_HAT, 1.0, "h h h h h h h h h h h h h h h h"),
+    ],
+};
+
+/// One note (or chord) in a track: start step, length in steps, MIDI notes.
+struct Ev {
+    start: usize,
+    len: usize,
+    notes: Vec<u8>,
+    drum: usize,
+}
+
+struct Track {
+    patch: usize,
+    vol: f32,
+    events: Vec<Ev>,
+}
+
+struct SongData {
+    step_s: f32,
+    len: usize,
+    tracks: Vec<Track>,
+}
+
+fn note_midi(t: &str) -> Option<u8> {
+    let b = t.as_bytes();
+    let base = match b.first()? {
+        b'C' => 0,
+        b'D' => 2,
+        b'E' => 4,
+        b'F' => 5,
+        b'G' => 7,
+        b'A' => 9,
+        b'B' => 11,
+        _ => return None,
+    };
+    let (acc, rest) = match b.get(1) {
+        Some(b'#') => (1, &t[2..]),
+        Some(b'b') => (-1, &t[2..]),
+        _ => (0, &t[1..]),
+    };
+    let oct: i32 = rest.parse().ok()?;
+    Some(((oct + 1) * 12 + base + acc) as u8)
+}
+
+fn parse(s: &SongText) -> SongData {
+    let mut tracks = vec![];
+    let mut len = 0;
+    for &(patch, vol, text) in s.tracks {
+        let steps: Vec<&str> = text.split_whitespace().filter(|t| *t != "|").collect();
+        let mut events: Vec<Ev> = vec![];
+        for (i, &tok) in steps.iter().enumerate() {
+            match tok {
+                "." => {}
+                "-" => {
+                    if let Some(e) = events.last_mut() {
+                        if e.start + e.len == i {
+                            e.len += 1;
+                        }
+                    }
+                }
+                "k" | "s" | "h" | "t" => {
+                    let drum = match tok {
+                        "k" => P_KICK,
+                        "s" => P_SNARE,
+                        "h" => P_HAT,
+                        _ => P_TOM,
+                    };
+                    events.push(Ev { start: i, len: 1, notes: vec![if drum == P_TOM { 45 } else { 36 }], drum });
+                }
+                _ => {
+                    let notes: Vec<u8> = tok.split('+').filter_map(note_midi).collect();
+                    if !notes.is_empty() {
+                        events.push(Ev { start: i, len: 1, notes, drum: usize::MAX });
+                    }
+                }
+            }
+        }
+        len = len.max(steps.len());
+        tracks.push(Track { patch, vol, events });
+    }
+    SongData { step_s: 60.0 / s.bpm / s.div, len: len.max(1), tracks }
+}
+
+// ---------------------------------------------------------------- voices
+/// A music note through a patch, with ADSR envelope.
+struct MVoice {
+    p: Patch,
+    freq: f32,
+    phase: [f32; 3],
+    sub_phase: f32,
+    t: f32,
+    gate: f32,
+    env: f32,
+    rel_from: f32,
+    released: bool,
+    lp: [f32; 2],
+    vel: f32,
+    done: bool,
+}
+
+/// A sound-effect voice: exponential pitch and volume sweeps.
 struct Voice {
     wave: Wave,
     freq: f32,
@@ -63,83 +377,57 @@ struct Voice {
     delay: i32,
     phase: f32,
     lp: f32,
-    music: bool,
-}
-
-struct SongData {
-    bpm: f32,
-    vol: f32,
-    lead: Vec<u8>,
-    bass: Vec<u8>,
-    drum: &'static [u8],
 }
 
 pub struct Synth {
     sr: f32,
     voices: Vec<Voice>,
+    mvoices: Vec<MVoice>,
+    patches: Vec<Patch>,
     songs: Vec<SongData>,
     song: Option<Song>,
     step: usize,
     step_left: f32,
     pub muted: bool,
     noise: u32,
+    /// Stereo echo buffers and write position.
+    echo: [Vec<f32>; 2],
+    echo_pos: usize,
+    echo_lp: [f32; 2],
+    /// Fades music in after a song change (0..1).
+    fade: f32,
 }
 
-fn rep(a: &[u8], n: usize) -> Vec<u8> {
-    let mut v = Vec::new();
-    for _ in 0..n {
-        v.extend_from_slice(a);
-    }
-    v
-}
 fn mtof(m: u8) -> f32 {
     440.0 * 2f32.powf((m as f32 - 69.0) / 12.0)
 }
 
 impl Synth {
     pub fn new(sr: f32) -> Self {
-        let title = SongData {
-            bpm: 100.0,
-            vol: 0.06,
-            lead: vec![
-                69, 0, 72, 0, 76, 0, 81, 0, 79, 0, 76, 0, 74, 0, 0, 0, 65, 0, 69, 0, 72, 0, 77, 0, 76, 0, 0, 0, 68, 0, 71, 0,
-            ],
-            bass: [rep(&[45, 0, 57, 0], 2), rep(&[43, 0, 55, 0], 2), rep(&[41, 0, 53, 0], 2), rep(&[40, 0, 52, 0], 2)]
-                .concat(),
-            drum: &[],
-        };
-        let field = SongData {
-            bpm: 128.0,
-            vol: 0.055,
-            lead: vec![
-                69, 72, 76, 81, 79, 76, 72, 74, 76, 0, 76, 74, 72, 71, 69, 0, 65, 69, 72, 77, 76, 72, 69, 71, 72, 0, 71, 0,
-                68, 0, 64, 0, 69, 0, 72, 0, 76, 0, 74, 72, 71, 0, 67, 0, 71, 74, 79, 0, 77, 0, 76, 0, 74, 72, 74, 76, 76,
-                0, 0, 0, 64, 68, 71, 76,
-            ],
-            bass: [rep(&[45, 57], 4), rep(&[43, 55], 4), rep(&[41, 53], 4), rep(&[40, 52], 4)].concat(),
-            drum: b"k.h.s.h.",
-        };
-        let lair = SongData {
-            bpm: 168.0,
-            vol: 0.055,
-            lead: vec![76, 77, 76, 75, 76, 0, 71, 0, 72, 71, 70, 71, 0, 0, 64, 0],
-            bass: vec![40, 40, 52, 40, 40, 52, 40, 41, 40, 40, 52, 40, 41, 53, 41, 52],
-            drum: b"khsh",
-        };
+        let order = [TITLE, FIELD, LAIR, VILLAGE, CRYPT, SWAMP, VOLCANO, DUNGEON];
+        let songs: Vec<SongData> = order.iter().map(parse).collect();
+        debug_assert_eq!(songs.len(), SONG_COUNT);
+        let echo_len = |s: f32| vec![0.0; (sr * s) as usize + 1];
         Synth {
             sr,
             voices: Vec::new(),
-            songs: vec![title, field, lair],
+            mvoices: Vec::new(),
+            patches: patches(),
+            songs,
             song: None,
             step: 0,
             step_left: 0.0,
             muted: false,
             noise: 0x1234_5678,
+            echo: [echo_len(0.24), echo_len(0.31)],
+            echo_pos: 0,
+            echo_lp: [0.0; 2],
+            fade: 1.0,
         }
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn push(&mut self, wave: Wave, f0: f32, f1: f32, dur: f32, vol: f32, delay: f32, cutoff: f32, music: bool) {
+    fn push(&mut self, wave: Wave, f0: f32, f1: f32, dur: f32, vol: f32, delay: f32, cutoff: f32) {
         let n = (dur * self.sr).max(1.0);
         let (f0, f1) = (f0.max(20.0), f1.max(20.0));
         let cut = cutoff.max(100.0);
@@ -156,18 +444,17 @@ impl Synth {
             delay: (delay * self.sr) as i32,
             phase: 0.0,
             lp: 0.0,
-            music,
         };
-        if self.voices.len() >= 64 {
+        if self.voices.len() >= 48 {
             self.voices.remove(0);
         }
         self.voices.push(v);
     }
     fn tone(&mut self, w: Wave, f0: f32, f1: f32, dur: f32, vol: f32, delay: f32) {
-        self.push(w, f0, f1, dur, vol, delay, 1000.0, false);
+        self.push(w, f0, f1, dur, vol, delay, 1000.0);
     }
     fn noise(&mut self, dur: f32, vol: f32, cut: f32, delay: f32) {
-        self.push(Wave::Noise, 100.0, 100.0, dur, vol, delay, cut, false);
+        self.push(Wave::Noise, 100.0, 100.0, dur, vol, delay, cut);
     }
     fn arp(&mut self, freqs: &[f32], step: f32, dur: f32) {
         for (i, &f) in freqs.iter().enumerate() {
@@ -281,37 +568,142 @@ impl Synth {
         self.song = s;
         self.step = 0;
         self.step_left = 0.05 * self.sr;
-        self.voices.retain(|v| !v.music);
+        // Let playing notes ring out briefly instead of cutting them off.
+        for v in self.mvoices.iter_mut() {
+            v.released = true;
+            v.rel_from = v.env;
+            v.t = v.gate;
+        }
+        self.fade = 0.0;
+    }
+
+    fn note_on(&mut self, patch: usize, midi: u8, gate: f32, vel: f32) {
+        let p = self.patches[patch];
+        if self.mvoices.len() >= 40 {
+            self.mvoices.remove(0);
+        }
+        self.mvoices.push(MVoice {
+            p, freq: mtof(midi), phase: [0.0, 0.33, 0.66], sub_phase: 0.0, t: 0.0, gate, env: 0.0, rel_from: 0.0,
+            released: false, lp: [0.0; 2], vel, done: false,
+        });
     }
 
     fn song_step(&mut self, s: Song) {
-        let (bpm, vol, lead, bass, drum) = {
+        let (step_s, len) = {
             let d = &self.songs[s as usize];
-            let i = self.step;
-            (
-                d.bpm,
-                d.vol,
-                d.lead[i % d.lead.len()],
-                d.bass[i % d.bass.len()],
-                if d.drum.is_empty() { b'.' } else { d.drum[i % d.drum.len()] },
-            )
+            (d.step_s, d.len)
         };
-        let dur = 60.0 / bpm / 2.0;
-        if lead > 0 {
-            let f = mtof(lead);
-            self.push(Wave::Square, f, f, dur * 0.9, vol, 0.0, 1000.0, true);
+        let i = self.step % len;
+        let mut on: Vec<(usize, u8, f32, f32)> = vec![];
+        for tr in &self.songs[s as usize].tracks {
+            // Tracks shorter than the song loop on their own length.
+            let tl = tr.events.last().map_or(1, |e| e.start + e.len).max(1);
+            let tl = if tl <= len && len % tl == 0 { tl } else { len };
+            let j = i % tl;
+            for e in tr.events.iter().filter(|e| e.start == j) {
+                let patch = if e.drum != usize::MAX { e.drum } else { tr.patch };
+                let gate = (e.len as f32 * step_s - 0.012).max(0.02);
+                for &n in &e.notes {
+                    on.push((patch, n, gate, tr.vol));
+                }
+            }
         }
-        if bass > 0 {
-            let f = mtof(bass);
-            self.push(Wave::Tri, f, f, dur * 0.95, 0.22, 0.0, 1000.0, true);
-        }
-        match drum {
-            b'k' => self.push(Wave::Sine, 150.0, 40.0, 0.12, 0.35, 0.0, 1000.0, true),
-            b'h' => self.push(Wave::Noise, 100.0, 100.0, 0.03, 0.05, 0.0, 9000.0, true),
-            b's' => self.push(Wave::Noise, 100.0, 100.0, 0.12, 0.12, 0.0, 4000.0, true),
-            _ => {}
+        for (p, n, g, v) in on {
+            self.note_on(p, n, g, v);
         }
         self.step += 1;
+    }
+
+    /// One stereo sample of all music voices.
+    fn music_sample(&mut self, nz: &mut u32) -> (f32, f32) {
+        let sr = self.sr;
+        let (mut l, mut r) = (0.0f32, 0.0f32);
+        for v in self.mvoices.iter_mut() {
+            let p = v.p;
+            let dt = 1.0 / sr;
+            // ADSR.
+            if !v.released && v.t >= v.gate {
+                v.released = true;
+                v.rel_from = v.env;
+            }
+            v.env = if v.released {
+                let k = ((v.t - v.gate) / p.r.max(0.005)).min(1.0);
+                v.rel_from * (1.0 - k) * (1.0 - k)
+            } else if v.t < p.a {
+                v.t / p.a.max(0.001)
+            } else {
+                let k = ((v.t - p.a) / p.d.max(0.001)).min(1.0);
+                1.0 + (p.s - 1.0) * k
+            };
+            if v.released && v.t > v.gate + p.r {
+                v.done = true;
+                continue;
+            }
+            let vib = if p.vib_depth > 0.0 && v.t > p.vib_delay {
+                1.0 + (TAU * p.vib_rate * v.t).sin() * p.vib_depth
+            } else {
+                1.0
+            };
+            let drop = if p.drop < 1.0 { p.drop.powf((v.t / 0.1).min(3.0)) } else { 1.0 };
+            let f = v.freq * vib * drop;
+            let mut sl;
+            let mut sr_ = 0.0;
+            let mut stereo = false;
+            match p.osc {
+                Osc::Pulse(duty) => sl = if v.phase[0] < duty { 1.0 } else { -1.0 },
+                Osc::Tri => sl = 4.0 * (v.phase[0] - 0.5).abs() - 1.0,
+                Osc::Saw => sl = 2.0 * v.phase[0] - 1.0,
+                Osc::Sine => sl = (v.phase[0] * TAU).sin(),
+                Osc::Organ => {
+                    let ph = v.phase[0] * TAU;
+                    sl = ph.sin() * 0.6 + (ph * 2.0).sin() * 0.3 + (ph * 3.0).sin() * 0.15;
+                }
+                Osc::Bell => {
+                    let ph = v.phase[0] * TAU;
+                    sl = ph.sin() * 0.7 + (ph * 2.76).sin() * 0.4 * (-v.t * 9.0).exp();
+                }
+                Osc::SuperSaw => {
+                    let s0 = 2.0 * v.phase[0] - 1.0;
+                    let s1 = 2.0 * v.phase[1] - 1.0;
+                    let s2 = 2.0 * v.phase[2] - 1.0;
+                    sl = s0 * 0.6 + s1 * 0.6;
+                    sr_ = s0 * 0.6 + s2 * 0.6;
+                    stereo = true;
+                }
+                Osc::Noise => {
+                    *nz ^= *nz << 13;
+                    *nz ^= *nz >> 17;
+                    *nz ^= *nz << 5;
+                    sl = (*nz as f32 / u32::MAX as f32) * 2.0 - 1.0;
+                }
+            }
+            let inc = f / sr;
+            v.phase[0] = (v.phase[0] + inc).fract();
+            if p.osc == Osc::SuperSaw {
+                v.phase[1] = (v.phase[1] + inc * 1.0045).fract();
+                v.phase[2] = (v.phase[2] + inc * 0.9955).fract();
+            }
+            if p.sub > 0.0 {
+                v.sub_phase = (v.sub_phase + inc * 0.5).fract();
+                let sub = 4.0 * (v.sub_phase - 0.5).abs() - 1.0;
+                sl += sub * p.sub;
+                sr_ += sub * p.sub;
+            }
+            if !stereo {
+                sr_ = sl;
+            }
+            // Low-pass filter with an optional opening envelope.
+            let cut = p.cut * (1.0 + (p.cut_env - 1.0) * (-v.t / p.cut_decay.max(0.001)).exp());
+            let a = (cut * TAU / sr).min(1.0);
+            v.lp[0] += (sl - v.lp[0]) * a;
+            v.lp[1] += (sr_ - v.lp[1]) * a;
+            let g = v.env * p.gain * v.vel;
+            let (pl, pr) = ((1.0 - p.pan).min(1.0), (1.0 + p.pan).min(1.0));
+            l += v.lp[0] * g * pl;
+            r += v.lp[1] * g * pr;
+            v.t += dt;
+        }
+        (l, r)
     }
 }
 
@@ -320,18 +712,21 @@ impl AudioCallback for Synth {
 
     fn callback(&mut self, out: &mut [f32]) {
         let sr = self.sr;
-        for o in out.iter_mut() {
+        let mut nz = self.noise;
+        for frame in out.chunks_mut(2) {
             if let Some(s) = self.song {
                 if !self.muted {
                     self.step_left -= 1.0;
                     if self.step_left <= 0.0 {
                         self.song_step(s);
-                        self.step_left += 60.0 / self.songs[s as usize].bpm / 2.0 * sr;
+                        self.step_left += self.songs[s as usize].step_s * sr;
                     }
                 }
             }
-            let (mut m, mut fx) = (0.0f32, 0.0f32);
-            let mut nz = self.noise;
+            self.fade = (self.fade + 1.0 / (sr * 0.6)).min(1.0);
+            let (ml, mr) = self.music_sample(&mut nz);
+            let (ml, mr) = (ml * self.fade, mr * self.fade);
+            let mut fx = 0.0f32;
             for v in self.voices.iter_mut() {
                 if v.delay > 0 {
                     v.delay -= 1;
@@ -367,25 +762,107 @@ impl AudioCallback for Synth {
                     v.phase -= 1.0;
                 }
                 v.freq *= v.fmul;
-                let val = smp * v.gain;
+                fx += smp * v.gain;
                 v.gain *= v.gmul;
                 v.left -= 1;
-                if v.music {
-                    m += val;
-                } else {
-                    fx += val;
-                }
             }
-            self.noise = nz;
-            *o = if self.muted { 0.0 } else { ((m * 0.7 + fx * 0.8) * 0.5).clamp(-1.0, 1.0) };
+            // Stereo echo with a darkening feedback path (SNES-style).
+            let pos = self.echo_pos;
+            let mut wet = [0.0f32; 2];
+            for ch in 0..2 {
+                let buf = &mut self.echo[ch];
+                let i = pos % buf.len();
+                let delayed = buf[i];
+                self.echo_lp[ch] += (delayed - self.echo_lp[ch]) * 0.35;
+                let send = (if ch == 0 { ml } else { mr }) * 0.55 + fx * 0.2;
+                buf[i] = send + self.echo_lp[ch] * 0.38;
+                wet[ch] = delayed;
+            }
+            self.echo_pos = pos + 1;
+            let mix = |dry_m: f32, w: f32| ((dry_m * 0.9 + fx * 0.8 + w * 0.32) * 0.55).clamp(-1.0, 1.0);
+            let (l, r) = if self.muted { (0.0, 0.0) } else { (mix(ml, wet[0]), mix(mr, wet[1])) };
+            frame[0] = l;
+            if frame.len() > 1 {
+                frame[1] = r;
+            }
         }
+        self.noise = nz;
         self.voices.retain(|v| v.left > 0 || v.delay > 0);
+        self.mvoices.retain(|v| !v.done);
     }
 }
 
+/// Render every song to a 16-bit stereo WAV (<dir>/<song>.wav, secs long) so the
+/// music can be reviewed without running the game: elementallegends --render-music <dir>.
+pub fn render_music(dir: &str, secs: f32) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let sr = 44100u32;
+    let songs = [Song::Title, Song::Village, Song::Field, Song::Crypt, Song::Swamp, Song::Volcano, Song::Dungeon, Song::Lair];
+    for song in songs {
+        let mut s = Synth::new(sr as f32);
+        s.play_song(Some(song));
+        let frames = (secs * sr as f32) as usize;
+        let mut buf = vec![0.0f32; frames * 2];
+        for chunk in buf.chunks_mut(2048) {
+            s.callback(chunk);
+        }
+        let mut wav = Vec::with_capacity(44 + buf.len() * 2);
+        let data_len = (buf.len() * 2) as u32;
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&sr.to_le_bytes());
+        wav.extend_from_slice(&(sr * 4).to_le_bytes());
+        wav.extend_from_slice(&4u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&data_len.to_le_bytes());
+        for v in &buf {
+            wav.extend_from_slice(&((v.clamp(-1.0, 1.0) * 32767.0) as i16).to_le_bytes());
+        }
+        let name = format!("{song:?}").to_lowercase();
+        std::fs::write(format!("{dir}/{name}.wav"), wav)?;
+        println!("wrote {dir}/{name}.wav");
+    }
+    Ok(())
+}
+
 pub fn open(a: &AudioSubsystem) -> Option<AudioDevice<Synth>> {
-    let spec = AudioSpecDesired { freq: Some(44100), channels: Some(1), samples: Some(1024) };
+    let spec = AudioSpecDesired { freq: Some(44100), channels: Some(2), samples: Some(1024) };
     let dev = a.open_playback(None, &spec, |s| Synth::new(s.freq as f32)).ok()?;
     dev.resume();
     Some(dev)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn notes_parse() {
+        assert_eq!(note_midi("A4"), Some(69));
+        assert_eq!(note_midi("C4"), Some(60));
+        assert_eq!(note_midi("F#3"), Some(54));
+        assert_eq!(note_midi("Bb2"), Some(46));
+        assert_eq!(note_midi("x"), None);
+    }
+
+    #[test]
+    fn every_song_parses_and_renders_sound() {
+        let mut s = Synth::new(22050.0);
+        for song in [Song::Title, Song::Field, Song::Lair, Song::Village, Song::Crypt, Song::Swamp, Song::Volcano, Song::Dungeon] {
+            let d = &s.songs[song as usize];
+            assert!(d.len >= 16, "{song:?} has a full bar");
+            assert!(d.tracks.iter().all(|t| !t.events.is_empty()), "{song:?} tracks have notes");
+            s.play_song(Some(song));
+            let mut buf = vec![0.0f32; 22050 * 2];
+            s.callback(&mut buf);
+            let peak = buf.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+            assert!(peak > 0.02 && peak <= 1.0, "{song:?} is audible and not clipping hard (peak {peak})");
+            assert!(buf.iter().all(|v| v.is_finite()));
+        }
+    }
 }
