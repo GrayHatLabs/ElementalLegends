@@ -66,10 +66,20 @@ impl Game {
     }
 
     // ------------------------------------------------------------ world
+    /// Draws a generated object sprite (sheet `name`, anim `idle`) with its base centred on
+    /// (x, y) in logic units. Returns false when the art is missing so callers can fall back.
+    pub(super) fn obj_hd(&self, scr: &mut Screen, name: &str, x: f32, y: f32) -> bool {
+        let Some(sh) = self.art.sheet(name) else { return false };
+        let Some(a) = sh.anim("idle") else { return false };
+        scr.spr_hd_anchor(a.at(self.frame as u32), x, y, sh.cell.0 / 2, sh.cell.1 - 2, false, Tint::None);
+        true
+    }
     fn draw_shrine(&self, scr: &mut Screen, x: i32, y: i32, el: Elem) {
-        scr.fill(x - 7, y + 4, 14, 6, rgb(0x747474));
-        scr.fill(x - 7, y + 4, 14, 1, rgb(0xbcbcbc));
-        scr.fill(x - 5, y + 10, 10, 2, rgb(0x404040));
+        if !self.obj_hd(scr, "obj_shrine_pedestal", x as f32, y as f32 + 12.0) {
+            scr.fill(x - 7, y + 4, 14, 6, rgb(0x747474));
+            scr.fill(x - 7, y + 4, 14, 1, rgb(0xbcbcbc));
+            scr.fill(x - 5, y + 10, 10, 2, rgb(0x404040));
+        }
         let oy2 = y - 4 + ((self.frame as f32 * 0.08).sin() * 2.0) as i32;
         scr.blend_disc(x, oy2, 8, el.light(), 0.2);
         scr.disc(x, oy2, 5, el.main());
@@ -81,6 +91,9 @@ impl Game {
     }
     fn draw_cottage(&self, scr: &mut Screen, ox: i32, oy: i32) {
         let (x, y) = (128 + ox, HUD + 16 + oy);
+        if self.obj_hd(scr, "obj_cottage", x as f32, y as f32 + 32.0) {
+            return;
+        }
         scr.fill(x - 28, y + 10, 56, 22, rgb(0x8c6c4c));
         for i in 0..5 {
             scr.fill(x - 28 + i * 14, y + 10, 2, 22, rgb(0x5c3c20));
@@ -157,10 +170,12 @@ impl Game {
         let (x, y) = (fx as i32, fy as i32);
         match o.k {
             OK::Torch => {
-                scr.fill(x - 4, y + 1, 8, 7, rgb(0x3c3c44));
-                scr.fill(x - 3, y + 1, 6, 1, rgb(0x5c5c64));
-                scr.fill(x - 6, y - 3, 12, 4, rgb(0x5c5c64));
-                scr.fill(x - 6, y - 3, 12, 1, rgb(0x8c8c98));
+                if !self.obj_hd(scr, "obj_brazier", fx, fy + 8.0) {
+                    scr.fill(x - 4, y + 1, 8, 7, rgb(0x3c3c44));
+                    scr.fill(x - 3, y + 1, 6, 1, rgb(0x5c5c64));
+                    scr.fill(x - 6, y - 3, 12, 4, rgb(0x5c5c64));
+                    scr.fill(x - 6, y - 3, 12, 1, rgb(0x8c8c98));
+                }
                 if o.on {
                     scr.blend_disc(x, y - 6, 11, rgb(0xfc9838), 0.18 + (self.frame as f32 * 0.2).sin().abs() * 0.08);
                     draw_flames(scr, x as f32, y as f32 - 8.0, 8.0, 6.0, 1.0, self.frame, (o.c * 7 + o.r) as u32);
@@ -169,6 +184,11 @@ impl Game {
                     if (self.frame / 20 + o.c as u64) % 4 == 0 {
                         scr.pset(x, y - 7 - ((self.frame % 20) / 5) as i32, rgb(0x5c5c64));
                     }
+                }
+            }
+            OK::Block if self.obj_hd(scr, "obj_push_block", fx, fy + 8.0) => {
+                if o.on {
+                    scr.blend(x - 8, y - 8, 16, 16, rgb(0x3cbcfc), 0.2);
                 }
             }
             OK::Block => {
@@ -184,6 +204,7 @@ impl Game {
                     scr.blend(x - 8, y - 8, 16, 16, rgb(0x3cbcfc), 0.12);
                 }
             }
+            OK::Lever if self.obj_hd(scr, if o.on { "obj_lever_on" } else { "obj_lever_off" }, fx, fy + 7.0) => {}
             OK::Lever => {
                 scr.fill(x - 6, y + 2, 12, 5, rgb(0x3c3c44));
                 scr.fill(x - 6, y + 2, 12, 1, rgb(0x747480));

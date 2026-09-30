@@ -103,6 +103,12 @@ impl Game {
         // Standing stones.
         for &(c, r) in &[(4, 3), (11, 3), (4, 9), (11, 9)] {
             let (sx, sy) = (c * TS + 8 + ox, HUD + r * TS + 16 + oy);
+            if self.obj_hd(scr, "obj_standing_stone", sx as f32, sy as f32) {
+                if awake {
+                    scr.blend_disc(sx, sy - 10, 4, rgb(0x3cbcfc), 0.35);
+                }
+                continue;
+            }
             scr.fill(sx - 5, sy - 16, 10, 16, rgb(0x5c5c68));
             scr.fill(sx - 4, sy - 18, 8, 2, rgb(0x5c5c68));
             scr.fill(sx - 5, sy - 16, 2, 16, rgb(0x8c8c98));
@@ -112,16 +118,19 @@ impl Game {
             scr.fill(sx - 5, sy - 3, 4, 2, rgb(0x2c6c1c));
         }
         // The monolith: a tapering slab with highlight, shadow and moss.
-        for row in 0..60 {
+        let hd = self.obj_hd(scr, "obj_monolith", x as f32, base as f32);
+        for row in 0..if hd { 0 } else { 60 } {
             let w = 11 - row.min(8) / 3 - if row < 4 { 4 - row } else { 0 };
             let (lx, ly) = (x - w, top + row);
             scr.fill(lx, ly, w * 2, 1, rgb(0x5c5c68));
             scr.fill(lx, ly, 2, 1, rgb(0x8c8c98));
             scr.fill(x + w - 2, ly, 2, 1, rgb(0x2c2c38));
         }
-        scr.fill(x - 11, base - 6, 7, 5, rgb(0x2c6c1c));
-        scr.fill(x + 5, base - 12, 5, 4, rgb(0x2c6c1c));
-        scr.fill(x - 3, top + 20, 2, 3, rgb(0x2c6c1c));
+        if !hd {
+            scr.fill(x - 11, base - 6, 7, 5, rgb(0x2c6c1c));
+            scr.fill(x + 5, base - 12, 5, 4, rgb(0x2c6c1c));
+            scr.fill(x - 3, top + 20, 2, 3, rgb(0x2c6c1c));
+        }
         // Crown gem, always glowing.
         let pulse = 0.3 + (f * 0.08).sin().abs() * 0.35;
         scr.blend_disc(x, top + 6, 6, rgb(0x3cbcfc), pulse);
@@ -187,7 +196,9 @@ impl Game {
         };
         // Doorway rectangle (x, y, w, h) filled by each style.
         let (dx, dy, dw, dh) = (cx - 8, by - 22, 16, 22);
-        match n {
+        let hd = self.obj_hd(scr, &format!("bld_{}", n.min(6)), cx as f32, by as f32);
+        match if hd { 0 } else { n } {
+            0 => {}
             1 => {
                 // Overgrown forest shrine.
                 scr.fill(cx - 28, by - 6, 56, 6, rgb(0x5c5c5c));
