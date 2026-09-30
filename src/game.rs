@@ -1778,7 +1778,7 @@ impl Game {
                 if !self.gate_warned {
                     self.gate_warned = true;
                     if self.s.cleared[gate] {
-                        self.show_msg("THIS PLACE IS QUIET NOW. ITS GUARDIAN HAS FALLEN.");
+                        self.show_msg("A RUNE STONE SEALS THE DOORWAY. ITS GUARDIAN HAS FALLEN.");
                     } else if gate == 6 {
                         self.show_msg("THE DARK TOWER IS SEALED. GATHER ALL FIVE RUNES.");
                     } else {

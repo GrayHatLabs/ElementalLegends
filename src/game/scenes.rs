@@ -6,6 +6,14 @@ use super::*;
 
 /// Colours of the five rune slots on the monolith (one per lair).
 const RUNE_COLS: [u32; 5] = [rgb(0x98d858), rgb(0xa4e4fc), rgb(0xbcbcbc), rgb(0xfc9838), rgb(0xf878f8)];
+/// The five lair runes (3x5 bit rows), as carved on the monolith and the rune stones.
+const GLYPHS: [[u8; 5]; 5] = [
+    [0b111, 0b010, 0b010, 0b010, 0b111],
+    [0b101, 0b111, 0b010, 0b111, 0b101],
+    [0b010, 0b101, 0b111, 0b101, 0b010],
+    [0b110, 0b101, 0b110, 0b101, 0b110],
+    [0b111, 0b100, 0b111, 0b001, 0b111],
+];
 const MONO_X: i32 = 128;
 const MONO_BASE: i32 = HUD + 6 * TS;
 
@@ -137,13 +145,6 @@ impl Game {
         scr.fill(x - 1, top + 4, 3, 4, rgb(0xa4e4fc));
         scr.fill(x, top + 4, 1, 1, WHITE);
         // Five rune slots: lit in colour for every conquered lair.
-        const GLYPHS: [[u8; 5]; 5] = [
-            [0b111, 0b010, 0b010, 0b010, 0b111],
-            [0b101, 0b111, 0b010, 0b111, 0b101],
-            [0b010, 0b101, 0b111, 0b101, 0b010],
-            [0b110, 0b101, 0b110, 0b101, 0b110],
-            [0b111, 0b100, 0b111, 0b001, 0b111],
-        ];
         for (i, g) in GLYPHS.iter().enumerate() {
             let gy = top + 14 + i as i32 * 9;
             let cleared = self.s.cleared[i + 1];
@@ -382,11 +383,92 @@ impl Game {
                     scr.pset(cx - 5 + i * 3, by - 2 - ph / 2, door_glow);
                 }
             }
-            _ => {
-                scr.line(cx + 26, by - 2, cx + 26, by - 20, rgb(0x5c3410));
-                scr.fill(cx + 27, by - 20, 8, 5, rgb(0x58d854));
+            _ => self.draw_rune_stone(scr, n, dx, dy, dw, dh),
+        }
+    }
+
+    /// A carved stone slab bearing the lair's rune seals a conquered lair's doorway. With
+    /// generated building art the slab covers the doorway painted in the art.
+    fn draw_rune_stone(&self, scr: &mut Screen, n: usize, dx: i32, dy: i32, dw: i32, dh: i32) {
+        let (cx, by) = (dx + dw / 2, dy + dh);
+        let (x, y, w, h) = match self.art_doorway(n) {
+            Some((x0, y0, x1, y1)) => (cx + x0 - 1, by + y0 - 1, (x1 - x0 + 3).max(10), (y1 - y0 + 2).max(12)),
+            None => (dx - 2, dy - 2, dw + 4, dh + 2),
+        };
+        scr.fill(x, y, w, h, rgb(0x6c6c78));
+        scr.fill(x, y, w, 2, rgb(0x9c9ca8));
+        scr.fill(x, y, 2, h, rgb(0x8c8c98));
+        scr.fill(x + w - 2, y, 2, h, rgb(0x3c3c48));
+        scr.fill(x, y + h - 2, w, 2, rgb(0x3c3c48));
+        scr.frame_rect(x, y, w, h, rgb(0x202028));
+        // A couple of weathering cracks and a tuft of moss.
+        scr.line(x + 3, y + 5, x + 6, y + 9, rgb(0x4c4c58));
+        scr.line(x + w - 5, y + h - 8, x + w - 8, y + h - 4, rgb(0x4c4c58));
+        scr.fill(x + 1, y + h - 4, 4, 2, rgb(0x2c6c1c));
+        // The rune, glowing softly in the lair's colour (the Dark Tower's is violet).
+        let col = if n <= 5 { RUNE_COLS[n - 1] } else { rgb(0xb040fc) };
+        let glyph = GLYPHS[(n - 1).min(4)];
+        let pulse = 0.18 + (self.frame as f32 * 0.06).sin().abs() * 0.2;
+        let (gx, gy) = (x + w / 2 - 3, y + h / 2 - 5);
+        scr.blend_disc(x + w / 2, y + h / 2, 7, col, pulse);
+        for (ry, bits) in glyph.iter().enumerate() {
+            for bx in 0..3 {
+                if bits & (4 >> bx) != 0 {
+                    scr.fill(gx + bx * 2, gy + ry as i32 * 2, 2, 2, col);
+                }
             }
         }
+    }
+
+    /// The doorway in a building's generated art, as logic offsets (x0, y0, x1, y1) from
+    /// the door centre on the ground line. Doorways are painted as one flat dark colour:
+    /// take the longest dark run down the middle of the sprite and flood-fill that colour.
+    fn art_doorway(&self, n: usize) -> Option<(i32, i32, i32, i32)> {
+        let sh = self.art.sheet(&format!("bld_{}", n.min(6)))?;
+        let img = sh.anim("idle")?.at(0);
+        let (w, h) = (img.w, img.h);
+        let at = |x: i32, y: i32| img.px[(y * w + x) as usize];
+        let rgb3 = |c: u32| [(c >> 16 & 0xff) as i32, (c >> 8 & 0xff) as i32, (c & 0xff) as i32];
+        let dark = |c: u32| c != 0 && rgb3(c).iter().all(|&v| v < 70);
+        // Longest run of one dark colour down the centre column (lower two thirds).
+        let x = w / 2;
+        let (mut best, mut run) = ((0, 0, 0u32), (0, 0, 0u32)); // (length, start y, colour)
+        for y in h / 3..h {
+            let c = at(x, y);
+            if dark(c) && run.0 > 0 && c == run.2 {
+                run.0 += 1;
+            } else if dark(c) {
+                run = (1, y, c);
+            } else {
+                run = (0, 0, 0);
+            }
+            if run.0 > best.0 {
+                best = run;
+            }
+        }
+        if best.0 < 8 {
+            return None;
+        }
+        let seed_col = rgb3(best.2);
+        let near = |c: u32| c != 0 && rgb3(c).iter().zip(seed_col).all(|(a, b)| (a - b).abs() <= 10);
+        let mut seen = vec![false; (w * h) as usize];
+        let seed = (x, best.1 + best.0 / 2);
+        let mut stack = vec![seed];
+        seen[(seed.1 * w + seed.0) as usize] = true;
+        let mut bb = (seed.0, seed.1, seed.0, seed.1);
+        while let Some((px, py)) = stack.pop() {
+            bb = (bb.0.min(px), bb.1.min(py), bb.2.max(px), bb.3.max(py));
+            for (nx, ny) in [(px + 1, py), (px - 1, py), (px, py + 1), (px, py - 1)] {
+                if nx >= 0 && ny >= 0 && nx < w && ny < h && !seen[(ny * w + nx) as usize] && near(at(nx, ny)) {
+                    seen[(ny * w + nx) as usize] = true;
+                    stack.push((nx, ny));
+                }
+            }
+        }
+        // Art pixels -> logic units around the anchor (centre bottom, 2 px up).
+        let (ax, ay) = (sh.cell.0 / 2, sh.cell.1 - 2);
+        let l = |v: i32| (v as f32 / ZOOM).round() as i32;
+        Some((l(bb.0 - ax), l(bb.1 - ay), l(bb.2 - ax), l(bb.3 - ay)))
     }
 
     // ------------------------------------------------------------ entering a dungeon

@@ -853,6 +853,16 @@ fn boss_fight(t: &mut T, n: usize) {
         t.frames(70);
         t.tap(Btn::Start);
         t.frames(5);
+        if n < 6 && t.g.debug_mode() == Mode::Play && t.g.debug_dungeon().is_none() {
+            // Back outside: a rune stone now seals the conquered lair.
+            t.g.debug_kill_enemies();
+            t.g.debug_set_player(128.0, 170.0, b'u');
+            t.frames(30);
+            t.shot(&format!("39b_sealed_{n}"));
+            t.walk_to(128.0, 138.0, 80);
+            t.frames(20);
+            t.check(t.g.debug_dungeon().is_none() && t.g.debug_msg().map_or(false, |m| m.contains("RUNE STONE")), &format!("dungeon {n}: a rune stone seals the conquered lair"));
+        }
     }
 }
 
