@@ -31,6 +31,7 @@ fn map_key(sc: Scancode) -> Option<Btn> {
         Return | Escape | P => Btn::Start,
         M => Btn::Mute,
         Tab | V | Q => Btn::Bag,
+        E => Btn::Blink,
         _ => return None,
     })
 }
@@ -43,7 +44,8 @@ fn map_button(b: Button) -> Option<Btn> {
         Button::DPadRight => Btn::Right,
         Button::A | Button::X => Btn::Fire,
         Button::B => Btn::Sub,
-        Button::Y | Button::LeftShoulder | Button::RightShoulder => Btn::Potion,
+        Button::Y | Button::LeftShoulder => Btn::Potion,
+        Button::RightShoulder => Btn::Blink,
         Button::Start => Btn::Start,
         Button::Back => Btn::Bag,
         _ => return None,

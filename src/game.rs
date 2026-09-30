@@ -24,6 +24,7 @@ mod minis;
 mod scenes;
 mod bag;
 mod cave;
+mod quest;
 mod status;
 mod village;
 
@@ -78,14 +79,16 @@ pub enum Btn {
     Mute,
     /// Pick the next relic-bag item (Select); with the game paused it mutes instead.
     Bag,
+    /// Arcane Blink, once learned (R1).
+    Blink,
 }
 
 #[derive(Clone, Copy, Default)]
 pub struct Input {
-    keys: [bool; 10],
-    pad: [bool; 10],
-    axis: [bool; 10],
-    pressed: [bool; 10],
+    keys: [bool; 11],
+    pad: [bool; 11],
+    axis: [bool; 11],
+    pressed: [bool; 11],
     /// Right analog stick (-1..1), for optional twin-stick aiming.
     aim: (f32, f32),
 }
@@ -118,7 +121,7 @@ impl Input {
         self.set(b as usize, d, 2)
     }
     pub fn clear_pressed(&mut self) {
-        self.pressed = [false; 10];
+        self.pressed = [false; 11];
     }
     pub fn release_all(&mut self) {
         *self = Input::default();
@@ -470,6 +473,9 @@ pub struct SaveData {
     bombs: i32,
     elixirs: i32,
     bag_sel: usize,
+    /// Spellbook pages found (bit per quest::PAGE_CAVES slot) and Arcane Blink learned.
+    pages: u32,
+    blink: bool,
 }
 
 impl SaveData {
@@ -502,6 +508,8 @@ impl SaveData {
             bombs: 0,
             elixirs: 0,
             bag_sel: 0,
+            pages: 0,
+            blink: false,
         }
     }
     fn mini_done(&self, id: u8) -> bool {
@@ -512,11 +520,11 @@ impl SaveData {
         let l = |v: &[usize]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         let dp = self.dprog.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         format!(
-            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\n",
+            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\npages={}\nblink={}\n",
             SAVE_VERSION, self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
             b(&self.cleared), l(&self.tanks), l(&self.caches), l(&self.opened), l(&self.visited), self.room,
             self.time, self.heart_price, dp, self.potions, self.mini_seen, self.mini_done, self.hoard_left,
-            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel
+            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel, self.pages, self.blink as u8
         )
     }
     fn from_text(txt: &str) -> Option<Self> {
@@ -563,6 +571,8 @@ impl SaveData {
                 "bombs" => s.bombs = (num() as i32).clamp(0, bag::MAX_BOMBS),
                 "elixirs" => s.elixirs = (num() as i32).clamp(0, bag::MAX_ELIXIRS),
                 "bag_sel" => s.bag_sel = (num() as usize).min(bag::SLOTS.len() - 1),
+                "pages" => s.pages = num() as u32 & 0x1f,
+                "blink" => s.blink = num() as i32 == 1,
                 "dprog" => {
                     for (i, x) in v.split(',').enumerate().take(7) {
                         s.dprog[i] = x.trim().parse().unwrap_or(0);
@@ -643,6 +653,7 @@ pub struct Game {
     fade: i32,
     paused: bool,
     bombs: Vec<bag::Bomb>,
+    blink_cd: i32,
     boss: Option<Boss>,
     boss_dead: bool,
     clear_t: i32,
@@ -672,7 +683,7 @@ pub struct Game {
     starve_t: i32,
     hungry_warned: bool,
     starving_warned: bool,
-    shop_armed: [bool; 8],
+    shop_armed: [bool; 9],
     /// Player statuses: poison frames left (drains HP, green tint).
     poison: i32,
     /// Overworld encounter runtime state (see minis.rs).
@@ -720,6 +731,7 @@ impl Game {
             fade: 0,
             paused: false,
             bombs: vec![],
+            blink_cd: 0,
             boss: None,
             boss_dead: false,
             clear_t: 0,
@@ -746,7 +758,7 @@ impl Game {
             starve_t: 0,
             hungry_warned: false,
             starving_warned: false,
-            shop_armed: [true; 8],
+            shop_armed: [true; 9],
             poison: 0,
             dryad_stage: 0,
             fruit: vec![],
@@ -1146,7 +1158,7 @@ impl Game {
         self.pl = Player::at(x, y);
         self.clear_entities();
         self.msg = None;
-        self.shop_armed = [true; 8];
+        self.shop_armed = [true; 9];
         self.enter_room(spawn);
         self.follow_cam(true);
         let song = self.area_song();
@@ -1499,6 +1511,12 @@ impl Game {
         }
         if self.p(Btn::Bag) {
             self.cycle_bag(1);
+        }
+        if self.blink_cd > 0 {
+            self.blink_cd -= 1;
+        }
+        if self.p(Btn::Blink) {
+            self.blink();
         }
         self.update_bombs();
         self.update_pbullets();
@@ -2033,6 +2051,8 @@ mod tests {
         s.bombs = 5;
         s.elixirs = 1;
         s.bag_sel = 2;
+        s.pages = 0b10110;
+        s.blink = true;
         let back = SaveData::from_text(&s.to_text()).expect("parse");
         assert_eq!(back, s);
     }

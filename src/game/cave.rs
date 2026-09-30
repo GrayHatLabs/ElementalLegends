@@ -294,8 +294,12 @@ impl Game {
                 "A MANA CRYSTAL! MAXIMUM MAGIC UP.".to_string()
             }
         };
+        let page = match self.take_page(k) {
+            Some(n) => format!(" AND A LOST SPELLBOOK PAGE, {} OF 5!", n),
+            None => String::new(),
+        };
         self.float("TREASURE!", x - 36.0, y - 22.0, WHITE);
-        self.show_msg(format!("{} THE CAVE IS CLEARED.", msg));
+        self.show_msg(format!("{}{} THE CAVE IS CLEARED.", msg, page));
         self.part(x, y, 0.0, 0.0, 16, rgb(0xfcbc3c), 1, PK::Glow(14.0));
         self.sfx(Sfx::Fanfare);
         self.save();

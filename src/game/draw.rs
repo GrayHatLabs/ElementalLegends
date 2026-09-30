@@ -134,6 +134,18 @@ impl Game {
             }
             None => scr.spr(&self.spr.mage_d[4][0].img, kx, ky, false),
         }
+        let (sx, sy) = (super::quest::SCHOLAR.0 + ox as f32, super::quest::SCHOLAR.1 + oy as f32);
+        scr.blend_ellipse(sx as i32, sy as i32 + 7, 6, 2, BLACK, 0.3);
+        let scholar = ["npc_scholar", "npc_merchant"]
+            .iter()
+            .find_map(|n| self.art.sheet(n).and_then(|sh| sh.anim("idle_down").map(|a| (sh.cell, a, *n))));
+        match scholar {
+            Some((cell, a, n)) => {
+                let fx = if n == "npc_merchant" { Tint::Mix(rgb(0x5878c8), 0.4) } else { Tint::None };
+                scr.spr_hd_anchor(a.at(self.frame as u32), sx, sy + 7.0, cell.0 / 2, cell.1 - 2, false, fx);
+            }
+            None => scr.spr(&self.spr.mage_d[4][0].img, sx, sy, false),
+        }
         let (bx, by) = (BOARD.0 as i32 + ox, BOARD.1 as i32 + 8 + oy);
         if !self.obj_hd(scr, "obj_notice_board", bx as f32, by as f32) {
             scr.fill(bx - 7, by - 16, 2, 16, rgb(0x5c3410));
@@ -1291,6 +1303,7 @@ impl Game {
         let slot = self.slot();
         scr.text(&format!("LV{} RUNES {}/5  BAG: < {} X{} >", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count(), slot.name(), self.slot_count(slot)), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
         scr.text("M MONOLITH  V VILLAGE  C CAVE", 128, y + 26, rgb(0x747474), Align::Center, 8);
+        scr.text(&self.quest_line(), 128, y + 38, rgb(0xd878fc), Align::Center, 8);
     }
     fn draw_dungeon_map(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };

@@ -65,6 +65,13 @@ impl Game {
     pub fn debug_door(&self, room: usize) -> (f32, f32) {
         self.door_pos(room)
     }
+    /// (spellbook pages found, Blink learned)
+    pub fn debug_quest(&self) -> (u32, bool) {
+        (self.pages_found(), self.s.blink)
+    }
+    pub fn debug_set_pages(&mut self, bits: u32) {
+        self.s.pages = bits;
+    }
     pub fn debug_cave_cleared(&self, k: usize) -> bool {
         self.cave_cleared(k)
     }

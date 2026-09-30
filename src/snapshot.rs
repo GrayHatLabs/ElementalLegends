@@ -1088,6 +1088,42 @@ fn encounters(t: &mut T) {
         t.frames(3);
     }
     t.check(t.g.debug_cave_cleared(2), "the second cave's treasure is claimed");
+    t.check(t.g.debug_quest().0 == 1, "the second cave's chest also holds a spellbook page");
+
+    // Side quest: the scholar's spellbook teaches Arcane Blink.
+    println!("[quest] spellbook pages and Arcane Blink");
+    let (_, shop) = t.g.debug_rooms();
+    t.g.debug_play_room(shop, 128.0, 170.0);
+    t.g.debug_kill_enemies();
+    t.g.debug_set_player(140.0, 218.0, b'r');
+    t.walk_to(154.0, 218.0, 60);
+    t.frames(2);
+    t.check(t.g.debug_msg().map_or(false, |m| m.contains("OF 5 PAGES")), "the scholar counts the pages you have found");
+    t.shot("76_scholar");
+    t.g.debug_set_mp(40.0, 40);
+    t.g.debug_set_player(120.0, 180.0, b'r');
+    t.tap(Btn::Blink);
+    t.check(t.g.debug_player().0 == 120.0, "Blink does nothing before it is learned");
+    t.g.debug_set_pages(0x1f);
+    t.g.debug_set_player(140.0, 218.0, b'r');
+    t.walk_to(150.0, 218.0, 60);
+    t.frames(2);
+    t.tap(Btn::Fire);
+    t.check(t.g.debug_quest().1, "all five pages teach Arcane Blink");
+    t.frames(30);
+    t.g.debug_set_mp(40.0, 40);
+    t.g.debug_set_player(120.0, 180.0, b'r');
+    t.frames(2);
+    t.tap(Btn::Blink);
+    let (bx, _) = t.g.debug_player();
+    t.check(bx > 150.0 && t.g.debug_mp() < 40.0, &format!("Blink teleports the mage forward for a little magic (x {bx:.0})"));
+    t.shot("77_blink");
+    t.frames(40);
+    t.g.debug_set_player(24.0, 180.0, b'l');
+    t.frames(2);
+    t.tap(Btn::Blink);
+    t.check(t.g.debug_player().0 >= 16.0, "Blink can't pass through walls");
+    t.frames(40);
 
 
     println!("[encounter] fruit trees and the angry treant");

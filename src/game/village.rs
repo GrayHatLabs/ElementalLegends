@@ -11,6 +11,7 @@ pub(super) const BOARD: (f32, f32) = ((BOARD_TILE.0 as i32 * TS + 8) as f32, (HU
 /// Prompt latches in `shop_armed` for the inn and the board (0..6 are the shop pedestals).
 const ARM_INN: usize = 6;
 const ARM_BOARD: usize = 7;
+const ARM_SCHOLAR: usize = 8;
 
 impl Game {
     pub(super) fn near_innkeeper(&self) -> bool {
@@ -21,7 +22,7 @@ impl Game {
     }
     /// The mage is talking to someone in the village (A talks instead of casting).
     pub(super) fn village_talk_spot(&self) -> bool {
-        self.overworld() && self.room == self.shop_room && (self.near_innkeeper() || self.near_board())
+        self.overworld() && self.room == self.shop_room && (self.near_innkeeper() || self.near_board() || self.near_scholar())
     }
 
     /// Inn and notice board interactions; called every frame on the village screen.
@@ -49,6 +50,14 @@ impl Game {
         } else {
             self.shop_armed[ARM_BOARD] = true;
         }
+        if self.near_scholar() {
+            if self.shop_armed[ARM_SCHOLAR] || self.p(Btn::Fire) {
+                self.shop_armed[ARM_SCHOLAR] = false;
+                self.talk_scholar();
+            }
+        } else {
+            self.shop_armed[ARM_SCHOLAR] = true;
+        }
     }
     fn rest_at_inn(&mut self) {
         if self.s.hp >= self.s.max_hp && self.s.mp >= self.s.max_mp as f32 && self.poison <= 0 {
@@ -75,10 +84,17 @@ impl Game {
     /// What the notice board says (grows as side quests are added).
     pub(super) fn notice_text(&self) -> String {
         let runes = (1..=5).filter(|&i| self.s.cleared[i]).count();
-        if runes < 5 {
-            format!("NOTICE: FIVE LAIRS HOLD THE RUNES OF THE MONOLITH. RUNES FOUND: {} OF 5. BEWARE THE WILDS AT NIGHT.", runes)
+        let caves = (1..=CAVES).filter(|&k| self.cave_cleared(k)).count();
+        let lairs = if runes < 5 {
+            format!("FIVE LAIRS HOLD THE RUNES OF THE MONOLITH: {} OF 5 FOUND.", runes)
         } else {
-            "NOTICE: ALL FIVE RUNES SHINE! THE DARK TOWER'S SEAL IS BROKEN.".to_string()
-        }
+            "ALL FIVE RUNES SHINE! THE DARK TOWER'S SEAL IS BROKEN.".to_string()
+        };
+        let pages = if self.s.blink {
+            String::new()
+        } else {
+            format!(" THE SCHOLAR SEEKS 5 SPELLBOOK PAGES: {} FOUND.", self.pages_found())
+        };
+        format!("NOTICE: {} CAVES CLEARED: {} OF {}.{}", lairs, caves, CAVES, pages)
     }
 }
