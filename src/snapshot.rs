@@ -374,6 +374,32 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check(out, "the shop's door leads back out to the village");
 
     // ---------------------------------------------------------------- fire: travelling bolt + burning DOT
+    // ---------------------------------------------------------------- knockback
+    println!("[combat] knockback both ways");
+    {
+        let (_, shop) = t.g.debug_rooms();
+        t.g.debug_play_room(shop, 128.0, 170.0);
+        t.g.debug_kill_enemies();
+        t.frames(2);
+        let pos = |t: &T, id: u32| t.g.debug_mobs().into_iter().find(|m| m.id == id).map(|m| (m.x, m.y));
+        let foe = t.g.debug_spawn(0, 128.0, 128.0, 60.0, true);
+        t.frames(2);
+        let y0 = pos(&t, foe).map_or(0.0, |p| p.1);
+        t.fire_from(128.0, 176.0, b'u');
+        t.frames(30);
+        let y1 = pos(&t, foe).map_or(0.0, |p| p.1);
+        t.check(y0 - y1 >= 8.0, &format!("a bolt knocks a monster back about a tile ({:.0} units)", y0 - y1));
+        t.g.debug_kill_enemies();
+        t.g.debug_set_player(128.0, 170.0, b'u');
+        t.frames(70); // let invulnerability run out
+        let hp0 = t.g.debug_hp();
+        t.g.debug_spawn(0, 128.0, 162.0, 60.0, true);
+        t.frames(20);
+        let (_, py) = t.g.debug_player();
+        t.check(t.g.debug_hp() < hp0 && py > 178.0, &format!("touching a monster hurts and knocks the mage away (y {py:.0})"));
+        t.g.debug_kill_enemies();
+    }
+
     // ---------------------------------------------------------------- SNES camera and areas
     println!("[camera] big areas scroll, doorways slide");
     match t.g.debug_big_room() {

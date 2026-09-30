@@ -345,7 +345,8 @@ impl Game {
         }
         let l = vx.hypot(vy).max(0.01);
         let (ux, uy) = (vx / l, vy / l);
-        let mut kb = 1.2;
+        // Knockback, as in A Link to the Past: about a tile, heavy monsters budge less.
+        let mut kb = 3.0;
         match el {
             Elem::Fire => {
                 if e.st.break_freeze() {
@@ -378,13 +379,16 @@ impl Game {
                     self.shatter(x, y, w, h);
                     self.damage_enemy(e, 1.0, el);
                 }
-                kb = 3.0;
+                kb = 4.5;
             }
-            _ => kb = 0.8,
+            _ => kb = 2.2,
         }
-        if !e.st.frozen() {
+        let kb = kb * kb_weight(e.k);
+        if !e.st.frozen() && kb > 0.0 {
             e.kbx = ux * kb;
             e.kby = uy * kb;
+            // A brief stagger so it can't walk straight back in.
+            e.st.stun(10);
         }
     }
 
@@ -534,7 +538,7 @@ impl Game {
             }
             if self.mode == Mode::Play && self.pl.inv <= 0 && hit(b.x, b.y, b.r * 2.0, b.r * 2.0, px, py, 6.0, 6.0) {
                 b.dead = true;
-                self.hurt(b.dmg as i32);
+                self.hurt_from(b.dmg as i32, b.x - b.vx * 4.0, b.y - b.vy * 4.0);
             }
         }
         eb.retain(|b| !b.dead);
@@ -710,11 +714,32 @@ impl Game {
             let p = self.pl;
             // Frozen enemies are harmless blocks of ice.
             if !e.dead && e.active() && e.touch > 0 && !e.st.frozen() && hit(e.x, e.y, e.w, e.h, p.x, p.y, p.w, p.h) {
-                self.hurt(e.touch);
+                let was = self.pl.inv;
+                self.hurt_from(e.touch, e.x, e.y);
+                if was <= 0 && self.pl.inv > 0 {
+                    // The monster bounces off too and staggers, so it can't cling to the mage.
+                    let (dx, dy) = (e.x - p.x, e.y - p.y);
+                    let l = dx.hypot(dy).max(0.01);
+                    let w = kb_weight(e.k);
+                    e.kbx = dx / l * 2.5 * w;
+                    e.kby = dy / l * 2.5 * w;
+                    e.st.stun(24);
+                }
             }
         }
         en.retain(|e| !e.dead);
         en.append(&mut self.enemies);
         self.enemies = en;
+    }
+}
+
+/// How far a monster is pushed by hits (1 = a normal monster).
+fn kb_weight(k: EK) -> f32 {
+    match k {
+        EK::Generator | EK::HoardDragon => 0.0,
+        EK::Golem => 0.4,
+        EK::Zombie => 0.7,
+        EK::Dryad | EK::Treant | EK::GraveLord => 0.25,
+        _ => 1.0,
     }
 }

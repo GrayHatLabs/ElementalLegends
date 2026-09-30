@@ -218,10 +218,10 @@ fn mult(att: Elem, tgt: Elem) -> f32 {
 /// (speed, damage, radius, cooldown, life)
 fn bolt_stats(e: Elem) -> (f32, f32, f32, i32, i32) {
     match e {
-        Elem::Fire => (3.4, 2.0, 3.0, 16, 72),
-        Elem::Ice => (4.4, 1.5, 3.0, 11, 60),
-        Elem::Storm => (7.0, 1.3, 3.0, 13, 40),
-        _ => (3.0, 3.0, 4.0, 22, 70),
+        Elem::Fire => (3.4, 2.0, 3.0, 24, 72),
+        Elem::Ice => (4.4, 1.5, 3.0, 16, 60),
+        Elem::Storm => (7.0, 1.3, 3.0, 20, 40),
+        _ => (3.0, 3.0, 4.0, 33, 70),
     }
 }
 fn spell_cost(e: Elem) -> f32 {
@@ -256,10 +256,13 @@ struct Player {
     cast: i32,
     /// Walking this frame (drives the walk-cycle animation).
     moving: bool,
+    /// Knockback from being hit (units per frame, decays); steering is lost meanwhile.
+    kbx: f32,
+    kby: f32,
 }
 impl Player {
     fn at(x: f32, y: f32) -> Self {
-        Player { x, y, w: 10.0, h: 12.0, fx: 0.0, fy: -1.0, dir: b'u', walk: 0, cd: 0, scd: 10, inv: 30, cast: 0, moving: false }
+        Player { x, y, w: 10.0, h: 12.0, fx: 0.0, fy: -1.0, dir: b'u', walk: 0, cd: 0, scd: 10, inv: 30, cast: 0, moving: false, kbx: 0.0, kby: 0.0 }
     }
 }
 
@@ -1432,6 +1435,18 @@ impl Game {
         }
         let mut dx = (self.held(Btn::Right) as i32 - self.held(Btn::Left) as i32) as f32;
         let mut dy = (self.held(Btn::Down) as i32 - self.held(Btn::Up) as i32) as f32;
+        // Knocked back after a hit (like A Link to the Past): slide away, no steering.
+        if p.kbx.abs() + p.kby.abs() > 0.3 {
+            let (kx, ky) = (p.kbx, p.kby);
+            self.move_player(&mut p, kx, ky);
+            p.kbx *= 0.72;
+            p.kby *= 0.72;
+            dx = 0.0;
+            dy = 0.0;
+        } else {
+            p.kbx = 0.0;
+            p.kby = 0.0;
+        }
         let (ix, iy) = (dx, dy);
         p.moving = dx != 0.0 || dy != 0.0;
         let mut blocked = (false, false);
@@ -1551,6 +1566,17 @@ impl Game {
         self.dungeon_flush();
     }
 
+    /// Take damage from something at (sx, sy) and get knocked away from it.
+    fn hurt_from(&mut self, d: i32, sx: f32, sy: f32) {
+        let was = self.pl.inv;
+        self.hurt(d);
+        if was <= 0 && self.pl.inv > 0 && self.mode == Mode::Play {
+            let (dx, dy) = (self.pl.x - sx, self.pl.y - sy);
+            let l = dx.hypot(dy).max(0.01);
+            self.pl.kbx = dx / l * 3.4;
+            self.pl.kby = dy / l * 3.4;
+        }
+    }
     fn hurt(&mut self, d: i32) {
         if self.pl.inv > 0 || self.mode != Mode::Play {
             return;
