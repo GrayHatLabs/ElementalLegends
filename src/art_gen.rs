@@ -58,6 +58,7 @@ pub static SHEETS: &[SheetDef] = &[
     SheetDef { name: "npc_innkeeper", cell: (22, 32), data: include_bytes!("../assets/art/npc_innkeeper.bin"), anims: &[AnimDef { name: "idle_down", row: 0, frames: 1, fps: 2 }, AnimDef { name: "idle_up", row: 1, frames: 1, fps: 2 }, AnimDef { name: "idle_side", row: 2, frames: 1, fps: 2 }, AnimDef { name: "walk_down", row: 3, frames: 4, fps: 8 }, AnimDef { name: "walk_up", row: 4, frames: 4, fps: 8 }, AnimDef { name: "walk_side", row: 5, frames: 4, fps: 8 }] },
     SheetDef { name: "npc_merchant", cell: (18, 32), data: include_bytes!("../assets/art/npc_merchant.bin"), anims: &[AnimDef { name: "idle_down", row: 0, frames: 1, fps: 2 }, AnimDef { name: "idle_up", row: 1, frames: 1, fps: 2 }, AnimDef { name: "idle_side", row: 2, frames: 1, fps: 2 }, AnimDef { name: "walk_down", row: 3, frames: 4, fps: 8 }, AnimDef { name: "walk_up", row: 4, frames: 4, fps: 8 }, AnimDef { name: "walk_side", row: 5, frames: 4, fps: 8 }] },
     SheetDef { name: "npc_scholar", cell: (22, 34), data: include_bytes!("../assets/art/npc_scholar.bin"), anims: &[AnimDef { name: "idle_down", row: 0, frames: 1, fps: 2 }, AnimDef { name: "idle_up", row: 1, frames: 1, fps: 2 }, AnimDef { name: "idle_side", row: 2, frames: 1, fps: 2 }, AnimDef { name: "walk_down", row: 3, frames: 4, fps: 8 }, AnimDef { name: "walk_up", row: 4, frames: 4, fps: 8 }, AnimDef { name: "walk_side", row: 5, frames: 4, fps: 8 }] },
+    SheetDef { name: "obj_barrel", cell: (22, 26), data: include_bytes!("../assets/art/obj_barrel.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
     SheetDef { name: "obj_brazier", cell: (22, 24), data: include_bytes!("../assets/art/obj_brazier.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
     SheetDef { name: "obj_cave_0", cell: (96, 72), data: include_bytes!("../assets/art/obj_cave_0.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
     SheetDef { name: "obj_cave_1", cell: (96, 72), data: include_bytes!("../assets/art/obj_cave_1.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
@@ -74,6 +75,9 @@ pub static SHEETS: &[SheetDef] = &[
     SheetDef { name: "obj_monolith", cell: (48, 96), data: include_bytes!("../assets/art/obj_monolith.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
     SheetDef { name: "obj_notice_board", cell: (30, 34), data: include_bytes!("../assets/art/obj_notice_board.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
     SheetDef { name: "obj_push_block", cell: (24, 24), data: include_bytes!("../assets/art/obj_push_block.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
+    SheetDef { name: "obj_rug", cell: (96, 48), data: include_bytes!("../assets/art/obj_rug.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
+    SheetDef { name: "obj_shelf", cell: (48, 56), data: include_bytes!("../assets/art/obj_shelf.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
+    SheetDef { name: "obj_shop_counter", cell: (120, 40), data: include_bytes!("../assets/art/obj_shop_counter.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
     SheetDef { name: "obj_shrine_pedestal", cell: (24, 20), data: include_bytes!("../assets/art/obj_shrine_pedestal.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
     SheetDef { name: "obj_standing_stone", cell: (24, 34), data: include_bytes!("../assets/art/obj_standing_stone.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
     SheetDef { name: "obj_tombstone", cell: (20, 26), data: include_bytes!("../assets/art/obj_tombstone.bin"), anims: &[AnimDef { name: "idle", row: 0, frames: 1, fps: 4 }] },
@@ -90,4 +94,5 @@ pub static TERRAIN: &[TerrainDef] = &[
     TerrainDef { theme: 7, wall: Some(include_bytes!("../assets/art/terrain7_wall.bin")), water: Some(include_bytes!("../assets/art/terrain7_water.bin")), deco: &[] },
     TerrainDef { theme: 8, wall: Some(include_bytes!("../assets/art/terrain8_wall.bin")), water: Some(include_bytes!("../assets/art/terrain8_water.bin")), deco: &[] },
     TerrainDef { theme: 9, wall: Some(include_bytes!("../assets/art/terrain9_wall.bin")), water: Some(include_bytes!("../assets/art/terrain9_water.bin")), deco: &[] },
+    TerrainDef { theme: 10, wall: Some(include_bytes!("../assets/art/terrain10_wall.bin")), water: None, deco: &[include_bytes!("../assets/art/terrain10_deco0.bin"), include_bytes!("../assets/art/terrain10_deco1.bin"), include_bytes!("../assets/art/terrain10_deco2.bin")] },
 ];
