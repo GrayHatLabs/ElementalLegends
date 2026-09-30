@@ -1162,8 +1162,8 @@ impl Game {
             .or_else(|| sh.anim("idle"));
         let Some(anim) = anim else { return false };
         let img = anim.at(if b.st.immobile() { 0 } else { b.t as u32 });
-        let fx = if b.flash > 0 {
-            Tint::Solid(WHITE)
+        let fx = if b.flash > 0 && self.frame % 4 < 2 {
+            Tint::Mix(WHITE, 0.7)
         } else if dark > 0.0 {
             Tint::Mix(BLACK, dark)
         } else if b.st.frozen() {

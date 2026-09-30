@@ -870,7 +870,14 @@ impl Game {
     }
     /// Follow the mage. `snap` jumps straight there (room entry, teleports).
     fn follow_cam(&mut self, snap: bool) {
-        let (tx, ty) = Self::cam_target(self.cur_room(), self.pl.x, self.pl.y);
+        let (tx, mut ty) = Self::cam_target(self.cur_room(), self.pl.x, self.pl.y);
+        // Boss fights frame both combatants (the mage always stays on screen).
+        if let Some(b) = &self.boss {
+            let room = self.cur_room();
+            let (_, by) = Self::cam_target(room, self.pl.x, (b.y - b.h * 0.5 + self.pl.y) * 0.5 + 8.0);
+            let lo = (self.pl.y - VIEW_H + 28.0).max(HUDF);
+            ty = by.max(lo).min((self.pl.y - 20.0).max(lo));
+        }
         if snap {
             self.cam = (tx, ty);
         } else {
