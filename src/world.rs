@@ -109,6 +109,8 @@ pub struct Room {
     /// tiles[row][col]; rows = RR * ch, cols = RC * cw.
     pub tiles: Vec<Vec<u8>>,
     pub img: Sprite,
+    /// Native-resolution (24 px per tile) image from generated tilesets, if the theme has them.
+    pub img_hd: Option<Sprite>,
     /// (x, y, contents, gold value)
     pub chest: Option<(f32, f32, u8, i32)>,
     /// Element index of an orb shrine in the centre of the room.
@@ -143,7 +145,7 @@ impl Room {
     pub fn sized(i: usize, x: usize, y: usize, seed: u32, cw: usize, ch: usize) -> Self {
         Room {
             i, x, y, cw, ch, doors: [false; 4], links: vec![], visited: false, gate: 0, tank: false, cache: false,
-            dist: -1, theme: 0, seed, special: SP_NONE, tiles: vec![vec![0; RC * cw]; RR * ch], img: Sprite::new(1, 1),
+            dist: -1, theme: 0, seed, special: SP_NONE, tiles: vec![vec![0; RC * cw]; RR * ch], img: Sprite::new(1, 1), img_hd: None,
             chest: None, shrine: None, mini: 0, mini_dir: 0, trees: vec![], treant: None, graves: vec![], pool: None,
             fruit: false,
         }
@@ -721,6 +723,77 @@ pub fn render(r: &mut Room, th: &Theme) {
         }
     }
     r.img = img;
+    r.img_hd = th.hd_wall.as_ref().map(|wall| render_hd(r, th, wall));
+}
+
+/// Screen pixels per tile in native art.
+pub const HD_TS: i32 = 24;
+
+/// Native-resolution room image built on a dual grid: each display tile sits on a cell
+/// corner and is picked from the four cells around it (corner tileset), so floor, wall and
+/// water edges blend smoothly. Special tiles (locks, seals, stairs, plates, ice, cracks)
+/// are overlaid from the code-drawn image, scaled up.
+fn render_hd(r: &Room, th: &Theme, wall: &[Sprite]) -> Sprite {
+    let (cols, rows) = (r.cols() as i32, r.rows() as i32);
+    let mut img = Sprite::new(cols * HD_TS, rows * HD_TS);
+    let t = |c: i32, rr: i32| -> u8 {
+        if c < 0 || rr < 0 || c >= cols || rr >= rows {
+            T_WALL
+        } else {
+            r.tiles[rr as usize][c as usize]
+        }
+    };
+    let wallish = |v: u8| matches!(v, T_WALL | T_CRACK | T_LOCK);
+    let wet = |v: u8| matches!(v, T_WATER | T_ICE);
+    let half = HD_TS / 2;
+    for j in 0..=rows {
+        for i in 0..=cols {
+            let cs = [t(i - 1, j - 1), t(i, j - 1), t(i - 1, j), t(i, j)]; // NW, NE, SW, SE
+            let bits = |f: &dyn Fn(u8) -> bool| cs.iter().fold(0usize, |a, &v| (a << 1) | f(v) as usize);
+            let wb = bits(&|v| wallish(v));
+            let tile = match (&th.hd_water, wb) {
+                (_, w) if w != 0 => &wall[w],
+                (Some(water), _) if cs.iter().any(|&v| wet(v)) => &water[bits(&|v| !wet(v))],
+                _ => &wall[0],
+            };
+            img.draw(tile, i * HD_TS - half, j * HD_TS - half);
+        }
+    }
+    // Props scattered on open ground (overworld only, deterministic per room).
+    let plain = r.special == SP_NONE && r.gate == 0 && r.mini == 0 && r.pool.is_none();
+    if plain && !th.hd_deco.is_empty() {
+        for rr in 2..rows - 2 {
+            for c in 2..cols - 2 {
+                let clear = (-1..=1).all(|dy| (-1..=1).all(|dx| t(c + dx, rr + dy) == T_FLOOR));
+                let mut h = (c as u32).wrapping_mul(73_856_093) ^ (rr as u32).wrapping_mul(19_349_663) ^ r.seed;
+                h ^= h >> 13;
+                h = h.wrapping_mul(0x5bd1_e995);
+                h ^= h >> 15;
+                if clear && h % 19 == 0 {
+                    let d = &th.hd_deco[(h >> 8) as usize % th.hd_deco.len()];
+                    img.draw(d, c * HD_TS + (HD_TS - d.w) / 2, rr * HD_TS + (HD_TS - d.h) / 2);
+                }
+            }
+        }
+    }
+    // Special tiles keep their code-drawn look, scaled up from the 16 px image.
+    for rr in 0..rows {
+        for c in 0..cols {
+            if !matches!(t(c, rr), T_ICE | T_CRACK | T_LOCK | T_SEAL | T_PLATE | T_STAIRS | T_BARRIER) {
+                continue;
+            }
+            for dy in 0..HD_TS {
+                for dx in 0..HD_TS {
+                    let (sx, sy) = (c * TS + dx * TS / HD_TS, rr * TS + dy * TS / HD_TS);
+                    let p = r.img.px[(sy * r.img.w + sx) as usize];
+                    if p != 0 {
+                        img.px[((rr * HD_TS + dy) * img.w + c * HD_TS + dx) as usize] = p;
+                    }
+                }
+            }
+        }
+    }
+    img
 }
 
 /// A closed boss arena with four pillars.

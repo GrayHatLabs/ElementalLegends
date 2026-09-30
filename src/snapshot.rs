@@ -347,6 +347,32 @@ pub fn run(dir: Option<&str>) -> i32 {
         }
     }
 
+    // ---------------------------------------------------------------- twin-stick
+    println!("[controls] optional twin-stick aiming");
+    {
+        let (start, _) = t.g.debug_rooms();
+        t.g.debug_play_room(start, 128.0, 176.0);
+        t.g.debug_kill_enemies();
+        t.frames(30);
+        t.input.set_aim_x(1.0);
+        t.input.set_aim_y(0.1);
+        t.frames(4);
+        let bolt_right = t.g.debug_player_bolts().iter().any(|&(x, _)| x > 134.0);
+        t.check(t.g.debug_dir() == b'r' && bolt_right, "pushing the right stick faces that way and casts there");
+        t.input.set_aim_x(0.0);
+        t.input.set_aim_y(-1.0);
+        t.input.set_key(Btn::Right, true);
+        t.frames(20);
+        t.check(t.g.debug_dir() == b'u', "the mage keeps aiming up while walking sideways (twin-stick strafe)");
+        t.input.set_aim_x(0.0);
+        t.input.set_aim_y(0.0);
+        t.release();
+        t.frames(30);
+        let before = t.g.debug_player_bolts().len();
+        t.frames(20);
+        t.check(t.g.debug_player_bolts().len() <= before, "without the right stick nothing casts on its own");
+    }
+
     println!("[fire] firebolt and burning");
     t.g.debug_god();
     t.g.debug_set_element(0);

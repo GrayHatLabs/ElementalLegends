@@ -629,10 +629,18 @@ impl Game {
             scr.text(l, 128, y + 5 + i as i32 * 11, WHITE, Align::Center, 8);
         }
     }
-    fn scroll_imgs(&self, sc: &Scroll) -> (&Sprite, &Sprite) {
+    fn scroll_rooms(&self, sc: &Scroll) -> (&Room, &Room) {
         match (&self.dungeon, sc.dun) {
-            (Some(d), true) => (&d.rooms[sc.from].img, &d.rooms[sc.to].img),
-            _ => (&self.rooms[sc.from].img, &self.rooms[sc.to].img),
+            (Some(d), true) => (&d.rooms[sc.from], &d.rooms[sc.to]),
+            _ => (&self.rooms[sc.from], &self.rooms[sc.to]),
+        }
+    }
+    /// The room's ground: native 24 px tiles when the theme has them, else the scaled
+    /// code-drawn image. (ox, oy) offsets the room in logic units (area slides).
+    pub(super) fn draw_room_img(&self, scr: &mut Screen, room: &Room, ox: i32, oy: i32) {
+        match &room.img_hd {
+            Some(hd) => scr.blit_hd(hd, ox as f32, (HUD + oy) as f32, false),
+            None => scr.blit(&room.img, ox, HUD + oy, false, false),
         }
     }
     fn draw_play(&self, scr: &mut Screen) {
@@ -647,12 +655,12 @@ impl Game {
             let (ex, ey) = (sc.cam1.0 + sc.nx, sc.cam1.1 + sc.ny);
             scr.world(sc.cam0.0 + (ex - sc.cam0.0) * t, sc.cam0.1 + (ey - sc.cam0.1) * t);
             let (nx, ny) = (sc.nx as i32, sc.ny as i32);
-            let (a, b) = self.scroll_imgs(sc);
-            scr.blit(a, 0, HUD, false, false);
+            let (a, b) = self.scroll_rooms(sc);
+            self.draw_room_img(scr, a, 0, 0);
             if !sc.dun {
                 self.draw_room_objs(scr, sc.from, 0, 0);
             }
-            scr.blit(b, nx, HUD + ny, false, false);
+            self.draw_room_img(scr, b, nx, ny);
             if !sc.dun {
                 self.draw_room_objs(scr, sc.to, nx, ny);
             }
@@ -665,7 +673,7 @@ impl Game {
             // The descent camera follows the mage by shifting the whole view.
             let base_oy = scr.oy;
             scr.oy += self.pan_y as i32;
-            scr.blit(&self.cur_room().img, 0, HUD, false, false);
+            self.draw_room_img(scr, self.cur_room(), 0, 0);
             if self.overworld() {
                 self.draw_room_objs(scr, self.room, 0, 0);
             } else if self.in_lair == 0 {

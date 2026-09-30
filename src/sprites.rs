@@ -461,10 +461,16 @@ pub struct Theme {
     pub map_col: u32,
     /// Masonry walls get a lit top edge and a shaded front face; trees and boulders don't.
     pub bevel: bool,
+    /// Native 24px corner tilesets (16 tiles each, by corner index) from the generated art,
+    /// used instead of the code-drawn tiles when present.
+    pub hd_wall: Option<Vec<Sprite>>,
+    pub hd_water: Option<Vec<Sprite>>,
+    /// Decorative props scattered on open ground (overworld themes).
+    pub hd_deco: Vec<Sprite>,
 }
 
 fn theme(name: &'static str, floors: Vec<Sprite>, walls: Vec<Sprite>, map_col: u32, bevel: bool) -> Theme {
-    Theme { name, floor: floors[0].clone(), floors, walls, map_col, bevel }
+    Theme { name, floor: floors[0].clone(), floors, walls, map_col, bevel, hd_wall: None, hd_water: None, hd_deco: vec![] }
 }
 
 struct Lcg(u32);

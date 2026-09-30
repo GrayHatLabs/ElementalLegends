@@ -79,6 +79,8 @@ pub struct Input {
     pad: [bool; 9],
     axis: [bool; 9],
     pressed: [bool; 9],
+    /// Right analog stick (-1..1), for optional twin-stick aiming.
+    aim: (f32, f32),
 }
 impl Input {
     pub fn held(&self, b: Btn) -> bool {
@@ -113,6 +115,18 @@ impl Input {
     }
     pub fn release_all(&mut self) {
         *self = Input::default();
+    }
+    pub fn set_aim_x(&mut self, v: f32) {
+        self.aim.0 = v;
+    }
+    pub fn set_aim_y(&mut self, v: f32) {
+        self.aim.1 = v;
+    }
+    /// Twin-stick aim direction (unit vector) when the right stick is pushed past the deadzone.
+    pub fn aim(&self) -> Option<(f32, f32)> {
+        let (x, y) = self.aim;
+        let l = x.hypot(y);
+        (l > 0.4).then(|| (x / l, y / l))
     }
 }
 
@@ -725,8 +739,20 @@ impl Game {
             no_save: false,
             quit: false,
         };
+        g.attach_terrain_art();
         g.play_song(Some(Song::Title));
         g
+    }
+
+    /// Give each theme its generated 24 px tilesets, if the art has them.
+    fn attach_terrain_art(&mut self) {
+        for (i, th) in self.themes.iter_mut().enumerate() {
+            let Some(t) = self.art.terrain(i) else { continue };
+            let ok = |w: &crate::art::Wang| w.size == HD_TS && w.tiles.len() == 16;
+            th.hd_wall = t.wall.as_ref().filter(|w| ok(w)).map(|w| w.tiles.clone());
+            th.hd_water = t.water.as_ref().filter(|w| ok(w)).map(|w| w.tiles.clone());
+            th.hd_deco = t.deco.clone();
+        }
     }
 
     fn held(&self, b: Btn) -> bool {
@@ -1315,8 +1341,9 @@ impl Game {
             let l = dx.hypot(dy);
             dx /= l;
             dy /= l;
-            // Holding CAST locks facing so the mage can strafe (Gauntlet style).
-            if !self.held(Btn::Fire) {
+            // Holding CAST locks facing so the mage can strafe (Gauntlet style). With
+            // twin-stick aiming the right stick decides the facing instead.
+            if !self.held(Btn::Fire) && self.inp.aim().is_none() {
                 p.fx = dx;
                 p.fy = dy;
                 p.dir = if dx != 0.0 {
@@ -1330,6 +1357,18 @@ impl Game {
             p.walk += 1;
             let sp = self.s.speed;
             blocked = self.move_player(&mut p, dx * sp, dy * sp);
+        }
+        // Twin-stick aiming (right stick, e.g. RG35XX Pro): face and cast where it points.
+        if let Some((ax, ay)) = self.inp.aim() {
+            p.fx = ax;
+            p.fy = ay;
+            p.dir = if ax.abs() >= ay.abs() {
+                if ax > 0.0 { b'r' } else { b'l' }
+            } else if ay > 0.0 {
+                b'd'
+            } else {
+                b'u'
+            };
         }
         self.pl = p;
         if self.in_lair == 0 {
@@ -1369,7 +1408,8 @@ impl Game {
         if self.pl.scd > 0 {
             self.pl.scd -= 1;
         }
-        if self.held(Btn::Fire) && self.pl.cd <= 0 && !self.boss_dead && !self.on_pedestal() {
+        let aiming = self.inp.aim().is_some();
+        if (self.held(Btn::Fire) || aiming) && self.pl.cd <= 0 && !self.boss_dead && !self.on_pedestal() {
             self.cast_bolt();
         }
         if self.held(Btn::Sub) && self.pl.scd <= 0 && !self.boss_dead {

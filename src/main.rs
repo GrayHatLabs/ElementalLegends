@@ -141,6 +141,8 @@ fn main() -> Result<(), String> {
                             input.set_axis(Btn::Up, v < -16000);
                             input.set_axis(Btn::Down, v > 16000);
                         }
+                        Axis::RightX => input.set_aim_x(v as f32 / 32767.0),
+                        Axis::RightY => input.set_aim_y(v as f32 / 32767.0),
                         Axis::TriggerRight => input.set_axis(Btn::Fire, v > 12000),
                         Axis::TriggerLeft => input.set_axis(Btn::Sub, v > 12000),
                         _ => {}

@@ -63,7 +63,7 @@ impl Game {
         scr.world(self.cam.0, self.cam.1);
         scr.clip_screen(0, 0, SW, SH);
         let room = &self.rooms[self.start];
-        scr.blit(&room.img, 0, HUD + oy, false, false);
+        self.draw_room_img(scr, room, 0, oy);
         let lit = if t < 110 { 0 } else { ((t - 110) / 12).min(5) };
         self.draw_monolith(scr, 0, oy, lit, t >= 170);
         if (170..240).contains(&t) {
