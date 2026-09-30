@@ -108,7 +108,7 @@ The rune/monolith start is unchanged (user decision).
 | Fix: walking behind a lair building pulled you inside | H | Entrance only at the doorway; regression check for all six buildings |
 | Chunky SNES proportions for humanoids | H S | Mage, skeletons, imps, zombie, merchant, dryad, grave lord ~26-28 px; new innkeeper and scholar. Old tall sheets kept in ElementalLegends-art/sheets/_old_tall |
 | Level files (JSON) for caves and lairs | H | docs/LEVEL_FORMAT.md; built in via scripts/import_levels.py, overridden by a levels/ folder; bad files skipped with warnings |
-| Browser level editor | In progress | tools/level-editor |
+| Browser level editor | Done (browser-tested by the helper via a local server; not yet used by the user) | tools/level-editor/index.html; example levels/cave_2.json is checked by the self-test |
 | Later puzzle batch: sliding ice blocks, element crystals | Queued | User picked these for the next batch |
 
 ## Requested backlog (in agreed order; report back after each)
