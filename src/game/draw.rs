@@ -688,8 +688,9 @@ impl Game {
         let Some((s, _)) = &self.msg else { return };
         let mut lines: Vec<String> = vec![];
         let mut line = String::new();
+        // Full-width SNES dialogue box with a double border.
         for w in s.split(' ') {
-            if line.len() + w.len() + 1 > 28 && !line.is_empty() {
+            if line.len() + w.len() + 1 > 35 && !line.is_empty() {
                 lines.push(std::mem::take(&mut line));
             }
             if !line.is_empty() {
@@ -700,13 +701,19 @@ impl Game {
         if !line.is_empty() {
             lines.push(line);
         }
-        let h = lines.len() as i32 * 11 + 8;
-        let y = H - h - 8;
-        scr.fill(12, y, W - 24, h, BLACK);
-        scr.frame_rect(12, y, W - 24, h, WHITE);
+        let (sx0, sy0) = (scr.sx, scr.sy);
+        scr.sx = 0;
+        scr.sy = 0;
+        let h = lines.len() as i32 * 11 + 10;
+        let y = SH - h - 6;
+        scr.blend(8, y, SW - 16, h, rgb(0x080418), 0.88);
+        scr.frame_rect(8, y, SW - 16, h, rgb(0xd8d0f8));
+        scr.frame_rect(10, y + 2, SW - 20, h - 4, rgb(0x5c4880));
         for (i, l) in lines.iter().enumerate() {
-            scr.text(l, 128, y + 5 + i as i32 * 11, WHITE, Align::Center, 8);
+            scr.text(l, SW / 2, y + 6 + i as i32 * 11, WHITE, Align::Center, 8);
         }
+        scr.sx = sx0;
+        scr.sy = sy0;
     }
     fn scroll_rooms(&self, sc: &Scroll) -> (&Room, &Room) {
         match (&self.dungeon, sc.dun) {
@@ -776,6 +783,7 @@ impl Game {
             }
             self.draw_bullets(scr);
             self.draw_parts_pass(scr, false);
+            self.draw_ambience(scr);
             self.draw_lighting(scr);
             self.draw_parts_pass(scr, true);
             scr.oy = base_oy;
@@ -806,6 +814,76 @@ impl Game {
         self.draw_msg(scr);
         if self.fade > 0 {
             scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, (self.fade as f32 / 30.0).min(1.0));
+        }
+    }
+
+    // ------------------------------------------------------------ ambience
+    /// Region atmosphere drawn in screen space (so it doesn't depend on the area size):
+    /// falling leaves in Greenwood, mist in the Old Crypt, fireflies in Mirefen and rising
+    /// embers in Emberpeak. Purely a function of the frame counter and camera: no RNG,
+    /// no game state.
+    fn draw_ambience(&self, scr: &mut Screen) {
+        if !self.overworld() || self.rooms[self.room].special != SP_NONE {
+            return;
+        }
+        let f = self.frame as f32;
+        let (cx, cy) = ((self.cam.0 * ZOOM) as i32, (self.cam.1 * ZOOM) as i32);
+        let hash = |i: u32| -> u32 {
+            let mut h = i.wrapping_mul(0x9e37_79b9) ^ 0x85eb_ca6b;
+            h ^= h >> 15;
+            h = h.wrapping_mul(0x2c1b_3c6d);
+            h ^ (h >> 12)
+        };
+        let (pw, ph) = (SW, SH - HUD_PX);
+        // Parallax: particles drift with the camera at 60% speed so they feel in front.
+        let wrap = |v: i32, m: i32| ((v % m) + m) % m;
+        match self.rooms[self.room].theme {
+            0 => {
+                for i in 0..14u32 {
+                    let h = hash(i);
+                    let speed = 0.25 + (h % 100) as f32 / 300.0;
+                    let x = wrap((h >> 8) as i32 % pw + ((f * 0.02 + (i as f32) * 7.0).sin() * 14.0) as i32 - cx * 3 / 5, pw);
+                    let y = wrap((h >> 16) as i32 % ph + (f * speed) as i32 - cy * 3 / 5, ph) + HUD_PX;
+                    let c = [rgb(0x78c030), rgb(0x9cd848), rgb(0xd8a030)][(h % 3) as usize];
+                    let flip = ((f * 0.1 + i as f32).sin() > 0.0) as i32;
+                    scr.fill_screen(x, y, 2 + flip, 2 - flip, c);
+                }
+            }
+            1 => {
+                for i in 0..5u32 {
+                    let h = hash(i + 40);
+                    let x = wrap((h >> 4) as i32 % (pw + 120) + (f * 0.15) as i32 - cx / 2, pw + 120) - 60;
+                    let y = HUD_PX + 20 + (h >> 12) as i32 % (ph - 40);
+                    let a = 0.05 + 0.04 * (f * 0.02 + i as f32).sin().abs();
+                    scr.blend_screen(x - 40, y - 5, 80, 10, rgb(0xc8d0e0), a);
+                    scr.blend_screen(x - 24, y - 9, 48, 18, rgb(0xc8d0e0), a * 0.7);
+                }
+            }
+            2 => {
+                for i in 0..16u32 {
+                    let h = hash(i + 80);
+                    let bx = (h >> 6) as i32 % pw;
+                    let by = (h >> 14) as i32 % ph;
+                    let x = wrap(bx + ((f * 0.013 + i as f32).sin() * 20.0) as i32 - cx * 3 / 5, pw);
+                    let y = wrap(by + ((f * 0.017 + i as f32 * 2.0).cos() * 12.0) as i32 - cy * 3 / 5, ph) + HUD_PX;
+                    let glow = ((f * 0.05 + i as f32 * 1.7).sin() * 0.5 + 0.5).powi(2);
+                    if glow > 0.15 {
+                        scr.blend_screen(x - 2, y - 2, 5, 5, rgb(0xd8f878), glow * 0.35);
+                        scr.fill_screen(x, y, 1, 1, mix(rgb(0x98c830), rgb(0xf8fcb0), glow));
+                    }
+                }
+            }
+            3 => {
+                for i in 0..18u32 {
+                    let h = hash(i + 120);
+                    let speed = 0.3 + (h % 100) as f32 / 180.0;
+                    let x = wrap((h >> 8) as i32 % pw + ((f * 0.03 + i as f32).sin() * 6.0) as i32 - cx * 3 / 5, pw);
+                    let y = wrap((h >> 16) as i32 % ph - (f * speed) as i32 - cy * 3 / 5, ph) + HUD_PX;
+                    let c = [rgb(0xfce040), rgb(0xfc9838), rgb(0xd82800)][((f as u32 / 8 + i) % 3) as usize];
+                    scr.fill_screen(x, y, 1, 1 + (h % 2) as i32, c);
+                }
+            }
+            _ => {}
         }
     }
 

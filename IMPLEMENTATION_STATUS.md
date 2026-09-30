@@ -34,7 +34,21 @@ Decisions (2026-09-30): 24px tiles, 320x240, A Link to the Past camera, bigger 8
 | M4 Generated characters, enemies, bosses, mini-bosses | Queued | Styled to match the existing grey wizard |
 | M5 SNES-style music and sound | H | Stereo synth with ADSR instruments (flute, strings, harp, brass, organ, bells, basses, drum kit), SNES-style echo, 8 themes (title, village, Greenwood, Old Crypt, Mirefen, Emberpeak, dungeon, boss) chosen by location. `--render-music <dir>` writes WAVs; unit test checks every song is audible without clipping. **Not yet listened to by a human** |
 | M6 Optional twin-stick aiming (RG35XX Pro right stick) | H | Right stick faces and casts that way while the left stick moves; unused without a right stick, so the H plays as before. Needs a hardware check of the Pro's axis mapping |
+| Region ambience + full-width dialogue box | H S | Leaves (Greenwood), mist (Old Crypt), fireflies (Mirefen), embers (Emberpeak) with parallax; frame-counter driven, no RNG. SNES dialogue box across the screen |
 | HUD redesigned for 320 width | H S | SNES layout: element orb + vertical magic meter, food bar, potions / runes (keys in dungeons) / gold, -LIFE- rows of hearts with half hearts. Menus and messages still use the centred 256-wide layout |
+
+### Judgement calls made while the user was away (please review)
+
+1. **Logic units unchanged, rendering zoomed 1.5x.** Instead of rescaling every speed/hitbox/puzzle for 24 px tiles, the game still thinks in 16-unit tiles and the renderer draws them 24 px wide. Same balance, same puzzles; the view shows ~13x9 tiles.
+2. **Single screens are 16x13 tiles (bigger than the view), wilderness areas 32x26.** So every area scrolls a little; the monolith, shop, lair buildings, hearts, hoards and mini-boss screens stay single screens so their hand-made layouts keep working. Dungeon rooms and boss arenas also scroll with the camera.
+3. **World: 31 areas (11 big) on an 8x8 grid**, shop always the screen west of the monolith.
+4. **Terrain: 32 px generation downscaled to 24 px locally** (PixelLab only makes 16/32 px tilesets; its resize endpoint wrecked tiles).
+5. **Old code-drawn tiles/sprites stay as fallbacks** for anything without generated art, scaled 1.5x (they look soft/blocky next to native art until replaced).
+6. **Dungeon light radius shrunk to 75%** so the zoomed view keeps its dark edges.
+7. **Twin-stick aim auto-casts** while the right stick is held (like a twin-stick shooter); left stick/d-pad still moves.
+8. **Music:** 8 new themes composed in code; boss music is the loudest. --render-music <dir> renders WAVs for listening.
+9. **Screen shake no longer uses the game RNG** (bug: rendering changed gameplay).
+10. **Title/menus/map still use the 256-wide layout, centred** (HUD and dialogue box are full width).
 
 ## Preserved gameplay
 
