@@ -733,5 +733,13 @@ pub fn build_themes() -> Vec<Theme> {
         rgb(0x9818a8),
         true,
     );
-    vec![forest, crypt, swamp, volcano, shrine, crypt_d, castle, fortress, sanctuary, tower]
+    // The village shop interior: wooden floor, plaster walls.
+    let shop = theme(
+        "VILLAGE SHOP",
+        floors(|s, d| flagstone(rgb(0x6c4424), s, d), 1001),
+        wall_set(|s| bricks(rgb(0xb8a888), s), 43),
+        rgb(0xd8b878),
+        true,
+    );
+    vec![forest, crypt, swamp, volcano, shrine, crypt_d, castle, fortress, sanctuary, tower, shop]
 }

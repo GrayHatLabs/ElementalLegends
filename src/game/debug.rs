@@ -198,6 +198,11 @@ impl Game {
     pub fn debug_room(&self) -> usize {
         self.room
     }
+    /// Step inside the village shop (as if through the cottage door).
+    pub fn debug_enter_shop(&mut self) {
+        self.gate_room = self.shop_room;
+        self.start_dungeon(shop::SHOP_N);
+    }
     pub fn debug_room_dist(&self, i: usize) -> i32 {
         self.rooms[i].dist
     }

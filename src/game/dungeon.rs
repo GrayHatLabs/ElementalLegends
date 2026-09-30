@@ -368,7 +368,9 @@ impl Game {
 
     /// Called after the entrance cinematic: build the dungeon and step inside.
     pub(super) fn start_dungeon(&mut self, n: usize) {
-        let d = if cave::is_cave(n) {
+        let d = if n == shop::SHOP_N {
+            shop::build_shop(&self.themes)
+        } else if cave::is_cave(n) {
             let region = self.rooms[self.gate_room].theme;
             cave::build_cave(n, region, &self.themes, self.s.dprog[n])
         } else {
@@ -388,10 +390,11 @@ impl Game {
         self.pan_y = 0.0;
         self.enter_droom();
         self.follow_cam(true);
-        if !cave {
+        if !cave && n != shop::SHOP_N {
             self.show_msg(format!("{}. FIND THE KEY AND BREAK THE SEAL ON THE STAIRS.", dungeon_name(n)));
         }
-        self.play_song(Some(Song::Dungeon));
+        let song = self.area_song();
+        self.play_song(Some(song));
     }
 
     /// Room entry: spawns, combat seals, block resets and hints.
@@ -399,6 +402,10 @@ impl Game {
         self.clear_entities();
         if self.in_cave() {
             self.enter_cave_room();
+            return;
+        }
+        if self.in_shop() {
+            self.enter_shop_room();
             return;
         }
         let prog = self.dprog();
@@ -712,6 +719,10 @@ impl Game {
             self.cave_player(ix, iy, blocked);
             return;
         }
+        if self.in_shop() {
+            self.shop();
+            return;
+        }
         self.try_push(ix, iy, blocked);
         let (px, py) = (self.pl.x, self.pl.y);
         let cur = self.dungeon.as_ref().map_or(0, |d| d.cur);
@@ -840,6 +851,9 @@ impl Game {
     pub(super) fn dungeon_update(&mut self) {
         if self.in_cave() {
             self.cave_update();
+            return;
+        }
+        if self.in_shop() {
             return;
         }
         let prog = self.dprog();

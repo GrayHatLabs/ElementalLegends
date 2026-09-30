@@ -228,6 +228,12 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check(t.g.debug_room_special(start) == 1, "the monolith start is unchanged");
     t.g.debug_play_room(shop, 128.0, 170.0);
     t.frames(10);
+    t.shot("09_village");
+    // The shop is inside the cottage: walk through its door.
+    t.g.debug_set_player(128.0, 112.0, b'u');
+    let inside = t.hold_until(Btn::Up, 120, |g| g.debug_dungeon().map_or(false, |d| d.0 == 0) && g.debug_mode() == Mode::Play);
+    t.check(inside, "walking through the cottage door enters the shop");
+    t.frames(20);
     t.shot("09_shop");
     t.g.debug_set_gold(100);
     t.g.debug_set_player(38.0, 150.0, b'u');
@@ -235,6 +241,9 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(2);
     t.tap(Btn::Fire);
     t.check(t.g.debug_gold() == 85, "shop purchasing still works (roast for 15 gold)");
+    t.frames(30);
+    t.shot("09_shop_counter");
+    t.g.debug_play_room(shop, 128.0, 170.0);
 
     // The inn restores life and magic for gold; the notice board can be read.
     println!("[village] inn and notice board");
@@ -259,6 +268,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check(t.g.debug_msg().map_or(false, |m| m.contains("NOTICE")), "the notice board can be read");
     t.shot("09b_village_board");
     t.g.debug_set_gold(85);
+    t.g.debug_enter_shop();
 
     // Mana is a resource: slow regen, potions carried and drunk on demand.
     println!("[mana] regen and carried potions");
@@ -358,6 +368,9 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.tap(Btn::Bag);
     t.tap(Btn::Start);
     t.check(!t.g.debug_paused(), "unpaused again");
+    t.g.debug_set_player(128.0, 200.0, b'd');
+    let out = t.hold_until(Btn::Down, 200, move |g| g.debug_dungeon().is_none() && g.debug_room() == shop && !g.debug_scrolling());
+    t.check(out, "the shop's door leads back out to the village");
 
     // ---------------------------------------------------------------- fire: travelling bolt + burning DOT
     // ---------------------------------------------------------------- SNES camera and areas

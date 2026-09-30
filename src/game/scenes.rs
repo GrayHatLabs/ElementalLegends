@@ -422,9 +422,10 @@ impl Game {
         if t > 30 {
             scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, ((t - 30) as f32 / 26.0).min(1.0));
         }
-        if t > 12 {
+        let name = dungeon_name(self.gate_n);
+        if t > 12 && !name.is_empty() {
             scr.fill_screen(0, 150, SW, 20, BLACK);
-            scr.text(dungeon_name(self.gate_n), 128, 156, WHITE, Align::Center, 8);
+            scr.text(name, 128, 156, WHITE, Align::Center, 8);
         }
     }
 

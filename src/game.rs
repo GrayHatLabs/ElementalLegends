@@ -25,6 +25,7 @@ mod scenes;
 mod bag;
 mod cave;
 mod quest;
+mod shop;
 mod status;
 mod village;
 
@@ -780,6 +781,9 @@ impl Game {
         if self.in_lair > 0 {
             return Song::Lair;
         }
+        if self.in_shop() {
+            return Song::Village;
+        }
         if self.dungeon.is_some() {
             return Song::Dungeon;
         }
@@ -1180,7 +1184,7 @@ impl Game {
             self.play_song(Some(song));
         }
         if r == self.shop_room {
-            self.show_msg("WELCOME TO THE VILLAGE! STAND ON AN ITEM AND PRESS A TO BUY. THE INN AND NOTICE BOARD ARE DOWN THE PATH.");
+            self.show_msg("WELCOME TO THE VILLAGE! THE SHOP IS IN THE COTTAGE. THE INN AND NOTICE BOARD ARE DOWN THE PATH.");
             if let Some(m) = self.msg.as_mut() {
                 m.1 = 170;
             }
@@ -1736,6 +1740,8 @@ impl Game {
         let r = &self.rooms[ri];
         if r.cave > 0 {
             ((r.cave_door.0 * TS) as f32, (HUD + r.cave_door.1 * TS + 8) as f32)
+        } else if r.special == SP_SHOP {
+            (GATE_X, (HUD + 3 * TS + 8) as f32)
         } else {
             (GATE_X, GATE_Y)
         }
@@ -1825,8 +1831,12 @@ impl Game {
             }
         }
         if ri == self.shop_room {
-            self.shop();
             self.village();
+            // The cottage door leads into the shop.
+            let (dx, dy) = self.door_pos(ri);
+            if (px - dx).abs() < 12.0 && py < dy + 6.0 {
+                self.begin_enter_dungeon(shop::SHOP_N);
+            }
         }
     }
     fn open_chest(&mut self, cx: f32, cy: f32, content: u8, val: i32) {
@@ -1846,8 +1856,7 @@ impl Game {
     }
     fn on_pedestal(&self) -> bool {
         self.village_talk_spot()
-            || (self.overworld()
-                && self.room == self.shop_room
+            || (self.in_shop()
                 && (0..SHOP_ITEMS).any(|i| (self.pl.x - Self::shop_x(i)).abs() < 10.0 && (self.pl.y - GATE_Y).abs() < 12.0))
     }
     /// Shop pedestals: roast, mana potion, antidote, bomb, elixir, heart container.

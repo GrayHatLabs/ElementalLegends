@@ -36,7 +36,7 @@ impl Game {
                     if self.in_lair > 0 {
                         scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.6);
                         scr.text("PAUSED", 128, 120, WHITE, Align::Center, 16);
-                    } else if self.dungeon.is_some() {
+                    } else if self.dungeon.is_some() && !self.in_shop() {
                         self.draw_dungeon_map(scr);
                     } else {
                         self.draw_map(scr);
@@ -246,38 +246,33 @@ impl Game {
         if r.special == SP_SHOP {
             self.draw_village(scr, ox, oy);
             self.draw_cottage(scr, ox, oy);
-            let (mx, my) = (128.0 + ox as f32, HUDF + 58.0 + oy as f32);
-            match self.art.sheet("npc_merchant").and_then(|sh| sh.anim("idle_down").map(|a| (sh.cell, a))) {
-                Some((cell, a)) => {
-                    scr.blend_ellipse(mx as i32, my as i32 + 7, 6, 2, BLACK, 0.3);
-                    scr.spr_hd_anchor(a.at(self.frame as u32), mx, my + 7.0, cell.0 / 2, cell.1 - 2, false, Tint::None);
-                }
-                None => scr.spr(&self.spr.mage_d[4][0].img, mx, my, false),
-            }
-            let prices = self.shop_prices();
-            for i in 0..SHOP_ITEMS {
-                let px = Self::shop_x(i) as i32 + ox;
-                let py = GATE_Y as i32 + oy;
-                scr.fill(px - 7, py + 4, 14, 5, rgb(0x6c3c10));
-                scr.fill(px - 7, py + 4, 14, 1, rgb(0xa86030));
-                let (s, name) = match i {
-                    0 => (&self.spr.meat, "meat"),
-                    1 => (&self.spr.potion, "mana_potion"),
-                    2 => (&self.spr.antidote, "antidote"),
-                    3 => (&self.spr.potion, "bomb"),
-                    4 => (&self.spr.potion, "elixir"),
-                    _ => (&self.spr.big_heart, "heart_container"),
-                };
-                match self.item_named(name) {
-                    Some(img) => scr.spr_hd(img, px as f32, py as f32 - 2.0, false),
-                    None if i == 3 => draw_bomb_icon(scr, px, py - 2),
-                    None if i == 4 => draw_elixir_icon(scr, px, py - 2),
-                    None => scr.spr(&s.img, px as f32, py as f32 - 2.0, false),
-                }
-                scr.text(&prices[i].to_string(), px + 1, py + 12, rgb(0xfcbc3c), Align::Center, 8);
-            }
         }
         self.draw_mini_room(scr, ri, ox, oy);
+    }
+    /// The goods on their stands inside the shop.
+    fn draw_shop_stands(&self, scr: &mut Screen, ox: i32, oy: i32) {
+        let prices = self.shop_prices();
+        for i in 0..SHOP_ITEMS {
+            let px = Self::shop_x(i) as i32 + ox;
+            let py = GATE_Y as i32 + oy;
+            scr.fill(px - 7, py + 4, 14, 5, rgb(0x6c3c10));
+            scr.fill(px - 7, py + 4, 14, 1, rgb(0xa86030));
+            let (s, name) = match i {
+                0 => (&self.spr.meat, "meat"),
+                1 => (&self.spr.potion, "mana_potion"),
+                2 => (&self.spr.antidote, "antidote"),
+                3 => (&self.spr.potion, "bomb"),
+                4 => (&self.spr.potion, "elixir"),
+                _ => (&self.spr.big_heart, "heart_container"),
+            };
+            match self.item_named(name) {
+                Some(img) => scr.spr_hd(img, px as f32, py as f32 - 2.0, false),
+                None if i == 3 => draw_bomb_icon(scr, px, py - 2),
+                None if i == 4 => draw_elixir_icon(scr, px, py - 2),
+                None => scr.spr(&s.img, px as f32, py as f32 - 2.0, false),
+            }
+            scr.text(&prices[i].to_string(), px + 1, py + 12, rgb(0xfcbc3c), Align::Center, 8);
+        }
     }
     fn draw_obj(&self, scr: &mut Screen, o: &Obj) {
         let (fx, fy) = o.pos();
@@ -332,6 +327,11 @@ impl Game {
     }
     fn draw_dungeon_overlays(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };
+        if d.n == super::shop::SHOP_N {
+            self.draw_shop_interior(scr);
+            self.draw_shop_stands(scr, 0, 0);
+            return;
+        }
         let room = &d.rooms[d.cur];
         let f = self.frame as i32;
         for r in 0..RR {
@@ -1072,7 +1072,7 @@ impl Game {
     /// Dungeons and boss arenas are dark; light comes from the mage, torches, bolts,
     /// burning things, shrines, the stairs and the boss itself.
     fn draw_lighting(&self, scr: &mut Screen) {
-        if self.overworld() {
+        if self.overworld() || self.in_shop() {
             return;
         }
         let ambient = if self.in_lair > 0 { 0.38 } else { 0.5 };
@@ -1209,7 +1209,7 @@ impl Game {
         }
         let pc = if n > 0 { rgb(0x3cbcfc) } else { rgb(0x747474) };
         scr.text(&n.to_string(), 109, 16, pc, Align::Left, 8);
-        if self.dungeon.is_some() && self.in_lair == 0 && !self.in_cave() {
+        if self.dungeon.is_some() && self.in_lair == 0 && !self.in_cave() && !self.in_shop() {
             scr.spr(&self.spr.key.img, 126.0, 20.0, false);
             scr.text(&format!("X{}", self.dungeon_keys()), 132, 16, rgb(0xfcbc3c), Align::Left, 8);
         } else {
