@@ -5,6 +5,7 @@ use super::*;
 
 impl Game {
     pub fn draw(&mut self, scr: &mut Screen) {
+        scr.ui();
         scr.unclip();
         scr.ox = 0;
         scr.oy = 0;
@@ -30,7 +31,7 @@ impl Game {
                 self.draw_status_icons(scr);
                 if self.paused {
                     if self.in_lair > 0 {
-                        scr.blend(0, HUD, W, H - HUD, BLACK, 0.6);
+                        scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.6);
                         scr.text("PAUSED", 128, 120, WHITE, Align::Center, 16);
                     } else if self.dungeon.is_some() {
                         self.draw_dungeon_map(scr);
@@ -45,16 +46,19 @@ impl Game {
         }
         scr.ox = 0;
         scr.oy = 0;
+        scr.ui();
         scr.unclip();
         if self.flash > 0 {
-            scr.blend(0, 0, W, H, WHITE, self.flash as f32 / 20.0);
+            scr.blend_screen(0, 0, SW, SH, WHITE, self.flash as f32 / 20.0);
         }
     }
 
+    /// Starfield across the whole screen (stars live in 256-wide logic space).
     pub(super) fn draw_stars(&self, scr: &mut Screen) {
         for s in &self.stars {
             let c = if s.s > 1.2 { WHITE } else if s.s > 0.7 { rgb(0x747474) } else { rgb(0x3c3c7c) };
-            scr.pset(s.x as i32, s.y as i32, c);
+            let x = (s.x * SW as f32 / W as f32) as i32;
+            scr.fill_screen(x, s.y as i32, 1, 1, c);
         }
     }
 
@@ -95,7 +99,8 @@ impl Game {
     }
     pub(super) fn draw_room_objs(&self, scr: &mut Screen, ri: usize, ox: i32, oy: i32) {
         let r = &self.rooms[ri];
-        let (x, y) = (GATE_X as i32 + ox, GATE_Y as i32 + oy);
+        let (gx, gy) = r.center();
+        let (x, y) = (gx as i32 + ox, gy as i32 + oy);
         let bob = if (self.frame >> 4) & 1 == 1 { 1.0 } else { 0.0 };
         if r.gate > 0 {
             self.draw_building(scr, r.gate, ox, oy);
@@ -605,38 +610,35 @@ impl Game {
         }
     }
     fn draw_play(&self, scr: &mut Screen) {
-        scr.clip(0, HUD, W, H);
+        scr.world(self.cam.0, self.cam.1);
+        scr.clip_screen(0, HUD_PX, SW, SH);
+        scr.set_base_clip();
         if let Some(sc) = &self.scroll {
+            // SNES slide: both areas sit side by side in the old area's frame and the
+            // camera glides from the old view to the new one.
             let t = sc.t;
             let t = if t < 0.5 { 2.0 * t * t } else { 1.0 - (-2.0 * t + 2.0).powi(2) / 2.0 };
-            let (dx, dy) = (DIRS[sc.d].0, DIRS[sc.d].1);
-            let (mut ox, mut oy, mut nx, mut ny) = (0, 0, 0, 0);
-            if dx != 0 {
-                ox = (-(dx as f32) * t * WF).round() as i32;
-                nx = (dx as f32 * (1.0 - t) * WF).round() as i32;
-            } else {
-                let rh = (RR as i32 * TS) as f32;
-                oy = (-(dy as f32) * t * rh).round() as i32;
-                ny = (dy as f32 * (1.0 - t) * rh).round() as i32;
-            }
+            let (ex, ey) = (sc.cam1.0 + sc.nx, sc.cam1.1 + sc.ny);
+            scr.world(sc.cam0.0 + (ex - sc.cam0.0) * t, sc.cam0.1 + (ey - sc.cam0.1) * t);
+            let (nx, ny) = (sc.nx as i32, sc.ny as i32);
             let (a, b) = self.scroll_imgs(sc);
-            scr.blit(a, ox, HUD + oy, false, false);
+            scr.blit(a, 0, HUD, false, false);
             if !sc.dun {
-                self.draw_room_objs(scr, sc.from, ox, oy);
+                self.draw_room_objs(scr, sc.from, 0, 0);
             }
             scr.blit(b, nx, HUD + ny, false, false);
             if !sc.dun {
                 self.draw_room_objs(scr, sc.to, nx, ny);
             }
-            self.draw_hero(scr, nx as f32, ny as f32);
+            self.draw_hero(scr, sc.nx, sc.ny);
             if sc.dun {
-                let light = vec![(self.pl.x + nx as f32, self.pl.y + ny as f32 - 2.0, 88.0, 1.0)];
+                let light = vec![(self.pl.x + sc.nx, self.pl.y + sc.ny - 2.0, 88.0, 1.0)];
                 self.apply_light(scr, &light, 0.5);
             }
         } else {
             // The descent camera follows the mage by shifting the whole view.
             let base_oy = scr.oy;
-            scr.oy += self.cam_y as i32;
+            scr.oy += self.pan_y as i32;
             scr.blit(&self.cur_room().img, 0, HUD, false, false);
             if self.overworld() {
                 self.draw_room_objs(scr, self.room, 0, 0);
@@ -651,10 +653,10 @@ impl Game {
             self.draw_boss(scr);
             if self.mode != Mode::Dying {
                 if self.mode == Mode::Descend && self.sink > 0.0 {
-                    let feet = (self.pl.y + 6.0 - self.sink) as i32 + scr.oy;
-                    scr.clip(0, HUD, W, feet.max(HUD));
+                    let feet = scr.ty(self.pl.y + 6.0 - self.sink);
+                    scr.clip_screen(0, HUD_PX, SW, feet.max(HUD_PX));
                     self.draw_hero(scr, 0.0, 0.0);
-                    scr.clip(0, HUD, W, H);
+                    scr.reset_clip();
                 } else {
                     self.draw_hero(scr, 0.0, 0.0);
                 }
@@ -665,11 +667,12 @@ impl Game {
             self.draw_parts_pass(scr, true);
             scr.oy = base_oy;
         }
+        scr.ui();
         scr.unclip();
         if self.in_lair > 0 {
             if let Some(b) = &self.boss {
                 if b.alive && b.state != BState::Intro {
-                    scr.fill(0, H - 13, W, 13, BLACK);
+                    scr.fill_screen(0, SH - 13, SW, 13, BLACK);
                     scr.text(b.name, 4, H - 11, b.el.light(), Align::Left, 8);
                     let bx = 132;
                     let bw = 256 - bx - 6;
@@ -689,7 +692,7 @@ impl Game {
         }
         self.draw_msg(scr);
         if self.fade > 0 {
-            scr.blend(0, HUD, W, H - HUD, BLACK, (self.fade as f32 / 30.0).min(1.0));
+            scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, (self.fade as f32 / 30.0).min(1.0));
         }
     }
 
@@ -762,14 +765,14 @@ impl Game {
         }
         self.apply_light(scr, &lights, ambient);
     }
+    /// Light grid over the visible play field (screen cells), lit by logic-space lights.
     fn apply_light(&self, scr: &mut Screen, lights: &[(f32, f32, f32, f32)], ambient: f32) {
         const CELL: i32 = 8;
-        let (gw, gh) = ((W / CELL + 1) as usize, ((H - HUD) / CELL + 1) as usize);
+        let (gw, gh) = ((SW / CELL + 1) as usize, ((SH - HUD_PX) / CELL + 1) as usize);
         let mut grid = vec![ambient; gw * gh];
         for gy in 0..gh {
-            let y = (HUD + gy as i32 * CELL) as f32;
             for gx in 0..gw {
-                let x = (gx as i32 * CELL) as f32;
+                let (x, y) = scr.to_world(gx as i32 * CELL, HUD_PX + gy as i32 * CELL);
                 let mut bright = 0.0f32;
                 for &(lx, ly, r, s) in lights {
                     let (dx, dy) = (x - lx, y - ly);
@@ -782,17 +785,17 @@ impl Game {
                 grid[gy * gw + gx] = ambient * (1.0 - bright.min(1.0));
             }
         }
-        scr.light_map(HUD, &grid, gw, gh, CELL, rgb(0x06040e));
+        scr.light_map(HUD_PX, &grid, gw, gh, CELL, rgb(0x06040e));
     }
     // ------------------------------------------------------------ HUD & maps
     fn draw_hud(&self, scr: &mut Screen) {
-        // Gradient panel with a bevelled lower edge.
-        for y in 0..HUD {
-            scr.fill(0, y, W, 1, mix(rgb(0x100c20), rgb(0x2a2044), y as f32 / HUD as f32));
+        // Gradient panel with a bevelled lower edge, across the full screen width.
+        for y in 0..HUD_PX {
+            scr.fill_screen(0, y, SW, 1, mix(rgb(0x100c20), rgb(0x2a2044), y as f32 / HUD_PX as f32));
         }
-        scr.fill(0, HUD - 3, W, 1, rgb(0x7c68b0));
-        scr.fill(0, HUD - 2, W, 1, rgb(0x5c4880));
-        scr.fill(0, HUD - 1, W, 1, rgb(0x08040c));
+        scr.fill_screen(0, HUD_PX - 3, SW, 1, rgb(0x7c68b0));
+        scr.fill_screen(0, HUD_PX - 2, SW, 1, rgb(0x5c4880));
+        scr.fill_screen(0, HUD_PX - 1, SW, 1, rgb(0x08040c));
         scr.text("HP", 4, 5, rgb(0xfc7460), Align::Left, 8);
         let per = ((self.s.max_hp + 41) / 42).max(2);
         let segs = (self.s.max_hp + per - 1) / per;
@@ -849,29 +852,29 @@ impl Game {
         }
     }
     fn draw_map(&self, scr: &mut Screen) {
-        scr.blend(0, HUD, W, H - HUD, BLACK, 0.88);
+        scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.88);
         scr.text(&format!("- {} -", self.themes[self.rooms[self.room].theme].name), 128, HUD + 5, rgb(0xfcbc3c), Align::Center, 8);
-        let (cw, ch) = (24, 17);
-        let (ox, oy) = ((W - WW as i32 * cw) / 2, HUD + 18);
+        let (cw, ch) = (24, 15);
+        let (ox, oy) = ((W - WW as i32 * cw) / 2, HUD + 16);
         for r in &self.rooms {
             if !r.visited {
                 continue;
             }
             let (x, y) = (ox + r.x as i32 * cw, oy + r.y as i32 * ch);
+            let (aw, ah) = (r.cw as i32 * cw, r.ch as i32 * ch);
             let c = self.themes[r.theme].map_col;
-            scr.fill(x + 3, y + 3, cw - 6, ch - 6, c);
-            if r.doors[2] {
-                scr.fill(x + cw - 3, y + ch / 2 - 1, 6, 3, c);
+            scr.fill(x + 3, y + 3, aw - 6, ah - 6, c);
+            for l in &r.links {
+                let s = l.seg as i32;
+                match l.d {
+                    0 => scr.fill(x + s * cw + cw / 2 - 1, y - 3, 3, 6, c),
+                    1 => scr.fill(x + s * cw + cw / 2 - 1, y + ah - 3, 3, 6, c),
+                    2 => scr.fill(x + aw - 3, y + s * ch + ch / 2 - 1, 6, 3, c),
+                    _ => scr.fill(x - 3, y + s * ch + ch / 2 - 1, 6, 3, c),
+                }
             }
-            if r.doors[3] {
-                scr.fill(x - 3, y + ch / 2 - 1, 6, 3, c);
-            }
-            if r.doors[1] {
-                scr.fill(x + cw / 2 - 1, y + ch - 3, 3, 6, c);
-            }
-            if r.doors[0] {
-                scr.fill(x + cw / 2 - 1, y - 3, 3, 6, c);
-            }
+            // Features sit at the area's centre (single screens: the middle of the square).
+            let (x, y) = (x + aw / 2 - cw / 2, y + ah / 2 - ch / 2);
             if r.gate > 0 {
                 let st = self.gate_state(r.gate);
                 let col = [rgb(0x747474), WHITE, rgb(0xb8f818)][st as usize];
@@ -916,7 +919,7 @@ impl Game {
     }
     fn draw_dungeon_map(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };
-        scr.blend(0, HUD, W, H - HUD, BLACK, 0.88);
+        scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.88);
         scr.text(&format!("- {} -", dungeon_name(d.n)), 128, HUD + 6, rgb(0xfcbc3c), Align::Center, 8);
         let prog = self.s.dprog[d.n];
         let (cw, ch) = (48, 30);

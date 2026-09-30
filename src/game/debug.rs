@@ -181,6 +181,17 @@ impl Game {
     pub fn debug_room_xy(&self, i: usize) -> (usize, usize) {
         (self.rooms[i].x, self.rooms[i].y)
     }
+    /// A 2x2 wilderness area and one of its doorways: (room, side, segment).
+    pub fn debug_big_room(&self) -> Option<(usize, usize, usize)> {
+        self.rooms.iter().filter(|r| r.big()).find_map(|r| r.links.first().map(|l| (r.i, l.d, l.seg)))
+    }
+    /// (width, bottom edge) of an overworld area in logic units.
+    pub fn debug_room_size(&self, i: usize) -> (f32, f32) {
+        (self.rooms[i].wf(), self.rooms[i].hf())
+    }
+    pub fn debug_cam(&self) -> (f32, f32) {
+        self.cam
+    }
     pub fn debug_gate_room(&self, n: usize) -> usize {
         self.rooms.iter().position(|r| r.gate == n).unwrap_or(self.start)
     }

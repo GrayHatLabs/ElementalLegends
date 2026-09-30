@@ -369,8 +369,9 @@ impl Game {
         self.paused = false;
         self.pl = Player::at(128.0, HF - 22.0);
         self.fade = 30;
-        self.cam_y = 0.0;
+        self.pan_y = 0.0;
         self.enter_droom();
+        self.follow_cam(true);
         self.show_msg(format!("{}. FIND THE KEY AND BREAK THE SEAL ON THE STAIRS.", dungeon_name(n)));
         self.play_song(Some(Song::Field));
     }
@@ -471,9 +472,7 @@ impl Game {
             return;
         };
         let from = d.cur;
-        self.scroll = Some(Scroll { d: dir, t: 0.0, from, to, dun: true });
-        self.clear_entities();
-        self.place_after_scroll(dir);
+        self.begin_scroll(dir, from, to, true);
     }
 
     pub(super) fn obj_blocks(&self, c: i32, r: i32) -> bool {

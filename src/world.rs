@@ -1,18 +1,25 @@
-// Overworld generation: a 6x6 grid of Zelda-style screens connected by a
-// randomized maze, with dungeon buildings, treasure, shrines and dead-end
-// secrets. Also the shared tile set used by dungeon rooms and boss arenas.
+// Overworld generation: an 8x8 grid of screen-sized cells grouped into areas of
+// 1x1 or 2x2 cells (A Link to the Past style: the camera scrolls inside an area and
+// slides between areas). Areas are connected by a randomized maze of doorways and
+// hold dungeon buildings, treasure, shrines, encounters and dead-end secrets. Also
+// the shared tile set used by dungeon rooms and boss arenas.
 use crate::gfx::*;
 use crate::sprites::Theme;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 pub const HUD: i32 = 32;
+/// Tile size in logic units (drawn at 24 screen pixels by the world zoom).
 pub const TS: i32 = 16;
+/// Tiles per cell (one classic screen).
 pub const RC: usize = 16;
 pub const RR: usize = 13;
-pub const WW: usize = 6;
-pub const WH: usize = 6;
-pub const START_X: usize = 2;
-pub const START_Y: usize = 5;
+/// Logic size of one cell.
+pub const CELL_W: f32 = (RC as i32 * TS) as f32;
+pub const CELL_H: f32 = (RR as i32 * TS) as f32;
+pub const WW: usize = 8;
+pub const WH: usize = 8;
+pub const START_X: usize = 3;
+pub const START_Y: usize = 7;
 pub const WORLD_SEED: u32 = 1988;
 
 // ---------------------------------------------------------------- tiles
@@ -70,11 +77,27 @@ pub const SP_NONE: u8 = 0;
 pub const SP_MONOLITH: u8 = 1;
 pub const SP_SHOP: u8 = 2;
 
+/// A doorway on side `d` (n, s, e, w) of an area, in edge segment `seg` (one per cell
+/// along that side), leading to area `to`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Link {
+    pub d: usize,
+    pub seg: usize,
+    pub to: usize,
+}
+
 pub struct Room {
     pub i: usize,
+    /// Top-left cell of the area in the world grid.
     pub x: usize,
     pub y: usize,
+    /// Size in cells (1x1 or 2x2).
+    pub cw: usize,
+    pub ch: usize,
+    /// Any doorway on each side (n, s, e, w).
     pub doors: [bool; 4],
+    /// Overworld doorways; empty for dungeon rooms and arenas (they use `doors`).
+    pub links: Vec<Link>,
     pub visited: bool,
     pub gate: usize,
     pub tank: bool,
@@ -83,7 +106,8 @@ pub struct Room {
     pub theme: usize,
     pub seed: u32,
     pub special: u8,
-    pub tiles: [[u8; RC]; RR],
+    /// tiles[row][col]; rows = RR * ch, cols = RC * cw.
+    pub tiles: Vec<Vec<u8>>,
     pub img: Sprite,
     /// (x, y, contents, gold value)
     pub chest: Option<(f32, f32, u8, i32)>,
@@ -114,15 +138,47 @@ pub const POOL_H: i32 = 2;
 
 impl Room {
     pub fn new(i: usize, x: usize, y: usize, seed: u32) -> Self {
+        Self::sized(i, x, y, seed, 1, 1)
+    }
+    pub fn sized(i: usize, x: usize, y: usize, seed: u32, cw: usize, ch: usize) -> Self {
         Room {
-            i, x, y, doors: [false; 4], visited: false, gate: 0, tank: false, cache: false, dist: -1, theme: 0, seed,
-            special: SP_NONE, tiles: [[0; RC]; RR], img: Sprite::new(1, 1), chest: None, shrine: None, mini: 0,
-            mini_dir: 0, trees: vec![], treant: None, graves: vec![], pool: None, fruit: false,
+            i, x, y, cw, ch, doors: [false; 4], links: vec![], visited: false, gate: 0, tank: false, cache: false,
+            dist: -1, theme: 0, seed, special: SP_NONE, tiles: vec![vec![0; RC * cw]; RR * ch], img: Sprite::new(1, 1),
+            chest: None, shrine: None, mini: 0, mini_dir: 0, trees: vec![], treant: None, graves: vec![], pool: None,
+            fruit: false,
         }
+    }
+    pub fn cols(&self) -> usize {
+        RC * self.cw
+    }
+    pub fn rows(&self) -> usize {
+        RR * self.ch
+    }
+    /// Logic width / bottom edge of the area (the top edge is HUD).
+    pub fn wf(&self) -> f32 {
+        (self.cols() as i32 * TS) as f32
+    }
+    pub fn hf(&self) -> f32 {
+        (HUD + self.rows() as i32 * TS) as f32
+    }
+    pub fn big(&self) -> bool {
+        self.cw > 1 || self.ch > 1
+    }
+    /// Centre of the area: where buildings, shrines, hearts and hoards stand.
+    pub fn center(&self) -> (f32, f32) {
+        ((self.cols() as i32 * TS / 2) as f32, (HUD + self.rows() as i32 * TS / 2) as f32)
+    }
+    /// The link through side `d` at the cell segment containing logic coordinate `along`
+    /// (x for n/s sides, y for e/w sides).
+    pub fn link_at(&self, d: usize, along: f32) -> Option<Link> {
+        let seg = if d < 2 { (along / CELL_W).floor() } else { ((along - HUD as f32) / CELL_H).floor() };
+        let seg = seg.max(0.0) as usize;
+        self.links.iter().copied().find(|l| l.d == d && l.seg == seg)
     }
     /// A plain screen with nothing else assigned to it.
     fn free(&self, start: usize, shop: usize) -> bool {
-        self.i != start
+        !self.big()
+            && self.i != start
             && self.i != shop
             && self.gate == 0
             && !self.tank
@@ -136,26 +192,40 @@ impl Room {
     fn clean(&self) -> bool {
         matches!(self.mini, MINI_HOARD | MINI_DRYAD | MINI_GRAVE) || self.pool.is_some()
     }
-    /// Border walls with the standard door gaps for each open side.
+    /// Border walls with door gaps: one per link, or the standard gap for each open side
+    /// of a single-cell room without links (dungeon rooms).
     pub fn frame(&mut self) {
-        for y in 0..RR {
-            for x in 0..RC {
-                self.tiles[y][x] = if x == 0 || y == 0 || x == RC - 1 || y == RR - 1 { T_WALL } else { T_FLOOR };
+        let (cols, rows) = (self.cols(), self.rows());
+        for y in 0..rows {
+            for x in 0..cols {
+                self.tiles[y][x] = if x == 0 || y == 0 || x == cols - 1 || y == rows - 1 { T_WALL } else { T_FLOOR };
             }
         }
-        for d in 0..4 {
-            if self.doors[d] {
-                self.set_gap(d, T_FLOOR);
+        if self.links.is_empty() {
+            for d in 0..4 {
+                if self.doors[d] {
+                    self.set_gap(d, T_FLOOR);
+                }
+            }
+        } else {
+            for l in self.links.clone() {
+                self.set_gap_seg(l.d, l.seg, T_FLOOR);
             }
         }
     }
-    /// Fill one door gap (n, s, e, w) with a tile.
+    /// Fill one door gap (n, s, e, w) of the first segment with a tile.
     pub fn set_gap(&mut self, d: usize, t: u8) {
+        self.set_gap_seg(d, 0, t);
+    }
+    /// Fill the door gap on side `d` in cell segment `seg`.
+    pub fn set_gap_seg(&mut self, d: usize, seg: usize, t: u8) {
+        let (cols, rows) = (self.cols(), self.rows());
+        let (ox, oy) = (seg * RC, seg * RR);
         match d {
-            0 => (6..=9).for_each(|x| self.tiles[0][x] = t),
-            1 => (6..=9).for_each(|x| self.tiles[RR - 1][x] = t),
-            2 => (5..=7).for_each(|y| self.tiles[y][RC - 1] = t),
-            _ => (5..=7).for_each(|y| self.tiles[y][0] = t),
+            0 => (6..=9).for_each(|x| self.tiles[0][ox + x] = t),
+            1 => (6..=9).for_each(|x| self.tiles[rows - 1][ox + x] = t),
+            2 => (5..=7).for_each(|y| self.tiles[oy + y][cols - 1] = t),
+            _ => (5..=7).for_each(|y| self.tiles[oy + y][0] = t),
         }
     }
 }
@@ -171,7 +241,7 @@ const QPATS: [&[(usize, usize)]; 8] = [
     &[(1, 1), (2, 1), (1, 2)],
 ];
 
-fn at(x: i32, y: i32) -> Option<usize> {
+fn cell(x: i32, y: i32) -> Option<usize> {
     if x >= 0 && y >= 0 && (x as usize) < WW && (y as usize) < WH {
         Some(y as usize * WW + x as usize)
     } else {
@@ -179,54 +249,132 @@ fn at(x: i32, y: i32) -> Option<usize> {
     }
 }
 
+/// Divide the grid into 2x2 wilderness areas and 1x1 screens. Returns (x, y, size) per area
+/// and the owning area of every cell.
+fn partition(rng: &mut Mul) -> (Vec<(usize, usize, usize)>, Vec<usize>) {
+    let mut owner = vec![usize::MAX; WW * WH];
+    let mut areas = vec![];
+    let mut order: Vec<usize> = (0..WW * WH).collect();
+    for i in (1..order.len()).rev() {
+        let j = (rng.f() * (i + 1) as f64) as usize;
+        order.swap(i, j);
+    }
+    let start = START_Y * WW + START_X;
+    // First the big wilderness areas (about two thirds of the map), then single screens.
+    const BIG_AREAS: usize = 11;
+    for &c in &order {
+        if areas.len() >= BIG_AREAS {
+            break;
+        }
+        let (x, y) = (c % WW, c / WW);
+        if x + 1 >= WW || y + 1 >= WH {
+            continue;
+        }
+        let quad = [(x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)];
+        if quad.iter().all(|&(qx, qy)| {
+            let q = qy * WW + qx;
+            // The monolith and the village screen beside it stay single screens.
+            owner[q] == usize::MAX && q != start && q != start - 1
+        }) {
+            let id = areas.len();
+            for &(qx, qy) in &quad {
+                owner[qy * WW + qx] = id;
+            }
+            areas.push((x, y, 2));
+        }
+    }
+    for c in 0..WW * WH {
+        if owner[c] == usize::MAX {
+            owner[c] = areas.len();
+            areas.push((c % WW, c / WW, 1));
+        }
+    }
+    (areas, owner)
+}
+
+/// Every possible doorway between two touching areas: (a, b) -> [(side of a, segment on a, segment on b)].
+fn candidates(rooms: &[Room], owner: &[usize]) -> BTreeMap<(usize, usize), Vec<(usize, usize, usize)>> {
+    let mut out: BTreeMap<(usize, usize), Vec<(usize, usize, usize)>> = BTreeMap::new();
+    for r in rooms {
+        for d in 0..4 {
+            let len = if d < 2 { r.cw } else { r.ch };
+            for seg in 0..len {
+                // The cell of this area on side d at this segment, and the one beyond it.
+                let (cx, cy) = match d {
+                    0 => (r.x + seg, r.y),
+                    1 => (r.x + seg, r.y + r.ch - 1),
+                    2 => (r.x + r.cw - 1, r.y + seg),
+                    _ => (r.x, r.y + seg),
+                };
+                let Some(n) = cell(cx as i32 + DIRS[d].0, cy as i32 + DIRS[d].1) else { continue };
+                let b = owner[n];
+                let nb = &rooms[b];
+                let (nx, ny) = (n % WW, n / WW);
+                let bseg = if d < 2 { nx - nb.x } else { ny - nb.y };
+                out.entry((r.i, b)).or_default().push((d, seg, bseg));
+            }
+        }
+    }
+    out
+}
+
+fn link(rooms: &mut [Room], a: usize, b: usize, (d, seg, bseg): (usize, usize, usize)) {
+    rooms[a].links.push(Link { d, seg, to: b });
+    rooms[a].doors[d] = true;
+    let od = DIRS[d].2;
+    rooms[b].links.push(Link { d: od, seg: bseg, to: a });
+    rooms[b].doors[od] = true;
+}
+
 /// Returns (rooms, start room, shop room).
 pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
     let mut rng = Mul(WORLD_SEED);
-    let mut rooms = Vec::new();
-    for y in 0..WH {
-        for x in 0..WW {
+    let (areas, owner) = partition(&mut rng);
+    let mut rooms: Vec<Room> = areas
+        .iter()
+        .enumerate()
+        .map(|(i, &(x, y, s))| {
             let seed = (rng.f() * 1e9) as u32;
-            rooms.push(Room::new(y * WW + x, x, y, seed));
-        }
-    }
-    let start = START_Y * WW + START_X;
+            Room::sized(i, x, y, seed, s, s)
+        })
+        .collect();
+    let cand = candidates(&rooms, &owner);
+    let neighbors = |a: usize| -> Vec<usize> { cand.keys().filter(|k| k.0 == a).map(|k| k.1).collect() };
+    let start = owner[START_Y * WW + START_X];
     let mut seen = vec![false; rooms.len()];
     seen[start] = true;
     let mut stack = vec![start];
     while let Some(&c) = stack.last() {
-        let (cx, cy) = (rooms[c].x as i32, rooms[c].y as i32);
-        let opts: Vec<usize> =
-            (0..4).filter(|&d| at(cx + DIRS[d].0, cy + DIRS[d].1).map_or(false, |n| !seen[n])).collect();
+        let opts: Vec<usize> = neighbors(c).into_iter().filter(|&n| !seen[n]).collect();
         if opts.is_empty() {
             stack.pop();
             continue;
         }
-        let d = opts[(rng.f() * opts.len() as f64) as usize];
-        let n = at(cx + DIRS[d].0, cy + DIRS[d].1).unwrap();
-        rooms[c].doors[d] = true;
-        rooms[n].doors[DIRS[d].2] = true;
+        let n = opts[(rng.f() * opts.len() as f64) as usize];
+        let segs = &cand[&(c, n)];
+        let pick = segs[(rng.f() * segs.len() as f64) as usize];
+        link(&mut rooms, c, n, pick);
         seen[n] = true;
         stack.push(n);
     }
-    for _ in 0..6 {
-        let c = (rng.f() * rooms.len() as f64) as usize;
-        let d = (rng.f() * 4.0) as usize;
-        if let Some(n) = at(rooms[c].x as i32 + DIRS[d].0, rooms[c].y as i32 + DIRS[d].1) {
-            rooms[c].doors[d] = true;
-            rooms[n].doors[DIRS[d].2] = true;
+    // A few extra loops so the world isn't a pure tree.
+    let pairs: Vec<(usize, usize)> = cand.keys().copied().filter(|&(a, b)| a < b).collect();
+    for _ in 0..10 {
+        let (a, b) = pairs[(rng.f() * pairs.len() as f64) as usize];
+        if rooms[a].links.iter().any(|l| l.to == b) {
+            continue;
         }
+        let segs = &cand[&(a, b)];
+        let pick = segs[(rng.f() * segs.len() as f64) as usize];
+        link(&mut rooms, a, b, pick);
     }
     rooms[start].dist = 0;
     let mut q = VecDeque::from([start]);
     while let Some(c) = q.pop_front() {
-        for d in 0..4 {
-            if !rooms[c].doors[d] {
-                continue;
-            }
-            let n = at(rooms[c].x as i32 + DIRS[d].0, rooms[c].y as i32 + DIRS[d].1).unwrap();
-            if rooms[n].dist < 0 {
-                rooms[n].dist = rooms[c].dist + 1;
-                q.push_back(n);
+        for l in rooms[c].links.clone() {
+            if rooms[l.to].dist < 0 {
+                rooms[l.to].dist = rooms[c].dist + 1;
+                q.push_back(l.to);
             }
         }
     }
@@ -234,17 +382,18 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
     for r in rooms.iter_mut() {
         r.theme = ((r.dist * 4) / (max_d + 1)).min(3) as usize;
     }
-    // The village shop sits one screen away from the monolith, along the first open path.
-    let shop = [0usize, 2, 3, 1]
-        .iter()
-        .filter(|&&d| rooms[start].doors[d])
-        .find_map(|&d| at(rooms[start].x as i32 + DIRS[d].0, rooms[start].y as i32 + DIRS[d].1))
-        .unwrap_or(start);
+    // The village shop is the single screen just west of the monolith, always connected.
+    let shop = owner[START_Y * WW + START_X - 1];
+    if !rooms[start].links.iter().any(|l| l.to == shop) {
+        let segs = cand[&(start, shop)].clone();
+        link(&mut rooms, start, shop, segs[0]);
+    }
     rooms[start].special = SP_MONOLITH;
     if shop != start {
         rooms[shop].special = SP_SHOP;
     }
-    let mut order: Vec<usize> = (0..rooms.len()).filter(|&i| i != start && i != shop).collect();
+    // Buildings, secrets and encounters live on single screens; 2x2 areas are open wilderness.
+    let mut order: Vec<usize> = (0..rooms.len()).filter(|&i| i != start && i != shop && !rooms[i].big()).collect();
     order.sort_by(|&a, &b| rooms[a].dist.cmp(&rooms[b].dist).then(rooms[a].seed.cmp(&rooms[b].seed)));
     let l = order.len();
     rooms[order[l - 1]].gate = 6;
@@ -255,11 +404,8 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
         }
         rooms[order[k]].gate = i + 1;
     }
-    let dead: Vec<usize> = order
-        .iter()
-        .copied()
-        .filter(|&i| rooms[i].gate == 0 && rooms[i].doors.iter().filter(|&&d| d).count() == 1)
-        .collect();
+    let dead: Vec<usize> =
+        order.iter().copied().filter(|&i| rooms[i].gate == 0 && rooms[i].links.len() == 1).collect();
     let mut tanks = 0;
     for (j, &i) in dead.iter().enumerate() {
         if tanks < 3 && j % 2 == 0 {
@@ -298,11 +444,7 @@ fn assign_minis(rooms: &mut [Room], start: usize, shop: usize) {
     'dryad: for pass in 0..2 {
         for a in by_seed(rooms, &|r| r.free(start, shop) && (pass == 1 || r.theme == 0)) {
             for d in [0usize, 2, 3, 1] {
-                if !rooms[a].doors[d] {
-                    continue;
-                }
-                let (x, y) = (rooms[a].x as i32 + DIRS[d].0, rooms[a].y as i32 + DIRS[d].1);
-                let Some(b) = at(x, y) else { continue };
+                let Some(b) = rooms[a].links.iter().find(|l| l.d == d).map(|l| l.to) else { continue };
                 if rooms[b].free(start, shop) {
                     rooms[a].mini = MINI_DRYAD;
                     rooms[a].mini_dir = d;
@@ -357,16 +499,22 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
             }
         }
         _ => {
-            let pat = QPATS[(rng.f() * QPATS.len() as f64) as usize];
-            let diag = rng.f() < 0.3;
             let clean = r.clean();
-            for &(c, y) in pat.iter().filter(|_| !clean) {
-                let (mc, my) = (RC - 1 - c, RR - 1 - y);
-                r.tiles[y][c] = T_WALL;
-                r.tiles[my][mc] = T_WALL;
-                if !diag {
-                    r.tiles[y][mc] = T_WALL;
-                    r.tiles[my][c] = T_WALL;
+            // One mirrored obstacle pattern per cell (a 2x2 wilderness area gets four).
+            for qy in 0..r.ch {
+                for qx in 0..r.cw {
+                    let pat = QPATS[(rng.f() * QPATS.len() as f64) as usize];
+                    let diag = rng.f() < 0.3;
+                    let (ox, oy) = (qx * RC, qy * RR);
+                    for &(c, y) in pat.iter().filter(|_| !clean) {
+                        let (mc, my) = (RC - 1 - c, RR - 1 - y);
+                        r.tiles[oy + y][ox + c] = T_WALL;
+                        r.tiles[oy + my][ox + mc] = T_WALL;
+                        if !diag {
+                            r.tiles[oy + y][ox + mc] = T_WALL;
+                            r.tiles[oy + my][ox + c] = T_WALL;
+                        }
+                    }
                 }
             }
             if r.mini == MINI_GRAVE {
@@ -399,11 +547,14 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
                     }
                 }
             }
-            if rng.f() < 0.35 && !clean {
+            // Wilderness areas always hide a chest somewhere; screens sometimes do.
+            let chest_odds = if r.big() { 1.0 } else { 0.35 };
+            let (mid_c, mid_r) = (r.cols() as f32 / 2.0 - 0.5, r.rows() as f32 / 2.0 - 0.5);
+            if rng.f() < chest_odds && !clean {
                 for _ in 0..30 {
-                    let c = 1 + (rng.f() * 14.0) as usize;
-                    let y = 1 + (rng.f() * 11.0) as usize;
-                    if r.tiles[y][c] != T_FLOOR || ((c as f32 - 7.5).abs() < 3.0 && (y as f32 - 6.0).abs() < 2.5) {
+                    let c = 1 + (rng.f() * (r.cols() - 2) as f64) as usize;
+                    let y = 1 + (rng.f() * (r.rows() - 2) as f64) as usize;
+                    if r.tiles[y][c] != T_FLOOR || ((c as f32 - mid_c).abs() < 3.0 && (y as f32 - mid_r).abs() < 2.5) {
                         continue;
                     }
                     let v = rng.f();
@@ -432,7 +583,8 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
 
 /// Re-draw a room's static image from its tiles (call after tiles change).
 pub fn render(r: &mut Room, th: &Theme) {
-    let mut img = Sprite::new(W, RR as i32 * TS);
+    let (cols, rows) = (r.cols(), r.rows());
+    let mut img = Sprite::new(cols as i32 * TS, rows as i32 * TS);
     // Stable per-tile hash so each room keeps the same tile variants.
     let seed = r.seed ^ (r.i as u32).wrapping_mul(0x9e37_79b9);
     let hash = |x: usize, y: usize| -> u32 {
@@ -451,8 +603,8 @@ pub fn render(r: &mut Room, th: &Theme) {
         &th.floors[v.min(th.floors.len() - 1)]
     };
     let wall_at = |x: usize, y: usize| -> &Sprite { &th.walls[(hash(x, y) >> 4) as usize % th.walls.len()] };
-    for y in 0..RR {
-        for x in 0..RC {
+    for y in 0..rows {
+        for x in 0..cols {
             let (px, py) = (x as i32 * TS, y as i32 * TS);
             let t = r.tiles[y][x];
             match t {
@@ -518,8 +670,8 @@ pub fn render(r: &mut Room, th: &Theme) {
             }
         }
     }
-    for y in 0..RR {
-        for x in 0..RC {
+    for y in 0..rows {
+        for x in 0..cols {
             if solid_tile(r.tiles[y][x]) && r.tiles[y][x] != T_WATER {
                 continue;
             }
@@ -539,13 +691,13 @@ pub fn render(r: &mut Room, th: &Theme) {
     if th.bevel {
         // Raised masonry: a lit top edge and a shadowed front face where walls meet floor.
         let wallish = |t: u8| matches!(t, T_WALL | T_CRACK);
-        for y in 0..RR {
-            for x in 0..RC {
+        for y in 0..rows {
+            for x in 0..cols {
                 if !wallish(r.tiles[y][x]) {
                     continue;
                 }
                 let (px, py) = (x as i32 * TS, y as i32 * TS);
-                if y + 1 < RR && !wallish(r.tiles[y + 1][x]) {
+                if y + 1 < rows && !wallish(r.tiles[y + 1][x]) {
                     img.blend(px, py + 10, TS, 6, BLACK, 0.3);
                     img.blend(px, py + 15, TS, 1, BLACK, 0.4);
                 }
@@ -561,7 +713,7 @@ pub fn render(r: &mut Room, th: &Theme) {
         for _ in 0..70 {
             let (x, y) = ((fr.f() * 224.0) as i32 + 16, (fr.f() * 176.0) as i32 + 16);
             let (tx, ty) = ((x / TS) as usize, (y / TS) as usize);
-            if ty < RR && tx < RC && r.tiles[ty][tx] == T_FLOOR {
+            if ty < rows && tx < cols && r.tiles[ty][tx] == T_FLOOR {
                 let c = [rgb(0xf878f8), rgb(0xfce040), WHITE, rgb(0xa4e4fc)][(fr.f() * 4.0) as usize];
                 img.fill(x, y, 1, 1, c);
                 img.fill(x, y + 1, 1, 1, rgb(0x2c7c1c));
@@ -581,4 +733,68 @@ pub fn make_arena(th: &Theme, tier: usize) -> Room {
     }
     render(&mut r, th);
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sprites::build_themes;
+
+    #[test]
+    fn world_layout_is_sane() {
+        let (rooms, start, shop) = gen_world(&build_themes());
+        // Every cell belongs to exactly one area.
+        let mut cover = vec![0; WW * WH];
+        for r in &rooms {
+            for y in r.y..r.y + r.ch {
+                for x in r.x..r.x + r.cw {
+                    cover[y * WW + x] += 1;
+                }
+            }
+        }
+        assert!(cover.iter().all(|&n| n == 1), "cells covered exactly once");
+        assert!(rooms.iter().any(|r| r.big()), "some 2x2 wilderness areas exist");
+        assert!(!rooms[start].big() && !rooms[shop].big(), "monolith and shop are single screens");
+        assert!(rooms[start].links.iter().any(|l| l.to == shop), "the shop is next to the monolith");
+        for n in 1..=6 {
+            let g: Vec<&Room> = rooms.iter().filter(|r| r.gate == n).collect();
+            assert_eq!(g.len(), 1, "exactly one building for lair {n}");
+            assert!(!g[0].big(), "lair {n} building is on a single screen");
+        }
+        // Everything reachable, and links are symmetric with matching gaps.
+        assert!(rooms.iter().all(|r| r.dist >= 0), "all areas reachable from the start");
+        for r in &rooms {
+            for l in &r.links {
+                let back = rooms[l.to].links.iter().find(|b| b.to == r.i && b.d == DIRS[l.d].2);
+                assert!(back.is_some(), "link {} -> {} has a way back", r.i, l.to);
+            }
+        }
+        let big = rooms.iter().filter(|r| r.big()).count();
+        println!("areas: {} ({} big), start {} at {:?} links {:?}, shop {} at {:?}", rooms.len(), big, start, (rooms[start].x, rooms[start].y), rooms[start].links, shop, (rooms[shop].x, rooms[shop].y));
+    }
+
+    #[test]
+    fn doorways_line_up_between_areas() {
+        let (rooms, _, _) = gen_world(&build_themes());
+        for r in &rooms {
+            for l in &r.links {
+                let o = &rooms[l.to];
+                // Global cell of the gap on each side must be adjacent.
+                let (ax, ay) = match l.d {
+                    0 | 1 => (r.x + l.seg, if l.d == 0 { r.y } else { r.y + r.ch - 1 }),
+                    2 => (r.x + r.cw - 1, r.y + l.seg),
+                    _ => (r.x, r.y + l.seg),
+                };
+                let (bx, by) = (ax as i32 + DIRS[l.d].0, ay as i32 + DIRS[l.d].1);
+                assert!(bx >= o.x as i32 && bx < (o.x + o.cw) as i32 && by >= o.y as i32 && by < (o.y + o.ch) as i32);
+                let gap_open = match l.d {
+                    0 => r.tiles[0][l.seg * RC + 7] == T_FLOOR,
+                    1 => r.tiles[r.rows() - 1][l.seg * RC + 7] == T_FLOOR,
+                    2 => r.tiles[l.seg * RR + 6][r.cols() - 1] == T_FLOOR,
+                    _ => r.tiles[l.seg * RR + 6][0] == T_FLOOR,
+                };
+                assert!(gap_open, "gap carved for link {} side {} seg {}", r.i, l.d, l.seg);
+            }
+        }
+    }
 }

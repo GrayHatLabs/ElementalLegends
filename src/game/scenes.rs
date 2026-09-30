@@ -60,7 +60,8 @@ impl Game {
         let pan = 1.0 - ease(t as f32 / 110.0);
         let oy = (pan * (RR as i32 * TS) as f32) as i32;
         self.draw_stars(scr);
-        scr.clip(0, HUD - 32, W, H);
+        scr.world(self.cam.0, self.cam.1);
+        scr.clip_screen(0, 0, SW, SH);
         let room = &self.rooms[self.start];
         scr.blit(&room.img, 0, HUD + oy, false, false);
         let lit = if t < 110 { 0 } else { ((t - 110) / 12).min(5) };
@@ -74,9 +75,10 @@ impl Game {
             self.draw_hero(scr, 0.0, 0.0);
         }
         self.draw_parts(scr);
+        scr.ui();
         scr.unclip();
         if t >= 222 {
-            scr.fill(0, 36, W, 22, BLACK);
+            scr.fill_screen(0, 36, SW, 22, BLACK);
             scr.text("THE MONOLITH AWAKENS", 128, 43, rgb(0xa4e4fc), Align::Center, 8);
         }
         if t > 20 {
@@ -406,10 +408,10 @@ impl Game {
     pub(super) fn draw_enter_dungeon(&self, scr: &mut Screen) {
         let t = self.t;
         if t > 30 {
-            scr.blend(0, HUD, W, H - HUD, BLACK, ((t - 30) as f32 / 26.0).min(1.0));
+            scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, ((t - 30) as f32 / 26.0).min(1.0));
         }
         if t > 12 {
-            scr.fill(0, 150, W, 20, BLACK);
+            scr.fill_screen(0, 150, SW, 20, BLACK);
             scr.text(dungeon_name(self.gate_n), 128, 156, WHITE, Align::Center, 8);
         }
     }
@@ -424,7 +426,7 @@ impl Game {
         self.eb.clear();
         self.pb.clear();
         self.sink = 0.0;
-        self.cam_y = 0.0;
+        self.pan_y = 0.0;
         self.msg = None;
         self.play_song(None);
         self.sfx(Sfx::Gate);
@@ -456,7 +458,7 @@ impl Game {
             // Walk down the steps: the mage moves onto the stairs and sinks out of sight.
             self.pl.y = bottom - (t - 60) as f32 * 0.3;
             self.sink = ((t - 60) as f32 / 70.0 * 18.0).min(18.0);
-            self.cam_y = ((t - 60) as f32 * 0.22).min(14.0);
+            self.pan_y = ((t - 60) as f32 * 0.22).min(14.0);
             self.pl.walk += 1;
             if t % 16 == 0 {
                 self.sfx(Sfx::Push);
@@ -468,7 +470,7 @@ impl Game {
         if t >= 160 {
             let n = self.gate_n;
             self.sink = 0.0;
-            self.cam_y = 0.0;
+            self.pan_y = 0.0;
             self.start_boss(n);
         }
     }
@@ -477,17 +479,17 @@ impl Game {
         let dark = ((t - 50) as f32 / 90.0).clamp(0.0, 1.0);
         if dark > 0.0 {
             // Vignette: edges darken first, then everything.
-            scr.blend(0, HUD, W, H - HUD, BLACK, dark * 0.85);
+            scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, dark * 0.85);
             for i in 0..6 {
                 let a = (dark * 0.25 * (6 - i) as f32 / 6.0).min(1.0);
-                scr.blend(0, HUD + i * 8, W, 8, BLACK, a);
-                scr.blend(0, H - (i + 1) * 8, W, 8, BLACK, a);
-                scr.blend(i * 8, HUD, 8, H - HUD, BLACK, a);
-                scr.blend(W - (i + 1) * 8, HUD, 8, H - HUD, BLACK, a);
+                scr.blend_screen(0, HUD_PX + i * 8, SW, 8, BLACK, a);
+                scr.blend_screen(0, SH - (i + 1) * 8, SW, 8, BLACK, a);
+                scr.blend_screen(i * 8, HUD_PX, 8, SH - HUD_PX, BLACK, a);
+                scr.blend_screen(SW - (i + 1) * 8, HUD_PX, 8, SH - HUD_PX, BLACK, a);
             }
         }
         if t >= 140 {
-            scr.fill(0, HUD, W, H - HUD, BLACK);
+            scr.fill_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK);
         }
     }
 
@@ -576,8 +578,9 @@ impl Game {
         if !(30..150).contains(&t) {
             return;
         }
-        scr.fill(0, 150, W, 36, BLACK);
-        scr.frame_rect(0, 150, W, 36, rgb(0x5c4880));
+        scr.fill_screen(0, 150, SW, 36, BLACK);
+        scr.fill_screen(0, 150, SW, 1, rgb(0x5c4880));
+        scr.fill_screen(0, 185, SW, 1, rgb(0x5c4880));
         scr.text(b.name, 128, 156, b.el.light(), Align::Center, 8);
         let hint = match b.kind {
             BKind::Sorcerer | BKind::DarkSorcerer => "ITS WEAKNESS SHIFTS WITH ITS ELEMENT!".to_string(),

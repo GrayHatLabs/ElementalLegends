@@ -31,10 +31,15 @@ use status::Status;
 
 pub const GATE_X: f32 = 128.0;
 pub const GATE_Y: f32 = (HUD + 6 * TS + 8) as f32;
+/// Visible part of the world in logic units (320x208 screen pixels at 1.5x zoom).
+pub const VIEW_W: f32 = SW as f32 / ZOOM;
+pub const VIEW_H: f32 = (SH - HUD_PX) as f32 / ZOOM;
 const WF: f32 = W as f32;
 const HF: f32 = H as f32;
 const HUDF: f32 = HUD as f32;
 const SPAWN_Y: f32 = GATE_Y + 34.0;
+/// Bump when the world layout changes; older saves are detected and ignored.
+const SAVE_VERSION: u32 = 2;
 
 #[allow(clippy::too_many_arguments)]
 fn hit(ax: f32, ay: f32, aw: f32, ah: f32, bx: f32, by: f32, bw: f32, bh: f32) -> bool {
@@ -388,8 +393,14 @@ struct Scroll {
     t: f32,
     from: usize,
     to: usize,
-    /// Scrolling between dungeon rooms rather than overworld screens.
+    /// Scrolling between dungeon rooms rather than overworld areas.
     dun: bool,
+    /// Where the new area sits relative to the old one (logic units).
+    nx: f32,
+    ny: f32,
+    /// Camera at the start (old area's frame) and end (new area's frame).
+    cam0: (f32, f32),
+    cam1: (f32, f32),
 }
 
 const REWARDS: [&str; 7] = [
@@ -474,8 +485,8 @@ impl SaveData {
         let l = |v: &[usize]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         let dp = self.dprog.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         format!(
-            "max_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\n",
-            self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
+            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\n",
+            SAVE_VERSION, self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
             b(&self.cleared), l(&self.tanks), l(&self.caches), l(&self.opened), l(&self.visited), self.room,
             self.time, self.heart_price, dp, self.potions, self.mini_seen, self.mini_done, self.hoard_left,
             self.zombies, self.antidotes
@@ -484,12 +495,14 @@ impl SaveData {
     fn from_text(txt: &str) -> Option<Self> {
         let mut s = Self::fresh();
         let mut ok = false;
+        let mut version = 0;
         for line in txt.lines() {
             let Some((k, v)) = line.split_once('=') else { continue };
             let v = v.trim();
             let num = || v.parse::<f64>().unwrap_or(0.0);
             let list = || -> Vec<usize> { v.split(',').filter_map(|x| x.trim().parse().ok()).collect() };
             match k.trim() {
+                "version" => version = num() as u32,
                 "max_hp" => {
                     s.max_hp = num() as i32;
                     ok = true;
@@ -528,7 +541,8 @@ impl SaveData {
                 _ => {}
             }
         }
-        if ok && s.max_hp > 0 {
+        // Saves from before the SNES-scale world (different map layout) are ignored.
+        if ok && s.max_hp > 0 && version == SAVE_VERSION {
             Some(s)
         } else {
             None
@@ -605,8 +619,10 @@ pub struct Game {
     gate_room: usize,
     gate_warned: bool,
     monolith_used: bool,
-    /// Cinematic helpers.
-    cam_y: f32,
+    /// Cinematic helpers: extra vertical pan used by the staircase descent.
+    pan_y: f32,
+    /// World camera: logic position shown at the top-left of the play field.
+    cam: (f32, f32),
     sink: f32,
     walk_from: (f32, f32),
     stars: Vec<Star>,
@@ -677,7 +693,8 @@ impl Game {
             gate_room: 0,
             gate_warned: false,
             monolith_used: false,
-            cam_y: 0.0,
+            pan_y: 0.0,
+            cam: (0.0, HUDF),
             sink: 0.0,
             walk_from: (0.0, 0.0),
             stars,
@@ -769,10 +786,48 @@ impl Game {
         &self.rooms[self.room]
     }
     fn tile_at(&self, c: i32, r: i32) -> u8 {
-        if c < 0 || c >= RC as i32 || r < 0 || r >= RR as i32 {
+        let room = self.cur_room();
+        if c < 0 || c >= room.cols() as i32 || r < 0 || r >= room.rows() as i32 {
             return T_FLOOR;
         }
-        self.cur_room().tiles[r as usize][c as usize]
+        room.tiles[r as usize][c as usize]
+    }
+    /// Right and bottom logic edges of the current area (left is 0, top is HUD).
+    fn room_wf(&self) -> f32 {
+        self.cur_room().wf()
+    }
+    fn room_hf(&self) -> f32 {
+        self.cur_room().hf()
+    }
+
+    // ------------------------------------------------------------ camera
+    /// Camera position that centres (x, y) inside `room`, clamped to its edges.
+    fn cam_target(room: &Room, x: f32, y: f32) -> (f32, f32) {
+        let (vw, vh) = (VIEW_W, VIEW_H);
+        let cx = if room.wf() <= vw { (room.wf() - vw) / 2.0 } else { (x - vw / 2.0).clamp(0.0, room.wf() - vw) };
+        let cy = if room.hf() - HUDF <= vh {
+            HUDF + (room.hf() - HUDF - vh) / 2.0
+        } else {
+            (y - vh / 2.0).clamp(HUDF, room.hf() - vh)
+        };
+        (cx, cy)
+    }
+    /// Follow the mage. `snap` jumps straight there (room entry, teleports).
+    fn follow_cam(&mut self, snap: bool) {
+        let (tx, ty) = Self::cam_target(self.cur_room(), self.pl.x, self.pl.y);
+        if snap {
+            self.cam = (tx, ty);
+        } else {
+            // Tight SNES-style follow with a touch of smoothing.
+            self.cam.0 += (tx - self.cam.0) * 0.3;
+            self.cam.1 += (ty - self.cam.1) * 0.3;
+            if (tx - self.cam.0).abs() < 0.05 {
+                self.cam.0 = tx;
+            }
+            if (ty - self.cam.1).abs() < 0.05 {
+                self.cam.1 = ty;
+            }
+        }
     }
 
     // ------------------------------------------------------------ collision
@@ -892,6 +947,14 @@ impl Game {
         if self.shake > 0 {
             self.shake -= 1;
         }
+        // The camera follows the mage whenever the world is on screen (not mid-slide).
+        let world = matches!(
+            self.mode,
+            Mode::Play | Mode::Dying | Mode::EnterDungeon | Mode::Descend | Mode::BossIntro | Mode::Awaken
+        );
+        if world && self.scroll.is_none() && !self.rooms.is_empty() {
+            self.follow_cam(false);
+        }
     }
 
     fn menu_opts(&self) -> Vec<&'static str> {
@@ -983,12 +1046,13 @@ impl Game {
         self.boss_dead = false;
         self.room = room;
         self.scroll = None;
-        self.cam_y = 0.0;
+        self.pan_y = 0.0;
         self.pl = Player::at(x, y);
         self.clear_entities();
         self.msg = None;
         self.shop_armed = [true; 4];
         self.enter_room(spawn);
+        self.follow_cam(true);
         self.play_song(Some(Song::Field));
     }
     fn enter_room(&mut self, spawn: bool) {
@@ -1062,9 +1126,13 @@ impl Game {
         }
     }
     fn free_spot(&mut self, min_d: f32, special: bool) -> Option<(f32, f32)> {
+        let (cols, rows, (mx, my)) = {
+            let r = self.cur_room();
+            (r.cols() as i32, r.rows() as i32, r.center())
+        };
         for _ in 0..40 {
-            let c = self.rng.irange(1, RC as i32 - 2);
-            let r = self.rng.irange(1, RR as i32 - 2);
+            let c = self.rng.irange(1, cols - 2);
+            let r = self.rng.irange(1, rows - 2);
             if self.tile_at(c, r) != T_FLOOR || self.obj_blocks(c, r) {
                 continue;
             }
@@ -1072,7 +1140,7 @@ impl Game {
             if dist(x, y, self.pl.x, self.pl.y) < min_d {
                 continue;
             }
-            if special && (x - GATE_X).abs() < 24.0 && (y - GATE_Y).abs() < 24.0 {
+            if special && (x - mx).abs() < 24.0 && (y - my).abs() < 24.0 {
                 continue;
             }
             return Some((x, y));
@@ -1083,20 +1151,25 @@ impl Game {
         if !self.overworld() {
             return;
         }
-        let (th, special, gate, sp) = {
+        let (th, special, gate, sp, cells) = {
             let r = &self.rooms[self.room];
-            (r.theme, r.gate > 0 || r.tank || r.cache || r.shrine.is_some(), r.gate > 0, r.special)
+            (r.theme, r.gate > 0 || r.tank || r.cache || r.shrine.is_some(), r.gate > 0, r.special, (r.cw * r.ch) as i32)
         };
         if sp != SP_NONE {
             return;
         }
-        let n = 2 + th as i32 + self.rng.irange(0, 1) - gate as i32;
+        // Wilderness areas are four screens big and hold proportionally bigger hordes.
+        let per_cell = 2 + th as i32 + self.rng.irange(0, 1) - gate as i32;
+        let n = if cells > 1 { per_cell * cells * 3 / 4 } else { per_cell };
         self.spawn_pack(n, th, special);
-        if self.rng.f() < 0.3 + th as f32 * 0.1 {
-            if let Some((x, y)) = self.free_spot(90.0, special) {
-                let mut g = self.make_enemy(EK::Generator, x, y, th);
-                g.spawn = 0;
-                self.enemies.push(g);
+        let generators = if cells > 1 { 2 } else { 1 };
+        for _ in 0..generators {
+            if self.rng.f() < 0.3 + th as f32 * 0.1 {
+                if let Some((x, y)) = self.free_spot(90.0, special) {
+                    let mut g = self.make_enemy(EK::Generator, x, y, th);
+                    g.spawn = 0;
+                    self.enemies.push(g);
+                }
             }
         }
     }
@@ -1109,24 +1182,48 @@ impl Game {
             }
         }
     }
+    /// Walk off the edge of an overworld area through doorway side `d`.
     fn start_scroll(&mut self, d: usize) {
         let r = self.room;
-        let (rx, ry) = (self.rooms[r].x as i32 + DIRS[d].0, self.rooms[r].y as i32 + DIRS[d].1);
-        if !self.rooms[r].doors[d] || rx < 0 || ry < 0 || rx >= WW as i32 || ry >= WH as i32 {
+        let along = if d < 2 { self.pl.x } else { self.pl.y };
+        let Some(link) = self.rooms[r].link_at(d, along) else {
+            self.keep_inside();
             return;
-        }
-        let to = ry as usize * WW + rx as usize;
-        self.scroll = Some(Scroll { d, t: 0.0, from: r, to, dun: false });
-        self.clear_entities();
-        self.place_after_scroll(d);
+        };
+        self.begin_scroll(d, r, link.to, false);
     }
-    fn place_after_scroll(&mut self, d: usize) {
+    /// Keep the mage within the current area (no doorway here).
+    fn keep_inside(&mut self) {
+        let (w, h) = (self.room_wf(), self.room_hf());
+        self.pl.x = self.pl.x.clamp(12.0, w - 12.0);
+        self.pl.y = self.pl.y.clamp(HUDF + 12.0, h - 12.0);
+    }
+    /// SNES-style slide from area `from` to area `to` (both in the overworld or both
+    /// dungeon rooms). The new area is laid out next to the old one using their grid
+    /// positions, the mage is placed just inside the doorway, and the camera glides
+    /// from the old view to the new one.
+    pub(super) fn begin_scroll(&mut self, d: usize, from: usize, to: usize, dun: bool) {
+        let (fr, tr) = match (&self.dungeon, dun) {
+            (Some(dg), true) => (&dg.rooms[from], &dg.rooms[to]),
+            _ => (&self.rooms[from], &self.rooms[to]),
+        };
+        let nx = (tr.x as f32 - fr.x as f32) * CELL_W;
+        let ny = (tr.y as f32 - fr.y as f32) * CELL_H;
+        let (mut x, mut y) = (self.pl.x - nx, self.pl.y - ny);
         match d {
-            0 => self.pl.y = HF - 10.0,
-            1 => self.pl.y = HUDF + 10.0,
-            2 => self.pl.x = 10.0,
-            _ => self.pl.x = WF - 10.0,
+            0 => y = tr.hf() - 10.0,
+            1 => y = HUDF + 10.0,
+            2 => x = 10.0,
+            _ => x = tr.wf() - 10.0,
         }
+        x = x.clamp(10.0, tr.wf() - 10.0);
+        y = y.clamp(HUDF + 10.0, tr.hf() - 10.0);
+        let cam1 = Self::cam_target(tr, x, y);
+        let cam0 = self.cam;
+        self.scroll = Some(Scroll { d, t: 0.0, from, to, dun, nx, ny, cam0, cam1 });
+        self.clear_entities();
+        self.pl.x = x;
+        self.pl.y = y;
     }
 
     fn update_needs(&mut self) {
@@ -1179,7 +1276,7 @@ impl Game {
         if let Some(sc) = self.scroll.as_mut() {
             sc.t += 1.0 / 36.0;
             if sc.t >= 1.0 {
-                let (to, dun) = (sc.to, sc.dun);
+                let (to, dun, cam1) = (sc.to, sc.dun, sc.cam1);
                 self.scroll = None;
                 if dun {
                     if let Some(d) = self.dungeon.as_mut() {
@@ -1190,6 +1287,7 @@ impl Game {
                     self.room = to;
                     self.enter_room(true);
                 }
+                self.cam = cam1;
             }
             return;
         }
@@ -1232,13 +1330,14 @@ impl Game {
         }
         self.pl = p;
         if self.in_lair == 0 {
+            let (rw, rh) = (self.room_wf(), self.room_hf());
             let exit = if p.x < 4.0 {
                 Some(3)
-            } else if p.x > WF - 4.0 {
+            } else if p.x > rw - 4.0 {
                 Some(2)
             } else if p.y < HUDF + 4.0 {
                 Some(0)
-            } else if p.y > HF - 4.0 {
+            } else if p.y > rh - 4.0 {
                 Some(1)
             } else {
                 None
@@ -1496,7 +1595,8 @@ impl Game {
     fn room_objects(&mut self) {
         let ri = self.room;
         let (px, py) = (self.pl.x, self.pl.y);
-        let near = (px - GATE_X).abs() < 12.0 && (py - GATE_Y).abs() < 12.0;
+        let (gx, gy) = self.rooms[ri].center();
+        let near = (px - gx).abs() < 12.0 && (py - gy).abs() < 12.0;
         let (gate, tank, cache, chest, shrine, special) = {
             let r = &self.rooms[ri];
             (r.gate, r.tank, r.cache, r.chest, r.shrine, r.special)
@@ -1775,8 +1875,15 @@ mod tests {
     }
 
     #[test]
-    fn old_saves_without_dungeon_progress_still_load() {
+    fn saves_from_the_old_world_layout_are_ignored() {
         let old = "max_hp=24\nhp=20\ngold=77\ncleared=0,1,0,0,0,0,0\nroom=31\n";
+        assert!(SaveData::from_text(old).is_none(), "pre-SNES saves must not load into the new map");
+        assert!(SaveData::from_text("version=1\nmax_hp=24\n").is_none());
+    }
+
+    #[test]
+    fn saves_without_dungeon_progress_still_load() {
+        let old = "version=2\nmax_hp=24\nhp=20\ngold=77\ncleared=0,1,0,0,0,0,0\nroom=31\n";
         let s = SaveData::from_text(old).expect("parse");
         assert_eq!(s.gold, 77);
         assert!(s.cleared[1]);

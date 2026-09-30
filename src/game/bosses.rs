@@ -250,7 +250,8 @@ impl Game {
         self.mode = Mode::BossIntro;
         self.t = 0;
         self.fade = 40;
-        self.cam_y = 0.0;
+        self.pan_y = 0.0;
+        self.follow_cam(true);
         self.play_song(Some(Song::Lair));
     }
 
@@ -1361,7 +1362,7 @@ fn draw_treant(p: &mut Pen, b: &Boss, x: i32, y: i32, t: i32, intro: f32, dying:
     p.fill(x - 5, y + 8, 10, mouth, 0x100804);
     p.fill(x - 4, y + 8, 2, 2, 0x3c2408);
     p.fill(x + 2, y + 8, 2, 2, 0x3c2408);
-    p.s.clip(0, HUD, W, H);
+    p.s.reset_clip();
 }
 
 fn draw_guardian(p: &mut Pen, b: &Boss, x: i32, y: i32, t: i32, intro: f32) {

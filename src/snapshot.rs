@@ -8,7 +8,7 @@
 //! Headless checks prove logic and rendering output, not how it looks or feels on
 //! real hardware; see IMPLEMENTATION_STATUS.md for what still needs eyes-on testing.
 use crate::game::{Btn, Game, Input, Mode};
-use crate::gfx::{Screen, H, W};
+use crate::gfx::{Screen, SH, SW};
 use std::path::{Path, PathBuf};
 
 fn crc32(data: &[u8]) -> u32 {
@@ -111,7 +111,7 @@ impl T {
         let Some(dir) = self.dir.clone() else { return };
         self.g.draw(&mut self.scr);
         let p = dir.join(format!("{name}.png"));
-        write_png(&p, &self.scr.px, W as usize, H as usize).expect("write png");
+        write_png(&p, &self.scr.px, SW as usize, SH as usize).expect("write png");
     }
     fn check(&mut self, ok: bool, what: &str) -> bool {
         if ok {
@@ -235,6 +235,11 @@ pub fn run(dir: Option<&str>) -> i32 {
     };
     t.g.debug_set_player(128.0, 150.0, b'd');
     t.walk_to(128.0, 136.0, 200);
+    if matches!(btn, Btn::Up) {
+        // Go around the monolith, which stands between the clearing and the north door.
+        t.walk_to(96.0, 136.0, 120);
+        t.walk_to(96.0, 44.0, 200);
+    }
     t.walk_to(door.0, door.1, 300);
     let reached = t.hold_until(btn, 200, move |g| g.debug_room() == shop && !g.debug_scrolling());
     t.check(reached, "the shop is reached by walking out of the monolith clearing");
@@ -303,6 +308,45 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check(t.g.debug_poison() == 0, "poison wears off on its own");
 
     // ---------------------------------------------------------------- fire: travelling bolt + burning DOT
+    // ---------------------------------------------------------------- SNES camera and areas
+    println!("[camera] big areas scroll, doorways slide");
+    match t.g.debug_big_room() {
+        None => {
+            t.check(false, "the world has 2x2 wilderness areas");
+        }
+        Some((big, d, seg)) => {
+            let (w, h) = t.g.debug_room_size(big);
+            t.g.debug_play_room(big, 40.0, 60.0);
+            t.g.debug_kill_enemies();
+            t.frames(20);
+            let c0 = t.g.debug_cam();
+            t.g.debug_set_player(w - 40.0, h - 40.0, b'r');
+            t.frames(40);
+            let c1 = t.g.debug_cam();
+            t.check(w > 400.0 && h > 400.0, "wilderness areas are four screens big");
+            t.check(c1.0 > c0.0 + 100.0 && c1.1 > c0.1 + 100.0, "the camera scrolls to follow the mage across a big area");
+            t.shot("10a_big_area");
+            // Walk out through one of its doorways: the view slides into the neighbouring area.
+            let s = seg as f32;
+            let (x, y, face, btn) = match d {
+                0 => (s * 256.0 + 128.0, 32.0 + 14.0, b'u', Btn::Up),
+                1 => (s * 256.0 + 128.0, h - 14.0, b'd', Btn::Down),
+                2 => (w - 14.0, 32.0 + s * 208.0 + 104.0, b'r', Btn::Right),
+                _ => (14.0, 32.0 + s * 208.0 + 104.0, b'l', Btn::Left),
+            };
+            t.g.debug_set_player(x, y, face);
+            t.frames(20);
+            let slid = t.hold_until(btn, 60, |g| g.debug_scrolling());
+            t.check(slid, "walking through a doorway starts the SNES-style slide");
+            t.frames(16);
+            t.shot("10b_area_slide");
+            let done = t.hold_until(btn, 80, |g| !g.debug_scrolling());
+            t.check(done && t.g.debug_room() != big, "the slide ends in the neighbouring area");
+            t.frames(10);
+            t.shot("10c_after_slide");
+        }
+    }
+
     println!("[fire] firebolt and burning");
     t.g.debug_god();
     t.g.debug_set_element(0);
@@ -900,15 +944,22 @@ fn encounters(t: &mut T) {
     t.check(!trees.is_empty(), "fruit trees grow on some screens");
     let (c, r, _, _, _) = trees[0];
     let (x, y) = tc(c, r);
+    // Approach from whichever side of the tree has two open tiles.
+    let sides = [(0, 1, b'u', Btn::Up), (1, 0, b'l', Btn::Left), (-1, 0, b'r', Btn::Right), (0, -1, b'd', Btn::Down)];
+    let (dx, dy, face, toward) = sides
+        .into_iter()
+        .find(|&(dx, dy, _, _)| t.g.debug_tile(c + dx, r + dy) == T_FLOOR && t.g.debug_tile(c + 2 * dx, r + 2 * dy) == T_FLOOR)
+        .unwrap_or(sides[0]);
+    let (fx, fy) = (x + dx as f32 * 26.0, y + dy as f32 * 26.0);
     let a0 = apples(t);
-    t.fire_from(x, y + 30.0, b'u');
+    t.fire_from(fx, fy, face);
     t.check(apples(t) == a0 + 1, "shooting a fruit tree knocks down an apple");
-    t.g.debug_set_player(x + 18.0, y, b'l');
-    t.hold_until(Btn::Left, 34, |_| false);
+    t.g.debug_set_player(x + dx as f32 * 18.0, y + dy as f32 * 18.0, face);
+    t.hold_until(toward, 34, |_| false);
     let (_, _, left, regrow, _) = t.g.debug_trees()[0];
     t.check(left == 0 && regrow > 0 && apples(t) >= a0 + 3, "bumping the tree shakes loose more apples until it's bare");
     let bare = apples(t);
-    t.fire_from(x, y + 30.0, b'u');
+    t.fire_from(fx, fy, face);
     t.check(apples(t) == bare, "a bare tree drops nothing until it regrows");
     t.g.debug_regrow_now();
     t.frames(2);

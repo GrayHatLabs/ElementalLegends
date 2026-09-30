@@ -1,12 +1,12 @@
 # Implementation Status — Elemental Legends
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30 (branch `snes-upgrade`)
 
 ## Verification levels
 
 | Level | Meaning |
 |---|---|
-| **H** | Headless-verified: `scripts/test.sh` (8 unit tests + 303 scripted self-test checks through the real game loop, real input and collisions) passes |
+| **H** | Headless-verified: `scripts/test.sh` (11 unit tests + 307 scripted self-test checks through the real game loop, real input and collisions) passes |
 | **S** | Screenshot-reviewed: rendered frames from the self-test inspected by eye |
 | **D** | Desktop-played: run interactively in the SDL window on desktop (WSL) |
 | **HW** | Verified on the ANBERNIC RG35XX H hardware |
@@ -20,6 +20,21 @@ Headless checks prove logic and render output. They do **not** prove feel, timin
 | Desktop build (`scripts/dev-build.sh`) | Builds clean, no warnings |
 | Handheld cross-build (`scripts/build-handheld.sh`) | Succeeds: aarch64 ELF + `dist/ElementalLegends-aarch64.zip`, needs glibc ≥ 2.35 |
 | Running on RG35XX H | **Not yet verified (needs hardware)** |
+
+## SNES upgrade (branch snes-upgrade, not merged — user plays it first)
+
+Decisions (2026-09-30): 24px tiles, 320x240, A Link to the Past camera, bigger 8x8 world, keep the grey wizard art, ALttP look, SNES-style music, optional twin-stick, fresh saves.
+
+| Milestone | Status | Notes |
+|---|---|---|
+| M1 Engine: 320x240 framebuffer (fills the 640x480 screen at 2x), camera + 1.5x world zoom (16-unit tiles drawn 24 px), follow camera, SNES slide between areas | H S | Game logic unchanged (same units), so all balance/puzzles/bosses keep working. Text and HUD drawn crisp at screen resolution |
+| M1 World: 8x8 cells, 11 wilderness areas of 2x2 screens + single screens (31 areas), doorway links per edge segment, shop always beside the monolith | H S | Specials (buildings, shop, monolith, encounters, hearts, hoards) stay on single screens; big areas get 4 obstacle patterns, bigger hordes, 2 generator rolls and a chest. Unit tests check coverage, reachability, symmetric links and carved gaps |
+| M2 Art pipeline (native 24px PNG sheets + manifest, fallback to code-drawn art) | In progress | |
+| M3 Generated terrain (10 themes) | In progress | PixelLab, 32px generated then downscaled to 24px |
+| M4 Generated characters, enemies, bosses, mini-bosses | Queued | Styled to match the existing grey wizard |
+| M5 SNES-style music and sound | Queued | |
+| M6 Optional twin-stick aiming (RG35XX Pro right stick) | Queued | |
+| HUD/menus redesigned for 320 width | Queued | Currently the 256-wide layouts are centred |
 
 ## Preserved gameplay
 
@@ -36,7 +51,7 @@ Headless checks prove logic and render output. They do **not** prove feel, timin
 | Five lairs + Dark Tower, sequential unlock | H | All six are now dungeons with a boss |
 | Rune rewards and power-ups | H | Reward screen reached for all six bosses |
 | Strafing (hold cast locks facing) | H | Checked during every boss fight |
-| Save games | H | Round-trip unit test. Old saves without dungeon progress still load |
+| Save games | H | Round-trip unit test. Saves now carry `version=2`; saves from the old 6x6 world are detected and ignored (user decision: fresh saves are fine) |
 
 ## New features
 

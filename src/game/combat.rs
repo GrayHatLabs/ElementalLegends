@@ -275,7 +275,7 @@ impl Game {
                 self.boss_hit(5.0, el, px, py, 0.0, 0.0);
                 self.quake_cracks();
                 for _ in 0..24 {
-                    let (x, y) = (self.rng.range(16.0, WF - 16.0), self.rng.range(HUDF + 16.0, HF - 16.0));
+                    let (x, y) = (self.rng.range(self.cam.0 + 8.0, self.cam.0 + VIEW_W - 8.0), self.rng.range(self.cam.1 + 8.0, self.cam.1 + VIEW_H - 8.0));
                     let c = self.rng.pick(&[rgb(0x8c5020), rgb(0x98d858), rgb(0x5c3c10)]);
                     self.part(x, y, 0.0, -1.0, 20, c, 3, PK::Dot);
                 }
@@ -438,6 +438,7 @@ impl Game {
         }
     }
     pub(super) fn update_pbullets(&mut self) {
+        let (rw, rh) = (self.room_wf(), self.room_hf());
         let mut pb = std::mem::take(&mut self.pb);
         let mut en = std::mem::take(&mut self.enemies);
         for b in pb.iter_mut() {
@@ -446,7 +447,7 @@ impl Game {
             b.life -= 1;
             b.age += 1;
             self.bolt_trail(b);
-            if b.life <= 0 || b.x < -8.0 || b.x > WF + 8.0 || b.y < HUDF - 8.0 || b.y > HF + 8.0 {
+            if b.life <= 0 || b.x < -8.0 || b.x > rw + 8.0 || b.y < HUDF - 8.0 || b.y > rh + 8.0 {
                 if b.life <= 0 {
                     self.impact(b.x, b.y, b.el);
                 }
@@ -513,6 +514,7 @@ impl Game {
     }
     pub(super) fn update_ebullets(&mut self) {
         let (px, py) = (self.pl.x, self.pl.y);
+        let (rw, rh) = (self.room_wf(), self.room_hf());
         let mut eb = std::mem::take(&mut self.eb);
         for b in eb.iter_mut() {
             b.x += b.vx;
@@ -522,7 +524,7 @@ impl Game {
             if b.style == Shot::Flame && b.age % 3 == 0 {
                 self.embers(b.x, b.y, 1, 0.4);
             }
-            if b.life <= 0 || b.x < -8.0 || b.x > WF + 8.0 || b.y < HUDF - 8.0 || b.y > HF + 8.0 || self.shot_blocked(b.x, b.y) {
+            if b.life <= 0 || b.x < -8.0 || b.x > rw + 8.0 || b.y < HUDF - 8.0 || b.y > rh + 8.0 || self.shot_blocked(b.x, b.y) {
                 if b.style == Shot::Boulder || b.style == Shot::Fireball {
                     let el = if b.style == Shot::Boulder { Elem::Earth } else { Elem::Fire };
                     self.impact(b.x, b.y, el);
@@ -686,8 +688,8 @@ impl Game {
                 }
             }
         }
-        e.x = e.x.clamp(10.0, WF - 10.0);
-        e.y = e.y.clamp(HUDF + 10.0, HF - 10.0);
+        e.x = e.x.clamp(10.0, self.room_wf() - 10.0);
+        e.y = e.y.clamp(HUDF + 10.0, self.room_hf() - 10.0);
     }
     pub(super) fn update_enemies(&mut self) {
         let mut en = std::mem::take(&mut self.enemies);

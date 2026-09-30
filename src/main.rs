@@ -63,7 +63,7 @@ fn main() -> Result<(), String> {
     let fullscreen = args.iter().any(|a| a == "--fullscreen")
         || (cfg!(target_arch = "aarch64") && !args.iter().any(|a| a == "--windowed"));
 
-    let mut wb = video.window("Elemental Legends", 768, 720);
+    let mut wb = video.window("Elemental Legends", 960, 720);
     wb.position_centered().resizable();
     if fullscreen {
         wb.fullscreen_desktop();
@@ -72,7 +72,7 @@ fn main() -> Result<(), String> {
     let mut canvas = window.into_canvas().present_vsync().build().map_err(|e| e.to_string())?;
     let tc = canvas.texture_creator();
     let mut tex = tc
-        .create_texture_streaming(PixelFormatEnum::ARGB8888, gfx::W as u32, gfx::H as u32)
+        .create_texture_streaming(PixelFormatEnum::ARGB8888, gfx::SW as u32, gfx::SH as u32)
         .map_err(|e| e.to_string())?;
     if fullscreen {
         sdl.mouse().show_cursor(false);
@@ -164,11 +164,11 @@ fn main() -> Result<(), String> {
         game.draw(&mut scr);
         // SAFETY: a Vec<u32> is contiguous; ARGB8888 is a native-endian packed u32 format.
         let bytes = unsafe { std::slice::from_raw_parts(scr.px.as_ptr() as *const u8, scr.px.len() * 4) };
-        tex.update(None, bytes, gfx::W as usize * 4).map_err(|e| e.to_string())?;
+        tex.update(None, bytes, gfx::SW as usize * 4).map_err(|e| e.to_string())?;
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
         let (ww, wh) = canvas.output_size()?;
-        let (gw, gh) = (gfx::W as u32, gfx::H as u32);
+        let (gw, gh) = (gfx::SW as u32, gfx::SH as u32);
         let s = (ww / gw).min(wh / gh);
         let (dw, dh) = if s >= 1 {
             (gw * s, gh * s)
