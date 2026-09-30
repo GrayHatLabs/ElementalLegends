@@ -118,8 +118,8 @@ Door gaps, locked doors, seals and stairs are placed by the game.
 
 | Value | Solved when | Where |
 |---|---|---|
-| `"none"` | never needed | any |
-| `"combat"` | every monster in the room is defeated (doors seal on entry) | any |
+| `"none"` | never needed | any room except lair west / east |
+| `"combat"` | every monster in the room is defeated (doors seal on entry) | cave challenge, lair west / east (the lair hub uses `"combat": true` instead) |
 | `"torches"` | every `torch` is lit with fire | lair west / east |
 | `"plates"` | every `o` has a `block` on it | lair west / east |
 | `"icebridge"` | the reward is reached across frozen water | lair west / east |

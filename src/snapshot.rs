@@ -1142,6 +1142,20 @@ fn encounters(t: &mut T) {
         t.frames(3);
     }
     t.check(t.g.debug_gold() == (g0 + 77).min(9999), "the level's chest holds what the file says (77 gold)");
+    // The shipped example level (levels/cave_2.json) builds as designed.
+    t.g.debug_levels_builtin();
+    let (dx, dy) = t.g.debug_door(c2);
+    t.g.debug_play_room(c2, dx, dy + 30.0);
+    t.g.debug_kill_enemies();
+    t.hold_until(Btn::Up, 200, |g| g.debug_dungeon().map_or(false, |d| d.0 == 8));
+    t.frames(10);
+    t.check(t.g.debug_mobs().len() == 3 && t.g.debug_tile(10, 4) == T_DECOR, "the example cave's mouth room follows levels/cave_2.json");
+    t.g.debug_kill_enemies();
+    t.g.debug_set_player(128.0, 80.0, b'u');
+    t.go_room(Btn::Up, 1);
+    t.frames(10);
+    t.check(t.g.debug_tile(4, 4) == 8 && t.g.debug_tile(11, 4) == 8, "the example cave's plate room has its two plates");
+    t.shot("79_example_level");
     t.g.debug_levels_clear();
 
     // Side quest: the scholar's spellbook teaches Arcane Blink.

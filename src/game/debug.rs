@@ -207,6 +207,13 @@ impl Game {
     pub fn debug_levels_clear(&mut self) {
         self.levels = crate::levels::Levels::default();
     }
+    /// Load the built-in level files (as the real game does, without the override folders).
+    pub fn debug_levels_builtin(&mut self) {
+        self.levels = crate::levels::Levels::default();
+        for (file, text) in crate::levels_gen::LEVELS {
+            self.levels.add(file, text, "built-in");
+        }
+    }
     pub fn debug_add_level(&mut self, file: &str, text: &str) -> bool {
         self.levels.add(file, text, "self-test");
         self.levels.by_name.contains_key(file.trim_end_matches(".json"))

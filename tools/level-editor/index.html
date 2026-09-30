@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elemental Legends Level Editor</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header id="topbar">
+  <div class="brand">Elemental Legends <span>level editor</span></div>
+  <div class="group">
+    <button id="btnNew" title="New level">New</button>
+    <button id="btnOpen" title="Open a level file (Ctrl+O)">Open</button>
+    <button id="btnSave" class="primary" title="Save (Ctrl+S)">Save</button>
+    <button id="btnDownload" title="Download the JSON file">Download</button>
+    <button id="btnFolder" title="Choose the levels folder (Chrome / Edge)">Choose levels folder</button>
+    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  </div>
+  <div class="group">
+    <button id="btnUndo" title="Undo (Ctrl+Z)">Undo</button>
+    <button id="btnRedo" title="Redo (Ctrl+Y)">Redo</button>
+  </div>
+  <div class="group">
+    <button id="btnCheck" class="accent" title="Check the level (K)">Check</button>
+    <button id="btnJson" title="Show / paste JSON">JSON</button>
+    <button id="btnHelp" title="Keyboard shortcuts (?)">Help</button>
+  </div>
+  <div id="fileState"></div>
+</header>
+
+<main id="layout">
+  <aside id="left" class="panel">
+    <section>
+      <h2>Level</h2>
+      <div class="row"><label for="fKind">Kind</label>
+        <select id="fKind"><option value="cave">cave</option><option value="lair">lair</option></select></div>
+      <div class="row"><label for="fNumber">Number</label><input id="fNumber" type="number" min="1" max="8" step="1"></div>
+      <div class="row"><label for="fName">Name</label><input id="fName" type="text" placeholder="(built-in name)" spellcheck="false"></div>
+      <div class="row"><label for="fTheme">Theme</label><select id="fTheme"></select></div>
+      <div id="themeNote" class="note"></div>
+    </section>
+    <section id="roomSection">
+      <h2>Room <span id="roomSlotName"></span></h2>
+      <div id="roomInfo" class="note"></div>
+      <div id="roomFields">
+        <div class="row" id="rowPuzzle"><label for="fPuzzle">Puzzle</label><select id="fPuzzle"></select></div>
+        <div class="row" id="rowCombat"><label for="fCombat">Combat</label>
+          <label class="inline"><input id="fCombat" type="checkbox"> seal for a fight on first visit</label></div>
+        <div class="row"><label for="fRandomOn">Random enemies</label>
+          <span class="inline"><input id="fRandomOn" type="checkbox" title="Override the default count">
+          <input id="fRandom" type="number" min="0" max="30" step="1" class="short"></span></div>
+        <div id="randomNote" class="note"></div>
+        <div id="sizeWarn" class="note" hidden><b>The tiles are not 16 x 13.</b>
+          <button id="btnFixSize" class="small">Fix size</button></div>
+        <button id="btnUndefine" class="danger small">Remove room (use generated)</button>
+      </div>
+    </section>
+    <section id="folderSection" hidden>
+      <h2>Levels folder <button id="btnRefresh" class="small">Refresh</button></h2>
+      <div id="folderName" class="note"></div>
+      <ul id="folderList" class="filelist"></ul>
+    </section>
+  </aside>
+
+  <section id="centre">
+    <nav id="tabs"></nav>
+    <div id="viewbar">
+      <span class="lbl">Zoom</span>
+      <button data-zoom="1" class="small zoom">1x</button>
+      <button data-zoom="2" class="small zoom">2x</button>
+      <button data-zoom="3" class="small zoom">3x</button>
+      <label class="inline"><input type="checkbox" id="tGrid" checked> Grid (L)</label>
+      <label class="inline"><input type="checkbox" id="tFeatures" checked> Game features (F)</label>
+      <label class="inline"><input type="checkbox" id="tMage"> Mage for scale (M)</label>
+      <span id="hoverInfo"></span>
+    </div>
+    <div id="canvasWrap">
+      <div id="undefinedPane" hidden>
+        <p id="undefinedText"></p>
+        <button id="btnDefine" class="primary">Define room</button>
+      </div>
+      <canvas id="grid" width="384" height="312"></canvas>
+    </div>
+    <div id="legend" class="note"></div>
+  </section>
+
+  <aside id="right" class="panel">
+    <section>
+      <h2>Tools</h2>
+      <div class="toolgrid" id="modeButtons">
+        <button data-mode="paint" title="Paint (B)">Paint <kbd>B</kbd></button>
+        <button data-mode="rect" title="Rectangle fill (R)">Rect <kbd>R</kbd></button>
+        <button data-mode="fill" title="Flood fill (G)">Fill <kbd>G</kbd></button>
+        <button data-mode="pick" title="Eyedropper (I, or Alt+click)">Pick <kbd>I</kbd></button>
+        <button data-mode="enemy" title="Place enemies (E)">Enemy <kbd>E</kbd></button>
+        <button data-mode="object" title="Place objects (O)">Object <kbd>O</kbd></button>
+        <button data-mode="select" title="Select / move / delete (V)">Select <kbd>V</kbd></button>
+      </div>
+      <h3>Tile brush</h3>
+      <div class="brushes" id="brushButtons"></div>
+    </section>
+    <section id="placeSection">
+      <h2 id="placeTitle">New enemy</h2>
+      <div id="placeForm"></div>
+    </section>
+    <section id="selSection">
+      <h2>Selected</h2>
+      <div id="selForm" class="note">Nothing selected. Use Select (V) or click a placed thing with the Enemy / Object tool.</div>
+    </section>
+    <section id="checkSection">
+      <h2>Check <span id="checkSummary"></span></h2>
+      <ul id="checkList" class="checklist"><li class="note">Press Check to validate the level.</li></ul>
+    </section>
+  </aside>
+</main>
+
+<div id="dropOverlay" hidden><div>Drop a level .json file to open it</div></div>
+
+<div id="modalBack" hidden>
+  <div class="modal" id="helpModal" hidden>
+    <h2>Keyboard shortcuts</h2>
+    <table class="keys">
+      <tr><td><kbd>1</kbd>-<kbd>7</kbd></td><td>Tile brush: floor, wall, water, ice, crack, plate, decor</td></tr>
+      <tr><td><kbd>B</kbd> <kbd>R</kbd> <kbd>G</kbd> <kbd>I</kbd></td><td>Paint, rectangle fill, flood fill, eyedropper (Alt+click also picks)</td></tr>
+      <tr><td><kbd>E</kbd> <kbd>O</kbd> <kbd>V</kbd></td><td>Place enemy, place object, select / move</td></tr>
+      <tr><td>Right click</td><td>Brushes: paint floor. Enemy / Object / Select: delete the thing on that tile</td></tr>
+      <tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>Delete the selected enemy / object</td></tr>
+      <tr><td>Arrow keys</td><td>Move the selected enemy / object one tile</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Deselect, close dialogs</td></tr>
+      <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next room tab</td></tr>
+      <tr><td><kbd>-</kbd> <kbd>=</kbd></td><td>Zoom out / in</td></tr>
+      <tr><td><kbd>L</kbd> <kbd>F</kbd> <kbd>M</kbd></td><td>Toggle grid, game features (door gaps, locks, stairs), mage sprite</td></tr>
+      <tr><td><kbd>K</kbd></td><td>Check the level</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>Undo / redo (also <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>)</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Save / open</td></tr>
+      <tr><td><kbd>?</kbd></td><td>This help</td></tr>
+    </table>
+    <p class="note">Door gaps, locks, seals and the lair stairs are placed by the game; with
+      <b>Game features</b> on they are drawn as they will appear, outlined in green (doors), amber
+      (lock / seal / crack) and violet (stairs). The mage can be dragged with the Select tool.</p>
+    <div class="modalbtns"><button data-close>Close</button></div>
+  </div>
+  <div class="modal wide" id="jsonModal" hidden>
+    <h2>Level JSON</h2>
+    <textarea id="jsonText" spellcheck="false"></textarea>
+    <div class="modalbtns">
+      <span class="note" id="jsonNote"></span>
+      <button id="btnCopyJson">Copy</button>
+      <button id="btnLoadJson">Load this text</button>
+      <button data-close>Close</button>
+    </div>
+  </div>
+  <div class="modal" id="newModal" hidden>
+    <h2>New level</h2>
+    <div class="row"><label for="nKind">Kind</label>
+      <select id="nKind"><option value="cave">cave</option><option value="lair">lair</option></select></div>
+    <div class="row"><label for="nNumber">Number</label><input id="nNumber" type="number" min="1" max="8" value="1"></div>
+    <p class="note">Every room starts as "not defined" (generated layout). Use Define room on a tab to draw one.</p>
+    <div class="modalbtns"><button id="btnNewOk" class="primary">Create</button><button data-close>Cancel</button></div>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+
+<script src="assets.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>
