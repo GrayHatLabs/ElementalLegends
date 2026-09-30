@@ -109,6 +109,8 @@ The rune/monolith start is unchanged (user decision).
 | Chunky SNES proportions for humanoids | H S | Mage, skeletons, imps, zombie, merchant, dryad, grave lord ~26-28 px; new innkeeper and scholar. Old tall sheets kept in ElementalLegends-art/sheets/_old_tall |
 | Level files (JSON) for caves and lairs | H | docs/LEVEL_FORMAT.md; built in via scripts/import_levels.py, overridden by a levels/ folder; bad files skipped with warnings |
 | Browser level editor | Done (browser-tested by the helper via a local server; not yet used by the user) | tools/level-editor/index.html; example levels/cave_2.json is checked by the self-test |
+| Conquered lairs: rune stone seals the doorway (replaces the flag); walking up slides it aside to re-enter | H S | Puzzles stay solved, monsters return, the stairs no longer lead to the boss |
+| Playtest tuning: Zelda-style knockback both ways, fire rate a third slower, Earth +50% damage, mage takes 40% less damage, monsters 20% slower | H | Knobs: DAMAGE_TAKEN, ENEMY_SPEED, bolt_stats (game.rs); status_hit / kb_weight (combat.rs). Bosses' speed unchanged |
 | Later puzzle batch: sliding ice blocks, element crystals | Queued | User picked these for the next batch |
 
 ## Requested backlog (in agreed order; report back after each)
