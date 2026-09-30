@@ -23,6 +23,7 @@ mod dungeon;
 mod minis;
 mod scenes;
 mod bag;
+mod cave;
 mod status;
 mod village;
 
@@ -453,7 +454,7 @@ pub struct SaveData {
     time: u64,
     heart_price: i32,
     /// Per-dungeon puzzle progress bit flags (see dungeon::D_*).
-    dprog: [u8; 7],
+    dprog: [u8; 15],
     /// Mana potions carried.
     potions: i32,
     /// Overworld encounters discovered / finished (bit per world::MINI_* id).
@@ -491,7 +492,7 @@ impl SaveData {
             room: START_Y * WW + START_X,
             time: 0,
             heart_price: 150,
-            dprog: [0; 7],
+            dprog: [0; 15],
             potions: 1,
             mini_seen: 0,
             mini_done: 0,
@@ -542,7 +543,7 @@ impl SaveData {
                 "spell_lv" => s.spell_lv = (num() as i32).clamp(1, 3),
                 "speed" => s.speed = (num() as f32).clamp(1.0, 2.5),
                 "cleared" => {
-                    for (i, x) in v.split(',').enumerate().take(7) {
+                    for (i, x) in v.split(',').enumerate().take(15) {
                         s.cleared[i] = x.trim() == "1";
                     }
                 }
@@ -974,7 +975,18 @@ impl Game {
     }
     /// Player movement with corner-sliding so doorways are easy to slip into.
     fn move_player(&self, p: &mut Player, dx: f32, dy: f32) -> (bool, bool) {
-        let (hx, hy) = self.move_box(&mut p.x, &mut p.y, p.w, p.h, dx, dy);
+        let (mut hx, mut hy) = self.move_box(&mut p.x, &mut p.y, p.w, p.h, dx, 0.0);
+        // In caves frozen monsters are solid blocks you can shove.
+        let ice = |p: &Player| self.in_cave() && self.enemies.iter().any(|e| !e.dead && e.st.frozen() && hit(e.x, e.y, e.w, e.h, p.x, p.y, p.w, p.h));
+        if dx != 0.0 && !hx && ice(p) && !ice(&Player { x: p.x - dx, ..*p }) {
+            p.x -= dx;
+            hx = true;
+        }
+        hy |= self.move_box(&mut p.x, &mut p.y, p.w, p.h, 0.0, dy).1;
+        if dy != 0.0 && !hy && ice(p) && !ice(&Player { y: p.y - dy, ..*p }) {
+            p.y -= dy;
+            hy = true;
+        }
         let nudge = |g: &Game, p: &mut Player, along_y: bool, d: f32| {
             for k in 1..=6 {
                 for s in [1.0f32, -1.0] {
@@ -1242,7 +1254,7 @@ impl Game {
         }
         let (th, special, gate, sp, cells) = {
             let r = &self.rooms[self.room];
-            (r.theme, r.gate > 0 || r.tank || r.cache || r.shrine.is_some(), r.gate > 0, r.special, (r.cw * r.ch) as i32)
+            (r.theme, r.gate > 0 || r.cave > 0 || r.tank || r.cache || r.shrine.is_some(), r.gate > 0, r.special, (r.cw * r.ch) as i32)
         };
         if sp != SP_NONE {
             return;
@@ -1701,6 +1713,15 @@ impl Game {
             0
         }
     }
+    /// The doorway of a screen's building or cave mouth (logic position just below it).
+    fn door_pos(&self, ri: usize) -> (f32, f32) {
+        let r = &self.rooms[ri];
+        if r.cave > 0 {
+            ((r.cave_door.0 * TS) as f32, (HUD + r.cave_door.1 * TS + 8) as f32)
+        } else {
+            (GATE_X, GATE_Y)
+        }
+    }
     fn room_objects(&mut self) {
         let ri = self.room;
         let (px, py) = (self.pl.x, self.pl.y);
@@ -1710,6 +1731,14 @@ impl Game {
             let r = &self.rooms[ri];
             (r.gate, r.tank, r.cache, r.chest, r.shrine, r.special)
         };
+        let cave = self.rooms[ri].cave;
+        if cave > 0 {
+            let (dx, dy) = self.door_pos(ri);
+            if (px - dx).abs() < 12.0 && py < dy + 8.0 && py > dy - 20.0 {
+                self.begin_enter_dungeon(cave::LAIRS + cave);
+                return;
+            }
+        }
         if gate > 0 {
             // The building's doorway sits just below its footprint.
             let at_door = (px - GATE_X).abs() < 12.0 && py < GATE_Y + 8.0;
@@ -2021,7 +2050,7 @@ mod tests {
         let s = SaveData::from_text(old).expect("parse");
         assert_eq!(s.gold, 77);
         assert!(s.cleared[1]);
-        assert_eq!(s.dprog, [0; 7]);
+        assert_eq!(s.dprog, [0; 15]);
         // Saves from before the overworld encounters: nothing discovered or finished yet.
         assert_eq!((s.mini_seen, s.mini_done, s.hoard_left, s.zombies, s.antidotes), (0, 0, -1, 0, 0));
     }

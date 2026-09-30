@@ -407,8 +407,9 @@ impl Game {
         self.update_parts();
         let t = self.t;
         let p = ease(t as f32 / 30.0);
-        self.pl.x = self.walk_from.0 + (GATE_X - self.walk_from.0) * p;
-        self.pl.y = self.walk_from.1 + (GATE_Y - 12.0 - self.walk_from.1) * p;
+        let (gx, gy) = self.door_pos(self.gate_room);
+        self.pl.x = self.walk_from.0 + (gx - self.walk_from.0) * p;
+        self.pl.y = self.walk_from.1 + (gy - 12.0 - self.walk_from.1) * p;
         self.pl.walk += 1;
         self.pl.moving = t < 30;
         if t >= 60 {

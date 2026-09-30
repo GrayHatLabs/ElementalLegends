@@ -145,6 +145,40 @@ impl Game {
             }
         }
     }
+    /// A rocky hillside with a dark cave mouth; a small flag once the cave is cleared.
+    fn draw_cave_mouth(&self, scr: &mut Screen, ri: usize, ox: i32, oy: i32) {
+        let r = &self.rooms[ri];
+        let (dx, dy) = self.door_pos(ri);
+        let (x, base) = (dx as i32 + ox, dy as i32 - 8 + oy);
+        let art = [format!("obj_cave_{}", r.theme.min(3)), "obj_cave".to_string()];
+        if !art.iter().any(|a| self.obj_hd(scr, a, x as f32, base as f32)) {
+            let (rock, lit, dark) = match r.theme {
+                0 => (0x6c7458, 0x8c9470, 0x3c4430),
+                1 => (0x60606c, 0x84848c, 0x34343c),
+                2 => (0x5c5040, 0x7c6c58, 0x342c20),
+                _ => (0x4c3434, 0x6c4c44, 0x2c1c1c),
+            };
+            for row in 0..44 {
+                let w = 34 - (row * row) / 70;
+                scr.fill(x - w, base - row, w * 2, 1, rgb(rock));
+                scr.fill(x - w, base - row, 3, 1, rgb(lit));
+                scr.fill(x + w - 3, base - row, 3, 1, rgb(dark));
+            }
+            for &(bx, by, br) in &[(-22, -6, 5), (20, -9, 6), (-10, -30, 4), (12, -34, 3)] {
+                scr.disc(x + bx, base + by, br, rgb(lit));
+            }
+            if r.theme == 0 {
+                scr.fill(x - 30, base - 4, 10, 4, rgb(0x2c6c1c));
+                scr.fill(x + 16, base - 3, 12, 3, rgb(0x2c6c1c));
+            }
+            scr.fill(x - 9, base - 20, 18, 20, rgb(0x080808));
+            scr.disc(x, base - 20, 9, rgb(0x080808));
+        }
+        if self.cave_cleared(r.cave) {
+            scr.line(x + 22, base - 2, x + 22, base - 18, rgb(0x5c3410));
+            scr.fill(x + 23, base - 18, 8, 5, rgb(0x58d854));
+        }
+    }
     pub(super) fn draw_room_objs(&self, scr: &mut Screen, ri: usize, ox: i32, oy: i32) {
         let r = &self.rooms[ri];
         let (gx, gy) = r.center();
@@ -152,6 +186,9 @@ impl Game {
         let bob = if (self.frame >> 4) & 1 == 1 { 1.0 } else { 0.0 };
         if r.gate > 0 {
             self.draw_building(scr, r.gate, ox, oy);
+        }
+        if r.cave > 0 {
+            self.draw_cave_mouth(scr, ri, ox, oy);
         }
         if r.special == SP_MONOLITH {
             self.draw_monolith(scr, ox, oy, 5, true);
@@ -296,7 +333,7 @@ impl Game {
                 }
             }
         }
-        if d.cur == R_STAIRS {
+        if d.cur == R_STAIRS && !d.cave {
             let (sx, sy) = (STAIRS_C * TS, HUD + STAIRS_R * TS);
             if room.tiles[STAIRS_R as usize][STAIRS_C as usize] == T_BARRIER {
                 let a = 0.3 + (self.frame as f32 * 0.1).sin().abs() * 0.25;
@@ -1152,7 +1189,7 @@ impl Game {
         }
         let pc = if n > 0 { rgb(0x3cbcfc) } else { rgb(0x747474) };
         scr.text(&n.to_string(), 109, 16, pc, Align::Left, 8);
-        if self.dungeon.is_some() && self.in_lair == 0 {
+        if self.dungeon.is_some() && self.in_lair == 0 && !self.in_cave() {
             scr.spr(&self.spr.key.img, 126.0, 20.0, false);
             scr.text(&format!("X{}", self.dungeon_keys()), 132, 16, rgb(0xfcbc3c), Align::Left, 8);
         } else {
@@ -1227,6 +1264,10 @@ impl Game {
             if r.chest.is_some() && !self.s.opened.contains(&r.i) {
                 dot(scr, 6, rgb(0xa85020));
             }
+            if r.cave > 0 {
+                let c = if self.cave_cleared(r.cave) { rgb(0x747474) } else { rgb(0xd8b878) };
+                scr.text("C", x + cw / 2 + 1, y + 5, c, Align::Center, 8);
+            }
             if r.special == SP_MONOLITH {
                 scr.text("M", x + cw / 2 + 1, y + 5, rgb(0xa4e4fc), Align::Center, 8);
             }
@@ -1249,7 +1290,7 @@ impl Game {
         scr.text(&format!("{} MAGIC: {}", el.name(), SPELL_NAMES[el.idx()]), 128, y, el.light(), Align::Center, 8);
         let slot = self.slot();
         scr.text(&format!("LV{} RUNES {}/5  BAG: < {} X{} >", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count(), slot.name(), self.slot_count(slot)), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
-        scr.text("M MONOLITH V VILLAGE RED ENCOUNTER", 128, y + 26, rgb(0x747474), Align::Center, 8);
+        scr.text("M MONOLITH  V VILLAGE  C CAVE", 128, y + 26, rgb(0x747474), Align::Center, 8);
     }
     fn draw_dungeon_map(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };

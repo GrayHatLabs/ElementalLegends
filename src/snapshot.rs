@@ -69,6 +69,7 @@ const T_ICE: u8 = 3;
 const T_FLOOR: u8 = 0;
 const T_STAIRS: u8 = 9;
 const T_DECOR: u8 = 10;
+const T_SEAL: u8 = 6;
 const R_ENTRY: usize = 0;
 const R_HUB: usize = 1;
 const R_WEST: usize = 2;
@@ -1007,7 +1008,88 @@ fn encounters(t: &mut T) {
         t.check(t.g.debug_mini_done(2) && t.g.debug_max().0 == mh0 + 4, "defeating the dryad gives a heart container");
     }
 
-    // ---------------------------------------------------------------- fruit trees + angry treant
+    // ---------------------------------------------------------------- optional caves
+    println!("[caves] optional caves: fights, freeze puzzles, treasure");
+    t.g.debug_god();
+    let caves: Vec<usize> = (1..=8).filter_map(|k| t.g.debug_cave_room(k)).collect();
+    t.check(caves.len() == 8, "eight optional caves are hidden around the world");
+    // Cave 1: two rooms, a sealed-door fight, then the treasure.
+    let c1 = caves[0];
+    let (dx, dy) = t.g.debug_door(c1);
+    t.g.debug_play_room(c1, dx, dy + 30.0);
+    t.g.debug_kill_enemies();
+    t.frames(20);
+    t.shot("70_cave_mouth");
+    let b0 = t.g.debug_bag().1;
+    let went_in = t.hold_until(Btn::Up, 200, |g| g.debug_dungeon().map_or(false, |d| d.0 == 7));
+    t.check(went_in, "walking into a cave mouth enters the cave");
+    t.frames(10);
+    t.check(t.g.debug_dungeon_sealed(), "the first cave's chamber seals for a fight");
+    t.shot("71_cave_fight");
+    t.g.debug_kill_enemies();
+    t.frames(5);
+    t.check(!t.g.debug_dungeon_sealed() && t.g.debug_dungeon().map_or(false, |d| d.2 & 8 != 0), "beating the monsters opens the way deeper");
+    t.g.debug_set_player(128.0, 80.0, b'u');
+    let deeper = t.go_room(Btn::Up, 1);
+    t.check(deeper, "the treasure room lies beyond");
+    t.frames(10);
+    let chest = t.obj("chest");
+    t.check(chest.map_or(false, |c| !c.2), "a closed treasure chest waits there");
+    if let Some((c, r, _, _)) = chest {
+        let (x, y) = tc(c, r);
+        t.g.debug_set_player(x, y + 20.0, b'u');
+        t.walk_to(x, y + 10.0, 60);
+        t.frames(3);
+    }
+    t.check(t.g.debug_bag().1 == (b0 + 5).min(9), "the first cave's chest holds five bombs");
+    t.check(t.g.debug_cave_cleared(1), "the cave counts as cleared");
+    t.shot("72_cave_treasure");
+    t.g.debug_set_player(128.0, 190.0, b'd');
+    t.go_room(Btn::Down, 0);
+    let out = t.hold_until(Btn::Down, 300, move |g| g.debug_dungeon().is_none() && g.debug_room() == c1);
+    t.check(out, "leaving the cave returns to its mouth on the overworld");
+    t.frames(10);
+    t.shot("73_cave_cleared_flag");
+
+    // Cave 2: three rooms; freeze a monster and shove it onto the pressure plate.
+    let c2 = caves[1];
+    let (dx, dy) = t.g.debug_door(c2);
+    t.g.debug_play_room(c2, dx, dy + 30.0);
+    t.g.debug_kill_enemies();
+    t.hold_until(Btn::Up, 200, |g| g.debug_dungeon().map_or(false, |d| d.0 == 8));
+    t.frames(10);
+    t.g.debug_kill_enemies();
+    t.g.debug_set_player(128.0, 80.0, b'u');
+    let ok = t.go_room(Btn::Up, 1);
+    t.check(ok, "the second cave has a mouth room before the puzzle");
+    t.frames(40);
+    t.check(t.g.debug_tile(8, 0) == T_SEAL, "the way to the treasure is sealed");
+    let foes = t.g.debug_mobs();
+    t.check(foes.len() >= 2, "tough puzzle monsters roam the plate room");
+    t.shot("74_cave_plate_room");
+    if let Some(f) = foes.first() {
+        let (px, py) = tc(8, 4);
+        t.g.debug_freeze_at(f.id, px, py + 18.0);
+        t.g.debug_set_player(px, py + 40.0, b'u');
+        t.frames(2);
+        let solved = t.hold_until(Btn::Up, 120, |g| g.debug_tile(8, 0) != T_SEAL);
+        t.check(solved, "shoving a frozen monster onto the plate opens the way");
+        t.shot("75_cave_plate_solved");
+    }
+    t.g.debug_kill_enemies();
+    t.g.debug_set_player(128.0, 80.0, b'u');
+    let ok = t.go_room(Btn::Up, 4);
+    t.check(ok, "the treasure room opens up");
+    t.frames(10);
+    if let Some((c, r, _, _)) = t.obj("chest") {
+        let (x, y) = tc(c, r);
+        t.g.debug_set_player(x, y + 20.0, b'u');
+        t.walk_to(x, y + 10.0, 60);
+        t.frames(3);
+    }
+    t.check(t.g.debug_cave_cleared(2), "the second cave's treasure is claimed");
+
+
     println!("[encounter] fruit trees and the angry treant");
     t.g.debug_god();
     t.g.debug_set_element(2);

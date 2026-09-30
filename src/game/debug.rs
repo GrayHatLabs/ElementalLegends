@@ -58,6 +58,25 @@ impl Game {
             .map(|e| DebugMob { id: e.id, kind: format!("{:?}", e.k), x: e.x, y: e.y, mode: e.mode, hp: e.hp, active: e.active() })
             .collect()
     }
+    /// Overworld screen holding cave k (1-based).
+    pub fn debug_cave_room(&self, k: usize) -> Option<usize> {
+        self.rooms.iter().find(|r| r.cave == k).map(|r| r.i)
+    }
+    pub fn debug_door(&self, room: usize) -> (f32, f32) {
+        self.door_pos(room)
+    }
+    pub fn debug_cave_cleared(&self, k: usize) -> bool {
+        self.cave_cleared(k)
+    }
+    /// Move a monster and freeze it solid (for the cave plate puzzle).
+    pub fn debug_freeze_at(&mut self, id: u32, x: f32, y: f32) {
+        if let Some(e) = self.enemies.iter_mut().find(|e| e.id == id) {
+            e.x = x;
+            e.y = y;
+            e.spawn = 0;
+            e.st.freeze_now(600);
+        }
+    }
     pub fn debug_mob(&self, kind: &str) -> Option<DebugMob> {
         self.debug_mobs().into_iter().find(|m| m.kind == kind)
     }

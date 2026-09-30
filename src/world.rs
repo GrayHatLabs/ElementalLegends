@@ -104,6 +104,10 @@ pub struct Room {
     pub links: Vec<Link>,
     pub visited: bool,
     pub gate: usize,
+    /// Optional cave entrance on this screen (1..=CAVES), 0 for none.
+    pub cave: usize,
+    /// Where the cave mouth opens: logic x of its centre line and the tile row just below it.
+    pub cave_door: (i32, i32),
     pub tank: bool,
     pub cache: bool,
     pub dist: i32,
@@ -148,7 +152,7 @@ impl Room {
     }
     pub fn sized(i: usize, x: usize, y: usize, seed: u32, cw: usize, ch: usize) -> Self {
         Room {
-            i, x, y, cw, ch, doors: [false; 4], links: vec![], visited: false, gate: 0, tank: false, cache: false,
+            i, x, y, cw, ch, doors: [false; 4], links: vec![], visited: false, gate: 0, cave: 0, cave_door: (8, 6), tank: false, cache: false,
             dist: -1, theme: 0, seed, special: SP_NONE, tiles: vec![vec![0; RC * cw]; RR * ch], img: Sprite::new(1, 1), img_hd: None,
             chest: None, shrine: None, mini: 0, mini_dir: 0, trees: vec![], treant: None, graves: vec![], pool: None,
             fruit: false,
@@ -188,6 +192,7 @@ impl Room {
             && self.dist >= 2
             && self.i != shop
             && self.gate == 0
+            && self.cave == 0
             && !self.tank
             && !self.cache
             && self.special == SP_NONE
@@ -431,10 +436,29 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
         }
     }
     assign_minis(&mut rooms, start, shop);
+    assign_caves(&mut rooms, start, shop);
     for r in rooms.iter_mut() {
         build_room(r, themes);
     }
     (rooms, start, shop)
+}
+
+/// Optional caves to clear, numbered from the nearest (1) to the farthest (CAVES).
+pub const CAVES: usize = 8;
+fn assign_caves(rooms: &mut [Room], start: usize, shop: usize) {
+    // Plain single screens and wilderness areas (their mouth opens at the area's centre).
+    let ok = |r: &Room| r.free(start, shop) || (r.big() && r.dist >= 2 && r.special == SP_NONE && r.gate == 0 && r.mini == 0);
+    let mut spots: Vec<usize> = rooms.iter().filter(|r| ok(r)).map(|r| r.i).collect();
+    spots.sort_by_key(|&i| (rooms[i].dist, rooms[i].seed));
+    // Spread them out: evenly spaced along the distance order.
+    let n = spots.len();
+    let want = CAVES.min(n);
+    for k in 0..want {
+        let i = spots[k * n / want];
+        let r = &mut rooms[i];
+        r.cave = k + 1;
+        r.cave_door = ((r.cols() / 2) as i32, if r.big() { r.rows() as i32 / 2 } else { 6 });
+    }
 }
 
 /// Fixed screens for the overworld mini-boss encounters (deterministic per world).
@@ -561,6 +585,16 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
                     r.treant = Some(r.trees.len() - 1);
                 }
             }
+            if r.cave > 0 {
+                // A rocky hillside with the mouth above cave_door (like a building door),
+                // and open ground in front of it.
+                let (dc, dr) = (r.cave_door.0 as usize, r.cave_door.1 as usize);
+                for y in dr - 3..=dr + 1 {
+                    for x in dc - 3..=dc + 2 {
+                        r.tiles[y][x] = if y < dr && (dc - 2..=dc + 1).contains(&x) { T_DECOR } else { T_FLOOR };
+                    }
+                }
+            }
             if r.gate > 0 {
                 // Dungeon building footprint; the doorway is just below it at the room centre.
                 for y in 2..=5 {
@@ -595,7 +629,7 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
                     break;
                 }
             }
-            if r.gate == 0 && !r.tank && !r.cache && !clean && r.mini == 0 && rng.f() < 0.14 {
+            if r.gate == 0 && r.cave == 0 && !r.tank && !r.cache && !clean && r.mini == 0 && rng.f() < 0.14 {
                 r.shrine = Some((rng.f() * 4.0) as usize);
             }
         }
@@ -910,6 +944,16 @@ mod tests {
         assert!(!rooms[start].big() && !rooms[shop].big(), "monolith and shop are single screens");
         assert!((2..=3).contains(&rooms[shop].dist), "the village is two or three areas from the monolith");
         assert!(rooms[shop].x.abs_diff(START_X) + rooms[shop].y.abs_diff(START_Y) >= 2, "the village isn't next door on the map");
+        let caves: Vec<&Room> = rooms.iter().filter(|r| r.cave > 0).collect();
+        assert_eq!(caves.len(), CAVES, "every cave has a screen");
+        assert!(caves.iter().all(|r| r.gate == 0 && r.mini == 0 && r.special == SP_NONE && r.dist >= 2), "caves are on screens of their own");
+        for r in &caves {
+            let (c, y) = (r.cave_door.0 as usize, r.cave_door.1 as usize);
+            assert!(r.tiles[y][c] == T_FLOOR && r.tiles[y][c - 1] == T_FLOOR && r.tiles[y - 1][c] == T_DECOR, "cave {} has an open mouth", r.cave);
+        }
+        for k in 1..=CAVES {
+            assert_eq!(caves.iter().filter(|r| r.cave == k).count(), 1, "cave {k} exists once");
+        }
         for n in 1..=6 {
             let g: Vec<&Room> = rooms.iter().filter(|r| r.gate == n).collect();
             assert_eq!(g.len(), 1, "exactly one building for lair {n}");

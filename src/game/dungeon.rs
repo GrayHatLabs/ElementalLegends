@@ -31,7 +31,7 @@ pub(super) const R_FEAST: usize = 5;
 /// Hidden pantry (dungeons 2-6), behind a cracked wall east of the entrance.
 pub(super) const R_PANTRY: usize = 6;
 pub(super) const D_PANTRY: u8 = 128;
-const GRID: [(i32, i32); 7] = [(1, 2), (1, 1), (0, 1), (2, 1), (1, 0), (0, 2), (2, 2)];
+pub(super) const GRID: [(i32, i32); 7] = [(1, 2), (1, 1), (0, 1), (2, 1), (1, 0), (0, 2), (2, 2)];
 /// Food laid out in each food room: (kind, col, row).
 fn larder_stock(room: usize) -> Vec<(IK, i32, i32)> {
     match room {
@@ -68,6 +68,8 @@ pub(super) enum Puz {
     IceBridge,
     /// Break a cracked wall to find a hidden alcove.
     Hidden,
+    /// Caves: freeze a monster and push it onto each pressure plate.
+    FreezePlate,
 }
 
 /// (hub is a combat room, west puzzle, east puzzle)
@@ -82,6 +84,9 @@ pub(super) fn layout(n: usize) -> (bool, Puz, Puz) {
     }
 }
 pub(super) fn dungeon_name(n: usize) -> &'static str {
+    if cave::is_cave(n) {
+        return cave::cave_name(n);
+    }
     ["", "OVERGROWN SHRINE", "UNDERGROUND CRYPT", "RUINED CASTLE", "DRAGON FORTRESS", "FORGOTTEN SANCTUARY", "DARK TOWER"]
         [n.min(6)]
 }
@@ -113,7 +118,7 @@ pub(super) struct Obj {
     pub home: (i32, i32),
 }
 impl Obj {
-    fn new(k: OK, c: i32, r: i32) -> Self {
+    pub(super) fn new(k: OK, c: i32, r: i32) -> Self {
         Obj { k, c, r, on: false, visible: true, slide: 0, sdx: 0, sdy: 0, home: (c, r) }
     }
     pub fn solid(&self) -> bool {
@@ -144,9 +149,13 @@ pub(super) struct Dungeon {
     pub crack_hits: Vec<(usize, i32, i32, i32)>,
     pub seen: [bool; 7],
     pub warned: bool,
+    /// An optional cave (see cave.rs) rather than a lair dungeon.
+    pub cave: bool,
+    /// Tileset theme index for the walls.
+    pub theme: usize,
 }
 
-fn neighbor(i: usize, d: usize, has: &[bool; 7]) -> Option<usize> {
+pub(super) fn neighbor(i: usize, d: usize, has: &[bool; 7]) -> Option<usize> {
     let (x, y) = (GRID[i].0 + DIRS[d].0, GRID[i].1 + DIRS[d].1);
     let food = |r: usize| r == R_FEAST || r == R_PANTRY;
     GRID.iter()
@@ -262,7 +271,7 @@ pub(super) fn build_dungeon(n: usize, themes: &[Theme], prog: u8) -> Dungeon {
         .collect();
     Dungeon {
         n, rooms, objs, puz, has, larder, hub_combat, cur: R_ENTRY, dirty: false, sealed: false, push_t: 0,
-        crack_hits: vec![], seen: [false; 7], warned: false,
+        crack_hits: vec![], seen: [false; 7], warned: false, cave: false, theme: dungeon_theme(n),
     }
 }
 
@@ -338,14 +347,15 @@ fn build_puzzle(r: &mut Room, o: &mut Vec<Obj>, p: Puz, east: bool, solved: bool
             r.tiles[6][mc(4, east) as usize] = if broken { T_FLOOR } else { T_CRACK };
             reward(o, mc(2, east), 6, false);
         }
+        Puz::FreezePlate => {}
     }
 }
 
 impl Game {
-    fn dprog(&self) -> u8 {
+    pub(super) fn dprog(&self) -> u8 {
         self.dungeon.as_ref().map_or(0, |d| self.s.dprog[d.n])
     }
-    fn set_dprog(&mut self, flag: u8) {
+    pub(super) fn set_dprog(&mut self, flag: u8) {
         if let Some(n) = self.dungeon.as_ref().map(|d| d.n) {
             self.s.dprog[n] |= flag;
             self.save();
@@ -358,7 +368,13 @@ impl Game {
 
     /// Called after the entrance cinematic: build the dungeon and step inside.
     pub(super) fn start_dungeon(&mut self, n: usize) {
-        let d = build_dungeon(n, &self.themes, self.s.dprog[n]);
+        let d = if cave::is_cave(n) {
+            let region = self.rooms[self.gate_room].theme;
+            cave::build_cave(n, region, &self.themes, self.s.dprog[n])
+        } else {
+            build_dungeon(n, &self.themes, self.s.dprog[n])
+        };
+        let cave = d.cave;
         self.dungeon = Some(d);
         self.in_lair = 0;
         self.arena = None;
@@ -372,13 +388,19 @@ impl Game {
         self.pan_y = 0.0;
         self.enter_droom();
         self.follow_cam(true);
-        self.show_msg(format!("{}. FIND THE KEY AND BREAK THE SEAL ON THE STAIRS.", dungeon_name(n)));
+        if !cave {
+            self.show_msg(format!("{}. FIND THE KEY AND BREAK THE SEAL ON THE STAIRS.", dungeon_name(n)));
+        }
         self.play_song(Some(Song::Dungeon));
     }
 
     /// Room entry: spawns, combat seals, block resets and hints.
     pub(super) fn enter_droom(&mut self) {
         self.clear_entities();
+        if self.in_cave() {
+            self.enter_cave_room();
+            return;
+        }
         let prog = self.dprog();
         let Some(d) = self.dungeon.as_mut() else { return };
         let cur = d.cur;
@@ -462,7 +484,8 @@ impl Game {
         let Some(d) = self.dungeon.as_ref() else { return };
         if d.cur == R_ENTRY && dir == 1 {
             let r = self.gate_room;
-            self.go_play(r, GATE_X, SPAWN_Y, false);
+            let (x, y) = self.door_pos(r);
+            self.go_play(r, x, y + SPAWN_Y - GATE_Y, false);
             self.fade = 24;
             return;
         }
@@ -494,7 +517,7 @@ impl Game {
         if let Some(d) = self.dungeon.as_mut() {
             if d.dirty {
                 let cur = d.cur;
-                render(&mut d.rooms[cur], &themes[dungeon_theme(d.n)]);
+                render(&mut d.rooms[cur], &themes[d.theme]);
                 d.dirty = false;
             }
         }
@@ -657,7 +680,7 @@ impl Game {
                         sr.tiles[(STAIRS_R + dy) as usize][(STAIRS_C + dx) as usize] = T_STAIRS;
                     }
                 }
-                render(sr, &themes[dungeon_theme(d.n)]);
+                render(sr, &themes[d.theme]);
             }
             self.show_msg("SOMEWHERE NEARBY, A MAGIC SEAL SHATTERS...");
             self.sfx(Sfx::Rumble);
@@ -685,6 +708,10 @@ impl Game {
     // ------------------------------------------------------------ per-frame logic
     /// Player-driven interactions: pushing blocks, doors, stairs, chests, shrines, levers.
     pub(super) fn dungeon_player(&mut self, ix: f32, iy: f32, blocked: (bool, bool)) {
+        if self.in_cave() {
+            self.cave_player(ix, iy, blocked);
+            return;
+        }
         self.try_push(ix, iy, blocked);
         let (px, py) = (self.pl.x, self.pl.y);
         let cur = self.dungeon.as_ref().map_or(0, |d| d.cur);
@@ -811,6 +838,10 @@ impl Game {
     }
     /// Puzzle checks and animations each frame.
     pub(super) fn dungeon_update(&mut self) {
+        if self.in_cave() {
+            self.cave_update();
+            return;
+        }
         let prog = self.dprog();
         let Some(d) = self.dungeon.as_mut() else { return };
         let cur = d.cur;
