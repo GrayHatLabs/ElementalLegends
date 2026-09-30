@@ -267,12 +267,12 @@ impl Game {
                             self.damage_enemy(e, 2.0, el);
                         }
                         e.st.stun(50);
-                        self.damage_enemy(e, 3.0, el);
+                        self.damage_enemy(e, 4.5, el);
                     }
                 }
                 en.append(&mut self.enemies);
                 self.enemies = en;
-                self.boss_hit(5.0, el, px, py, 0.0, 0.0);
+                self.boss_hit(7.0, el, px, py, 0.0, 0.0);
                 self.quake_cracks();
                 for _ in 0..24 {
                     let (x, y) = (self.rng.range(self.cam.0 + 8.0, self.cam.0 + VIEW_W - 8.0), self.rng.range(self.cam.1 + 8.0, self.cam.1 + VIEW_H - 8.0));
