@@ -184,6 +184,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     });
     let mut t = T { g: Game::new(None), scr: Screen::new(), input: Input::default(), dir, fails: vec![], passes: 0 };
     t.g.debug_no_save();
+    t.g.debug_levels_clear();
     t.g.debug_seed(0xE1E7);
 
     // ---------------------------------------------------------------- title & monolith start
@@ -1111,6 +1112,37 @@ fn encounters(t: &mut T) {
     }
     t.check(t.g.debug_cave_cleared(2), "the second cave's treasure is claimed");
     t.check(t.g.debug_quest().0 == 1, "the second cave's chest also holds a spellbook page");
+
+    // A hand-made level file replaces a cave's generated rooms.
+    println!("[levels] a level file lays out cave 3");
+    let level = include_str!("selftest_cave_3.json");
+    let loaded = t.g.debug_add_level("cave_3.json", level);
+    t.check(loaded, "a cave level file loads");
+    let c3 = caves[2];
+    let (dx, dy) = t.g.debug_door(c3);
+    t.g.debug_play_room(c3, dx, dy + 30.0);
+    t.g.debug_kill_enemies();
+    t.hold_until(Btn::Up, 200, |g| g.debug_dungeon().map_or(false, |d| d.0 == 9));
+    t.frames(10);
+    t.check(t.g.debug_tile(4, 3) == T_DECOR && t.g.debug_tile(8, 0) == T_SEAL, "the level's tiles are used, with the doors still sealed");
+    let mobs = t.g.debug_mobs();
+    t.check(mobs.len() == 2 && mobs.iter().all(|m| m.kind == "Skeleton"), "the level's monsters are placed (and no random ones)");
+    t.shot("78_level_cave");
+    t.g.debug_kill_enemies();
+    t.frames(5);
+    t.g.debug_set_player(128.0, 80.0, b'u');
+    let ok = t.go_room(Btn::Up, 1);
+    t.check(ok, "beating the level's fight opens the way to its treasure");
+    t.frames(10);
+    let g0 = t.g.debug_gold();
+    if let Some((c, r, _, _)) = t.obj("chest") {
+        let (x, y) = tc(c, r);
+        t.g.debug_set_player(x, y + 20.0, b'u');
+        t.walk_to(x, y + 10.0, 60);
+        t.frames(3);
+    }
+    t.check(t.g.debug_gold() == (g0 + 77).min(9999), "the level's chest holds what the file says (77 gold)");
+    t.g.debug_levels_clear();
 
     // Side quest: the scholar's spellbook teaches Arcane Blink.
     println!("[quest] spellbook pages and Arcane Blink");

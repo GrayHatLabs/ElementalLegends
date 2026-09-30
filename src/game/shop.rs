@@ -45,6 +45,7 @@ pub(super) fn build_shop(themes: &[Theme]) -> Dungeon {
     Dungeon {
         n: SHOP_N, rooms, objs: vec![vec![]; 7], puz: [None; 7], has, larder: vec![vec![]; 7], hub_combat: false, cur: R_ENTRY,
         dirty: false, sealed: false, push_t: 0, crack_hits: vec![], seen: [false; 7], warned: false, cave: false, theme,
+        spawns: vec![vec![]; 7], random: vec![None; 7], chal: R_ENTRY, treasure: R_ENTRY,
     }
 }
 

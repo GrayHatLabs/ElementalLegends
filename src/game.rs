@@ -675,6 +675,8 @@ pub struct Game {
     spr: Sprites,
     /// Native-resolution art from the generated sheets (falls back to spr).
     art: crate::art::Art,
+    /// Hand-made cave and lair rooms (levels/*.json).
+    levels: crate::levels::Levels,
     themes: Vec<Theme>,
     audio: Option<AudioDevice<Synth>>,
     has_save: bool,
@@ -750,6 +752,7 @@ impl Game {
             next_id: 1,
             spr: Sprites::new(),
             art: crate::art::Art::load(),
+            levels: crate::levels::Levels::load(),
             themes: build_themes(),
             audio,
             has_save: load_save().is_some(),

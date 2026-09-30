@@ -1,6 +1,6 @@
 //! Rendering: the play field, entities, effects, HUD, maps and menus.
 use super::bosses::{draw_flames, draw_ice_block, BState};
-use super::dungeon::{dungeon_name, Obj, OK, R_EAST, R_ENTRY, R_FEAST, R_HUB, R_PANTRY, R_STAIRS, R_WEST, STAIRS_C, STAIRS_R};
+use super::dungeon::{Obj, OK, R_EAST, R_ENTRY, R_FEAST, R_HUB, R_PANTRY, R_STAIRS, R_WEST, STAIRS_C, STAIRS_R};
 use super::*;
 
 impl Game {
@@ -1316,7 +1316,7 @@ impl Game {
     fn draw_dungeon_map(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };
         scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.88);
-        scr.text(&format!("- {} -", dungeon_name(d.n)), 128, HUD + 6, rgb(0xfcbc3c), Align::Center, 8);
+        scr.text(&format!("- {} -", self.dname(d.n)), 128, HUD + 6, rgb(0xfcbc3c), Align::Center, 8);
         let prog = self.s.dprog[d.n];
         let (cw, ch) = (48, 30);
         let (ox, oy) = (128 - cw * 3 / 2, HUD + 26);

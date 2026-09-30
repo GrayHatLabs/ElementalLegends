@@ -12,6 +12,7 @@
 //! Puzzle monsters that die are replaced, so the freeze puzzle can never soft-lock.
 use super::dungeon::*;
 use super::*;
+use crate::levels::{Level, Loot};
 
 /// Dungeon numbers 1..=LAIRS are the lairs; caves follow.
 pub(super) const LAIRS: usize = 6;
@@ -70,11 +71,34 @@ fn plate_spots(n: usize) -> &'static [(i32, i32)] {
     }
 }
 
-pub(super) fn build_cave(n: usize, region: usize, themes: &[Theme], prog: u8) -> Dungeon {
-    let (three, puz, plates, _) = cave_def(n - LAIRS);
+pub(super) fn build_cave(n: usize, region: usize, themes: &[Theme], prog: u8, level: Option<&Level>) -> Dungeon {
+    let (mut three, mut puz, plates, _) = cave_def(n - LAIRS);
+    // A level file decides the room count (a "mouth" room makes three) and the challenge.
+    let lrooms = level.map(|l| &l.rooms).filter(|r| !r.is_empty());
+    let mut no_challenge = false;
+    if let Some(rs) = lrooms {
+        three = rs.contains_key("mouth");
+        match rs.get("challenge").and_then(|c| c.puzzle.as_deref()) {
+            Some("none") => no_challenge = true,
+            Some(p) => puz = puz_from(p).unwrap_or(puz),
+            None => {}
+        }
+    }
     let (chal, treasure) = cave_rooms(three);
-    let theme = cave_theme(region);
-    let solved = prog & C_SOLVED != 0;
+    let theme = level.and_then(|l| l.theme).filter(|&t| t < themes.len()).unwrap_or(cave_theme(region));
+    let slot_of = |i: usize| -> Option<&str> {
+        if i == chal {
+            Some("challenge")
+        } else if i == treasure {
+            Some("treasure")
+        } else if i == R_ENTRY && three {
+            Some("mouth")
+        } else {
+            None
+        }
+    };
+    let def = |i: usize| slot_of(i).and_then(|sl| lrooms.and_then(|r| r.get(sl)));
+    let solved = prog & C_SOLVED != 0 || no_challenge;
     let mut has = [false; 7];
     has[R_ENTRY] = true;
     has[R_HUB] = true;
@@ -128,16 +152,28 @@ pub(super) fn build_cave(n: usize, region: usize, themes: &[Theme], prog: u8) ->
                     r.tiles[y][x] = T_WALL;
                 }
             }
+            if let Some(d) = def(i) {
+                apply_room_def(&mut r, &mut o, d, false, false, prog & C_LOOTED != 0);
+                if i == chal && !solved {
+                    r.set_gap(0, T_SEAL);
+                }
+            }
         }
         render(&mut r, &themes[theme]);
         rooms.push(r);
         objs.push(o);
     }
     let mut pz = [None; 7];
-    pz[chal] = Some(puz);
+    if !no_challenge {
+        pz[chal] = Some(puz);
+    }
     Dungeon {
         n, rooms, objs, puz: pz, has, larder: vec![vec![]; 7], hub_combat: false, cur: R_ENTRY, dirty: false, sealed: false,
         push_t: 0, crack_hits: vec![], seen: [false; 7], warned: false, cave: true, theme,
+        spawns: (0..7).map(|i| def(i).map_or(vec![], |d| d.enemies.clone())).collect(),
+        random: (0..7).map(|i| def(i).and_then(|d| d.random_enemies.or(if d.enemies.is_empty() { None } else { Some(0) }))).collect(),
+        chal,
+        treasure,
     }
 }
 
@@ -157,17 +193,17 @@ impl Game {
     pub(super) fn enter_cave_room(&mut self) {
         let prog = self.dprog();
         let k = self.cave_k();
-        let (three, puz, _, _) = cave_def(k);
-        let (chal, treasure) = cave_rooms(three);
-        let solved = prog & C_SOLVED != 0;
         let Some(d) = self.dungeon.as_mut() else { return };
+        let (chal, treasure) = (d.chal, d.treasure);
+        let puz = d.puz[chal];
+        let solved = prog & C_SOLVED != 0 || puz.is_none();
         let cur = d.cur;
         let first = !d.seen[cur];
         d.seen[cur] = true;
         d.rooms[cur].visited = true;
         d.warned = false;
         let th = d.rooms[cur].theme;
-        let fight = cur == chal && puz == Puz::Combat && !solved;
+        let fight = cur == chal && puz == Some(Puz::Combat) && !solved;
         if fight {
             for dd in 0..4 {
                 if d.rooms[cur].doors[dd] {
@@ -178,13 +214,18 @@ impl Game {
             d.dirty = true;
         }
         self.dungeon_flush();
+        let listed = self.spawn_listed(cur, fight);
         if fight {
-            self.spawn_pack(4 + k as i32 / 2, th, false);
+            if !listed {
+                self.spawn_pack(4 + k as i32 / 2, th, false);
+            }
             self.show_msg("THE CAVE RUMBLES SHUT BEHIND YOU! DEFEAT EVERY MONSTER.");
             self.sfx(Sfx::Rumble);
             self.shake = 10;
-        } else if cur == chal && puz == Puz::FreezePlate && !solved {
-            self.spawn_puzzle_foes();
+        } else if cur == chal && puz == Some(Puz::FreezePlate) && !solved {
+            if !listed {
+                self.spawn_puzzle_foes();
+            }
             if first {
                 self.show_msg("A HEAVY PLATE... TOO HEAVY FOR YOU ALONE. FREEZE A MONSTER AND PUSH IT ON!");
             }
@@ -193,9 +234,11 @@ impl Game {
                 self.show_msg("A TREASURE CHEST GLITTERS IN THE DARK.");
             }
         } else {
-            self.spawn_pack(if cur == chal { 1 } else { 2 }, th, false);
+            if !listed {
+                self.spawn_pack(if cur == chal { 1 } else { 2 }, th, false);
+            }
             if first && cur == R_ENTRY {
-                self.show_msg(format!("{}. CLEAR THE CAVE AND CLAIM ITS TREASURE.", cave_name(k + LAIRS)));
+                self.show_msg(format!("{}. CLEAR THE CAVE AND CLAIM ITS TREASURE.", self.dname(k + LAIRS)));
             }
         }
     }
@@ -273,8 +316,10 @@ impl Game {
         };
         let k = self.cave_k();
         let (_, _, _, reward) = cave_def(k);
+        let loot = self.dungeon.as_ref().map_or(Loot::Default, |d| d.objs[d.cur][i].loot);
         self.set_dprog(C_LOOTED);
-        let msg = match reward {
+        let custom = !matches!(loot, Loot::Default | Loot::Key | Loot::Page);
+        let msg = if custom { self.give_loot(loot) } else { match reward {
             Reward::Bombs(n) => {
                 self.s.bombs = (self.s.bombs + n).min(bag::MAX_BOMBS);
                 format!("{} BOMBS FOR YOUR BAG! SELECT PICKS THEM, Y DROPS ONE.", n)
@@ -293,7 +338,7 @@ impl Game {
                 self.s.mp = self.s.max_mp as f32;
                 "A MANA CRYSTAL! MAXIMUM MAGIC UP.".to_string()
             }
-        };
+        } };
         let page = match self.take_page(k) {
             Some(n) => format!(" AND A LOST SPELLBOOK PAGE, {} OF 5!", n),
             None => String::new(),
@@ -308,10 +353,8 @@ impl Game {
     /// Per-frame cave logic: fights end, plates press, puzzle monsters come back.
     pub(super) fn cave_update(&mut self) {
         let prog = self.dprog();
-        let k = self.cave_k();
-        let (three, puz, plates, _) = cave_def(k);
-        let (chal, _) = cave_rooms(three);
         let Some(d) = self.dungeon.as_mut() else { return };
+        let (chal, puz) = (d.chal, d.puz[d.chal]);
         let cur = d.cur;
         if d.sealed && self.enemies.iter().all(|e| e.dead) {
             d.sealed = false;
@@ -324,10 +367,17 @@ impl Game {
             self.cave_solved("SILENCE FALLS. THE WAY DEEPER GRINDS OPEN.");
             return;
         }
-        if cur != chal || puz != Puz::FreezePlate || prog & C_SOLVED != 0 {
+        if cur != chal || puz != Some(Puz::FreezePlate) || prog & C_SOLVED != 0 {
             return;
         }
-        let spots = plate_spots(plates);
+        let mut spots: Vec<(i32, i32)> = vec![];
+        for (y, row) in d.rooms[cur].tiles.iter().enumerate() {
+            for (x, &t) in row.iter().enumerate() {
+                if t == T_PLATE {
+                    spots.push((x as i32, y as i32));
+                }
+            }
+        }
         let pressed = spots
             .iter()
             .filter(|&&(c, r)| self.enemies.iter().any(|e| !e.dead && e.st.frozen() && tile_of(e.x, e.y) == (c, r)))
@@ -338,7 +388,14 @@ impl Game {
         }
         // Never leave the room without something to freeze.
         if self.frame % 120 == 0 && self.enemies.iter().filter(|e| !e.dead).count() < 2 {
-            self.spawn_puzzle_foes();
+            let custom = self.dungeon.as_ref().map_or(false, |d| !d.spawns[cur].is_empty());
+            if custom {
+                if self.enemies.iter().all(|e| e.dead) {
+                    self.spawn_listed(cur, false);
+                }
+            } else {
+                self.spawn_puzzle_foes();
+            }
             self.float("SOMETHING CRAWLS OUT OF THE ROCKS...", 20.0, HUDF + 20.0, rgb(0xbcbcbc));
         }
     }

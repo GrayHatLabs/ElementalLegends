@@ -203,6 +203,14 @@ impl Game {
         self.gate_room = self.shop_room;
         self.start_dungeon(shop::SHOP_N);
     }
+    /// Forget every level file (the self-test runs on the generated layouts).
+    pub fn debug_levels_clear(&mut self) {
+        self.levels = crate::levels::Levels::default();
+    }
+    pub fn debug_add_level(&mut self, file: &str, text: &str) -> bool {
+        self.levels.add(file, text, "self-test");
+        self.levels.by_name.contains_key(file.trim_end_matches(".json"))
+    }
     pub fn debug_room_dist(&self, i: usize) -> i32 {
         self.rooms[i].dist
     }

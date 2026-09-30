@@ -6,6 +6,8 @@ mod art_gen;
 mod audio;
 mod game;
 mod gfx;
+mod levels;
+mod levels_gen;
 mod snapshot;
 mod sprites;
 mod world;
