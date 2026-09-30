@@ -125,14 +125,23 @@ impl Game {
             self.draw_monolith(scr, ox, oy, 5, true);
         }
         if r.tank && !self.s.tanks.contains(&ri) {
-            scr.spr(&self.spr.big_heart.img, x as f32, y as f32 - bob, false);
+            match self.item_named("heart_container") {
+                Some(img) => scr.spr_hd(img, x as f32, y as f32 - bob, false),
+                None => scr.spr(&self.spr.big_heart.img, x as f32, y as f32 - bob, false),
+            }
         }
         if r.cache && !self.s.caches.contains(&ri) {
-            scr.spr(&self.spr.hoard.img, x as f32, y as f32, false);
+            match self.item_named("gold_pile") {
+                Some(img) => scr.spr_hd(img, x as f32, y as f32, false),
+                None => scr.spr(&self.spr.hoard.img, x as f32, y as f32, false),
+            }
         }
         if let Some((cx, cy, _, _)) = r.chest {
-            let s = if self.s.opened.contains(&ri) { &self.spr.chest_open } else { &self.spr.chest };
-            scr.spr(&s.img, cx + ox as f32, cy + oy as f32, false);
+            let open = self.s.opened.contains(&ri);
+            match self.item_named(if open { "chest_open" } else { "chest_closed" }) {
+                Some(img) => scr.spr_hd(img, cx + ox as f32, cy + oy as f32, false),
+                None => scr.spr(&if open { &self.spr.chest_open } else { &self.spr.chest }.img, cx + ox as f32, cy + oy as f32, false),
+            }
         }
         if let Some(se) = r.shrine {
             self.draw_shrine(scr, x, y, Elem::from_idx(se));
@@ -153,13 +162,16 @@ impl Game {
                 let py = GATE_Y as i32 + oy;
                 scr.fill(px - 8, py + 4, 16, 5, rgb(0x6c3c10));
                 scr.fill(px - 8, py + 4, 16, 1, rgb(0xa86030));
-                let s = match i {
-                    0 => &self.spr.meat,
-                    1 => &self.spr.potion,
-                    2 => &self.spr.antidote,
-                    _ => &self.spr.big_heart,
+                let (s, name) = match i {
+                    0 => (&self.spr.meat, "meat"),
+                    1 => (&self.spr.potion, "mana_potion"),
+                    2 => (&self.spr.antidote, "antidote"),
+                    _ => (&self.spr.big_heart, "heart_container"),
                 };
-                scr.spr(&s.img, px as f32, py as f32 - 2.0, false);
+                match self.item_named(name) {
+                    Some(img) => scr.spr_hd(img, px as f32, py as f32 - 2.0, false),
+                    None => scr.spr(&s.img, px as f32, py as f32 - 2.0, false),
+                }
                 scr.text(&prices[i].to_string(), px + 1, py + 12, rgb(0xfcbc3c), Align::Center, 8);
             }
         }
@@ -213,8 +225,10 @@ impl Game {
                 scr.disc(ex, y - 8, 2, knob);
             }
             OK::Chest => {
-                let s = if o.on { &self.spr.chest_open } else { &self.spr.chest };
-                scr.spr(&s.img, fx, fy, false);
+                match self.item_named(if o.on { "chest_open" } else { "chest_closed" }) {
+                    Some(img) => scr.spr_hd(img, fx, fy, false),
+                    None => scr.spr(&if o.on { &self.spr.chest_open } else { &self.spr.chest }.img, fx, fy, false),
+                }
                 if !o.on && self.frame % 30 < 4 {
                     scr.pset(x + 6, y - 6, WHITE);
                 }
@@ -394,7 +408,49 @@ impl Game {
             EK::Generator => "enemy_generator".into(),
             _ => return false,
         };
-        let Some(sh) = self.art.sheet(&name) else { return false };
+        self.draw_creature_hd(scr, e, &name, None, bob, flying, Tint::None)
+    }
+    /// Encounter creatures (mini-bosses) drawn from their generated sheets.
+    fn draw_mini_hd(&self, scr: &mut Screen, e: &Enemy) -> bool {
+        match e.k {
+            EK::Treant => {
+                scr.blend_ellipse(e.x as i32, (e.y + e.h / 2.0) as i32, 12, 3, BLACK, 0.35);
+                self.draw_creature_hd(scr, e, "enemy_treant", None, 0.0, false, Tint::None)
+            }
+            EK::GraveLord => {
+                scr.blend_ellipse(e.x as i32, (e.y + e.h / 2.0) as i32, 9, 3, BLACK, 0.35);
+                self.draw_creature_hd(scr, e, "enemy_gravelord", None, 0.0, false, Tint::None)
+            }
+            EK::Dryad => {
+                // Tell: she casts no shadow while disguised; revealed, her true colours show.
+                let tint = if e.mode == 0 {
+                    Tint::None
+                } else {
+                    scr.blend_ellipse(e.x as i32, (e.y + e.h / 2.0) as i32, 5, 2, BLACK, 0.3);
+                    Tint::Mix(rgb(0x1c5c14), 0.35)
+                };
+                let bob = if e.mode == 0 && (e.t / 16) % 2 == 0 { -1.0 } else { 0.0 };
+                self.draw_creature_hd(scr, e, "npc_dryad", None, bob, false, tint)
+            }
+            EK::HoardDragon => {
+                let lift = if e.mode == 2 { e.timer as f32 } else { 0.0 };
+                if lift > 0.0 {
+                    scr.blend_ellipse(e.x as i32, (e.y + e.h / 2.0) as i32, 14, 4, BLACK, 0.3);
+                }
+                let anim = if e.mode == 0 { "idle" } else { "awake" };
+                let ok = self.draw_creature_hd(scr, e, "enemy_hoarddragon", Some(anim), -lift, false, Tint::None);
+                if ok && e.mode == 3 {
+                    let f = if e.vx < 0.0 { -1.0 } else { 1.0 };
+                    scr.blend_disc((e.x + f * 22.0) as i32, e.y as i32 - 6, 5, rgb(0xfc9838), 0.5);
+                }
+                ok
+            }
+            _ => false,
+        }
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn draw_creature_hd(&self, scr: &mut Screen, e: &Enemy, name: &str, forced: Option<&str>, bob: f32, flying: bool, tint: Tint) -> bool {
+        let Some(sh) = self.art.sheet(name) else { return false };
         let still = e.st.immobile();
         let moving = !still && e.vx.abs() + e.vy.abs() > 0.05;
         let (anim, flip) = if sh.anim("walk_down").is_some() {
@@ -412,10 +468,13 @@ impl Game {
             let a = sh.anim(if moving { "move" } else { "idle" }).or_else(|| sh.anim("idle")).or_else(|| sh.anim("move"));
             (a, e.vx < -0.05 || (!moving && self.pl.x < e.x))
         };
+        let anim = forced.and_then(|n| sh.anim(n)).or(anim);
         let Some(anim) = anim else { return false };
         let img = anim.at(if still { 0 } else { e.t as u32 });
-        let fx = if e.flash > 0 {
-            Tint::Solid(WHITE)
+        let fx = if e.flash > 0 && self.frame % 4 < 2 {
+            Tint::Mix(WHITE, 0.75)
+        } else if !matches!(tint, Tint::None) {
+            tint
         } else if e.st.frozen() {
             Tint::Mix(rgb(0xc4ecfc), 0.6)
         } else if e.st.chilled() {
@@ -436,7 +495,7 @@ impl Game {
             }
             return;
         }
-        if self.draw_mini_enemy(scr, e) {
+        if self.draw_mini_hd(scr, e) || self.draw_mini_enemy(scr, e) {
             return;
         }
         let still = e.st.immobile();
@@ -607,9 +666,11 @@ impl Game {
             IK::Heart => &["heart", "small_heart"],
             IK::Orb => &[],
         };
-        let sh = self.art.sheet("items")?;
-        let a = names.iter().find_map(|n| sh.anim(n))?;
-        Some(a.at(self.frame as u32))
+        names.iter().find_map(|n| self.item_named(n))
+    }
+    /// One row of the generated "items" sheet by name.
+    pub(super) fn item_named(&self, name: &str) -> Option<&Sprite> {
+        Some(self.art.sheet("items")?.anim(name)?.at(self.frame as u32))
     }
     fn draw_items(&self, scr: &mut Screen) {
         let bob = ((self.frame as f32 * 0.12).sin() * 1.5).round();

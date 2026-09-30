@@ -872,9 +872,12 @@ impl Game {
     fn follow_cam(&mut self, snap: bool) {
         let (tx, mut ty) = Self::cam_target(self.cur_room(), self.pl.x, self.pl.y);
         // Boss fights frame both combatants (the mage always stays on screen).
-        if let Some(b) = &self.boss {
+        let focus = self.boss.as_ref().map(|b| b.y - b.h * 0.5).or_else(|| {
+            self.enemies.iter().find(|e| e.mini > 0 && !e.dead && e.k != EK::Zombie).map(|e| e.y - e.h * 0.5 - 12.0)
+        });
+        if let Some(fy) = focus {
             let room = self.cur_room();
-            let (_, by) = Self::cam_target(room, self.pl.x, (b.y - b.h * 0.5 + self.pl.y) * 0.5 + 8.0);
+            let (_, by) = Self::cam_target(room, self.pl.x, (fy + self.pl.y) * 0.5 + 8.0);
             let lo = (self.pl.y - VIEW_H + 28.0).max(HUDF);
             ty = by.max(lo).min((self.pl.y - 20.0).max(lo));
         }
