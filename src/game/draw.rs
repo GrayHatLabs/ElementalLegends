@@ -126,8 +126,14 @@ impl Game {
         }
         if r.special == SP_SHOP {
             self.draw_cottage(scr, ox, oy);
-            let sage = &self.spr.mage_d[4][0];
-            scr.spr(&sage.img, 128.0 + ox as f32, HUDF + 58.0 + oy as f32, false);
+            let (mx, my) = (128.0 + ox as f32, HUDF + 58.0 + oy as f32);
+            match self.art.sheet("npc_merchant").and_then(|sh| sh.anim("idle_down").map(|a| (sh.cell, a))) {
+                Some((cell, a)) => {
+                    scr.blend_ellipse(mx as i32, my as i32 + 7, 6, 2, BLACK, 0.3);
+                    scr.spr_hd_anchor(a.at(self.frame as u32), mx, my + 7.0, cell.0 / 2, cell.1 - 2, false, Tint::None);
+                }
+                None => scr.spr(&self.spr.mage_d[4][0].img, mx, my, false),
+            }
             let prices = self.shop_prices();
             for i in 0..4 {
                 let px = Self::shop_x(i) as i32 + ox;
@@ -351,6 +357,55 @@ impl Game {
             scr.disc(sx as i32, (y - 3.0) as i32, 2, Elem::from_idx(e).light());
         }
     }
+    /// Generated monster art, if there is a sheet for this kind (and element). Four-direction
+    /// sheets walk toward their heading; one-direction sheets flip to face their movement.
+    /// Returns false to fall back to the code-drawn sprite.
+    fn draw_enemy_hd(&self, scr: &mut Screen, e: &Enemy, bob: f32, flying: bool) -> bool {
+        let el = ["fire", "ice", "storm", "earth", "neutral"][e.el.idx()];
+        let name = match e.k {
+            EK::Slime => format!("enemy_slime_{el}"),
+            EK::Bat => format!("enemy_bat_{el}"),
+            EK::Skeleton => format!("enemy_skeleton_{el}"),
+            EK::Imp => format!("enemy_imp_{el}"),
+            EK::Ghost => format!("enemy_ghost_{el}"),
+            EK::Golem => format!("enemy_golem_{el}"),
+            EK::Zombie => "enemy_zombie".into(),
+            EK::Generator => "enemy_generator".into(),
+            _ => return false,
+        };
+        let Some(sh) = self.art.sheet(&name) else { return false };
+        let still = e.st.immobile();
+        let moving = !still && e.vx.abs() + e.vy.abs() > 0.05;
+        let (anim, flip) = if sh.anim("walk_down").is_some() {
+            let (dx, dy) = if moving { (e.vx, e.vy) } else { (self.pl.x - e.x, self.pl.y - e.y) };
+            let dir = if dx.abs() > dy.abs() {
+                "side"
+            } else if dy < 0.0 {
+                "up"
+            } else {
+                "down"
+            };
+            let a = sh.anim(&format!("{}_{}", if moving { "walk" } else { "idle" }, dir));
+            (a, dir == "side" && dx < 0.0)
+        } else {
+            let a = sh.anim(if moving { "move" } else { "idle" }).or_else(|| sh.anim("idle")).or_else(|| sh.anim("move"));
+            (a, e.vx < -0.05 || (!moving && self.pl.x < e.x))
+        };
+        let Some(anim) = anim else { return false };
+        let img = anim.at(if still { 0 } else { e.t as u32 });
+        let fx = if e.flash > 0 {
+            Tint::Solid(WHITE)
+        } else if e.st.frozen() {
+            Tint::Mix(rgb(0xc4ecfc), 0.6)
+        } else if e.st.chilled() {
+            Tint::Mix(rgb(0xa4e4fc), 0.35)
+        } else {
+            Tint::None
+        };
+        let feet = e.y + e.h / 2.0 - if flying { 6.0 } else { 0.0 } + bob;
+        scr.spr_hd_anchor(img, e.x, feet, sh.cell.0 / 2, sh.cell.1 - 2, flip, fx);
+        true
+    }
     fn draw_enemy(&self, scr: &mut Screen, e: &Enemy) {
         if e.spawn > 0 {
             if e.spawn & 2 != 0 {
@@ -394,7 +449,9 @@ impl Game {
         let flying = matches!(e.k, EK::Bat | EK::Ghost);
         let (sy, sr, sa) = if flying { (e.y + e.h / 2.0 + 6.0, e.w / 2.0 - 2.0, 0.22) } else { (e.y + e.h / 2.0, e.w / 2.0, 0.32) };
         scr.blend_ellipse(e.x as i32, sy as i32, sr as i32, 2, BLACK, sa);
-        scr.spr(img, e.x, e.y + bob, flip);
+        if !self.draw_enemy_hd(scr, e, bob, flying) {
+            scr.spr(img, e.x, e.y + bob, flip);
+        }
         if e.st.frozen() {
             draw_ice_block(scr, e.x, e.y, e.w, e.h, e.st.encase(), self.frame);
         } else if e.st.chilled() && (self.frame + e.id as u64) % 12 < 2 {
@@ -515,6 +572,24 @@ impl Game {
             }
         }
     }
+    /// Generated item art from the `items` sheet (one row per item), if present.
+    pub(super) fn item_hd(&self, k: IK) -> Option<&Sprite> {
+        let names: &[&str] = match k {
+            IK::Coin => &["coin"],
+            IK::Gem => &["gem"],
+            IK::Apple => &["apple"],
+            IK::GoldenApple => &["golden_apple", "goldenapple"],
+            IK::Bread => &["bread"],
+            IK::Meat => &["roast", "roast_meat", "meat"],
+            IK::Potion => &["potion", "mana_potion", "blue_potion"],
+            IK::Antidote => &["antidote", "green_antidote"],
+            IK::Heart => &["heart", "small_heart"],
+            IK::Orb => &[],
+        };
+        let sh = self.art.sheet("items")?;
+        let a = names.iter().find_map(|n| sh.anim(n))?;
+        Some(a.at(self.frame as u32))
+    }
     fn draw_items(&self, scr: &mut Screen) {
         let bob = ((self.frame as f32 * 0.12).sin() * 1.5).round();
         for it in &self.items {
@@ -544,7 +619,11 @@ impl Game {
                 }
             };
             scr.blend_ellipse(it.x as i32, it.y as i32 + 5, 4, 1, BLACK, 0.3);
-            scr.spr(&s.img, it.x, it.y + if it.kind == IK::Coin { 0.0 } else { bob }, false);
+            let y = it.y + if it.kind == IK::Coin { 0.0 } else { bob };
+            match self.item_hd(it.kind) {
+                Some(img) => scr.spr_hd(img, it.x, y, false),
+                None => scr.spr(&s.img, it.x, y, false),
+            }
         }
     }
     pub(super) fn draw_parts(&self, scr: &mut Screen) {
