@@ -858,7 +858,13 @@ impl Game {
         let cy = if room.hf() - HUDF <= vh {
             HUDF + (room.hf() - HUDF - vh) / 2.0
         } else {
-            (y - vh / 2.0).clamp(HUDF, room.hf() - vh)
+            let mut cy = (y - vh / 2.0).clamp(HUDF, room.hf() - vh);
+            // Tall set pieces (lair buildings, the monolith, the cottage) stand in the top half
+            // of their area: keep them framed while the mage is still on screen.
+            if room.gate > 0 || room.special == SP_MONOLITH || room.special == SP_SHOP {
+                cy = cy.min(HUDF).max(y - vh + 28.0).clamp(HUDF, room.hf() - vh);
+            }
+            cy
         };
         (cx, cy)
     }

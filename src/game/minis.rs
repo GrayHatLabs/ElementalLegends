@@ -742,6 +742,14 @@ impl Game {
             let (x, y) = (x as i32 + ox, y as i32 + oy);
             let sx = if fr.shake > 0 { (fr.shake % 4) - 2 } else { 0 };
             scr.blend_ellipse(x, y + 7, 9, 3, BLACK, 0.35);
+            let name = if fr.fruit > 0 { "obj_fruit_tree" } else { "obj_fruit_tree_bare" };
+            if self.obj_hd(scr, name, (x + sx) as f32, y as f32 + 8.0) {
+                if fr.treant && dist(self.pl.x, self.pl.y, x as f32, y as f32) < 40.0 && f % 90 < 45 {
+                    scr.pset(x - 2, y + 3, rgb(0xfce040));
+                    scr.pset(x + 1, y + 3, rgb(0xfce040));
+                }
+                continue;
+            }
             scr.fill(x - 2, y + 1, 4, 7, rgb(0x5c3410));
             scr.fill(x - 2, y + 1, 1, 7, rgb(0x8c5020));
             scr.disc(x + sx, y - 5, 9, rgb(0x0c4414));
@@ -764,12 +772,14 @@ impl Game {
             let (x, y) = (x as i32 + ox, y as i32 + oy);
             let open = ri == self.room && self.graves_open.get(g).copied().unwrap_or(false);
             scr.blend_ellipse(x, y + 7, 7, 2, BLACK, 0.35);
-            scr.fill(x - 5, y - 6, 10, 13, rgb(0x6c6c78));
-            scr.fill(x - 4, y - 8, 8, 2, rgb(0x6c6c78));
-            scr.fill(x - 5, y - 6, 2, 13, rgb(0x9c9ca8));
-            scr.fill(x + 3, y - 6, 2, 13, rgb(0x3c3c48));
-            scr.fill(x - 1, y - 4, 2, 7, rgb(0x3c3c48));
-            scr.fill(x - 3, y - 2, 6, 2, rgb(0x3c3c48));
+            if !self.obj_hd(scr, "obj_tombstone", x as f32, y as f32 + 8.0) {
+                scr.fill(x - 5, y - 6, 10, 13, rgb(0x6c6c78));
+                scr.fill(x - 4, y - 8, 8, 2, rgb(0x6c6c78));
+                scr.fill(x - 5, y - 6, 2, 13, rgb(0x9c9ca8));
+                scr.fill(x + 3, y - 6, 2, 13, rgb(0x3c3c48));
+                scr.fill(x - 1, y - 4, 2, 7, rgb(0x3c3c48));
+                scr.fill(x - 3, y - 2, 6, 2, rgb(0x3c3c48));
+            }
             if open {
                 scr.fill(x - 6, y + 8, 12, 5, rgb(0x100804));
                 scr.fill(x - 7, y + 12, 14, 2, rgb(0x5c3c10));
