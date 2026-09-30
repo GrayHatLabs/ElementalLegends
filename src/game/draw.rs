@@ -11,8 +11,11 @@ impl Game {
         scr.oy = 0;
         scr.clear();
         if self.shake > 0 {
-            scr.ox = self.rng.irange(-2, 2);
-            scr.oy = self.rng.irange(-2, 2);
+            // Derived from the frame counter, not the game RNG: drawing must never
+            // change gameplay (the self-test and real play would diverge otherwise).
+            let h = (self.frame.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 32) as i32;
+            scr.ox = (h & 7) % 5 - 2;
+            scr.oy = ((h >> 3) & 7) % 5 - 2;
         }
         match self.mode {
             Mode::Title => self.draw_title(scr),
@@ -308,6 +311,29 @@ impl Game {
             return;
         }
         let e = self.s.el.min(3);
+        // Generated wizard art: walk cycles / idle poses per direction, feet on the ground point.
+        let sheet_name = ["mage_fire", "mage_ice", "mage_storm", "mage_earth"][e];
+        if let Some(sh) = self.art.sheet(sheet_name) {
+            let dir = match p.dir {
+                b'u' => "up",
+                b'd' => "down",
+                _ => "side",
+            };
+            let name = format!("{}_{}", if p.moving { "walk" } else { "idle" }, dir);
+            if let Some(anim) = sh.anim(&name) {
+                let img = anim.at(p.walk as u32);
+                let (x, y) = (p.x + ox, p.y + oy + 6.0);
+                scr.blend_ellipse(x as i32, y as i32, 6, 2, BLACK, 0.35);
+                let fx = if self.poison > 0 && self.frame % 20 < 14 { Tint::Mix(rgb(0x58d854), 0.45) } else { Tint::None };
+                scr.spr_hd_anchor(img, x, y, sh.cell.0 / 2, sh.cell.1 - 2, p.dir == b'l', fx);
+                if p.cast > 0 {
+                    let sx = if p.dir == b'l' { x - 7.0 } else { x + 7.0 };
+                    scr.blend_disc(sx as i32, (y - 17.0) as i32, 4, Elem::from_idx(e).light(), 0.35);
+                    scr.disc(sx as i32, (y - 17.0) as i32, 2, Elem::from_idx(e).light());
+                }
+                return;
+            }
+        }
         let frame = if p.moving { ((p.walk / 7) % 4) as usize } else { 0 };
         let s = match p.dir {
             b'u' => &self.spr.mage_u[e][frame],

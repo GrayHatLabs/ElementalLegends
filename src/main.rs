@@ -1,6 +1,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 //! ELEMENTAL LEGENDS - SDL2 front end. Renders a 256x240 software framebuffer,
 //! integer-scaled to the window (640x480 on the Anbernic RG35XX H).
+mod art;
+mod art_gen;
 mod audio;
 mod game;
 mod gfx;

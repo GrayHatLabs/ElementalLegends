@@ -630,6 +630,8 @@ pub struct Game {
     rng: Rng,
     next_id: u32,
     spr: Sprites,
+    /// Native-resolution art from the generated sheets (falls back to spr).
+    art: crate::art::Art,
     themes: Vec<Theme>,
     audio: Option<AudioDevice<Synth>>,
     has_save: bool,
@@ -702,6 +704,7 @@ impl Game {
             rng,
             next_id: 1,
             spr: Sprites::new(),
+            art: crate::art::Art::load(),
             themes: build_themes(),
             audio,
             has_save: load_save().is_some(),

@@ -108,6 +108,16 @@ impl Sprite {
     }
 }
 
+/// Colour treatment when drawing native sprites.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Tint {
+    None,
+    /// Every opaque pixel becomes this colour (hit flash).
+    Solid(u32),
+    /// Blend toward a colour by an amount (frost, poison).
+    Mix(u32, f32),
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum Align {
     Left,
@@ -323,7 +333,19 @@ impl Screen {
         self.blit_px(s, dx0, dy0, flip, Some(tint));
     }
 
+    /// Native sprite anchored by a point inside it: pixel (ax, ay) of the sprite lands on
+    /// logic position (x, y). Used for characters whose feet sit at their position.
+    pub fn spr_hd_anchor(&mut self, s: &Sprite, x: f32, y: f32, ax: i32, ay: i32, flip: bool, fx: Tint) {
+        let ax = if flip { s.w - 1 - ax } else { ax };
+        let (dx0, dy0) = (self.tx(x) - ax, self.ty(y) - ay);
+        self.blit_fx(s, dx0, dy0, flip, fx);
+    }
+
     fn blit_px(&mut self, s: &Sprite, dx0: i32, dy0: i32, flip: bool, tint: Option<u32>) {
+        self.blit_fx(s, dx0, dy0, flip, tint.map_or(Tint::None, Tint::Solid));
+    }
+
+    fn blit_fx(&mut self, s: &Sprite, dx0: i32, dy0: i32, flip: bool, fx: Tint) {
         let (x0, y0) = (dx0.max(self.clip[0]), dy0.max(self.clip[1]));
         let (x1, y1) = ((dx0 + s.w).min(self.clip[2]), (dy0 + s.h).min(self.clip[3]));
         for dy in y0..y1 {
@@ -334,7 +356,11 @@ impl Screen {
                 let u = if flip { s.w - 1 - u } else { u };
                 let c = s.px[srow + u as usize];
                 if c != 0 {
-                    self.px[drow + dx as usize] = tint.unwrap_or(c);
+                    self.px[drow + dx as usize] = match fx {
+                        Tint::None => c,
+                        Tint::Solid(t) => t,
+                        Tint::Mix(t, a) => mix(c, t, a),
+                    };
                 }
             }
         }
