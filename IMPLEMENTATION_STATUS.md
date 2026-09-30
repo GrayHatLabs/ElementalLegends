@@ -34,7 +34,7 @@ Decisions (2026-09-30): 24px tiles, 320x240, A Link to the Past camera, bigger 8
 | M4 Generated characters, enemies, bosses, mini-bosses | Queued | Styled to match the existing grey wizard |
 | M5 SNES-style music and sound | H | Stereo synth with ADSR instruments (flute, strings, harp, brass, organ, bells, basses, drum kit), SNES-style echo, 8 themes (title, village, Greenwood, Old Crypt, Mirefen, Emberpeak, dungeon, boss) chosen by location. `--render-music <dir>` writes WAVs; unit test checks every song is audible without clipping. **Not yet listened to by a human** |
 | M6 Optional twin-stick aiming (RG35XX Pro right stick) | H | Right stick faces and casts that way while the left stick moves; unused without a right stick, so the H plays as before. Needs a hardware check of the Pro's axis mapping |
-| HUD/menus redesigned for 320 width | Queued | Currently the 256-wide layouts are centred |
+| HUD redesigned for 320 width | H S | SNES layout: element orb + vertical magic meter, food bar, potions / runes (keys in dungeons) / gold, -LIFE- rows of hearts with half hearts. Menus and messages still use the centred 256-wide layout |
 
 ## Preserved gameplay
 

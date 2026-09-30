@@ -833,60 +833,66 @@ impl Game {
         scr.fill_screen(0, HUD_PX - 3, SW, 1, rgb(0x7c68b0));
         scr.fill_screen(0, HUD_PX - 2, SW, 1, rgb(0x5c4880));
         scr.fill_screen(0, HUD_PX - 1, SW, 1, rgb(0x08040c));
-        scr.text("HP", 4, 5, rgb(0xfc7460), Align::Left, 8);
-        let per = ((self.s.max_hp + 41) / 42).max(2);
-        let segs = (self.s.max_hp + per - 1) / per;
-        let low = self.s.hp <= 6 && (self.frame >> 3) & 1 == 1;
-        for i in 0..segs {
-            let v = self.s.hp - i * per;
-            let c = if v >= per {
-                if low { WHITE } else { rgb(0xf83800) }
-            } else if v > 0 {
-                rgb(0xa81000)
-            } else {
-                rgb(0x301000)
-            };
-            scr.fill(24 + i * 4, 5, 3, 8, c);
-            if v > 0 {
-                scr.fill(24 + i * 4, 5, 3, 1, mix(c, WHITE, 0.45));
-                scr.fill(24 + i * 4, 12, 3, 1, mix(c, BLACK, 0.35));
-            }
-        }
-        scr.spr(&self.spr.coin.img, 197.0, 9.0, false);
-        scr.text(&format!("{:04}", self.s.gold), 204, 5, rgb(0xfcbc3c), Align::Left, 8);
-        scr.text("MP", 4, 19, rgb(0x3cbcfc), Align::Left, 8);
-        let bar = |scr: &mut Screen, x: i32, frac: f32, bg: u32, fg: u32| {
-            scr.frame_rect(x - 1, 19, 46, 8, rgb(0x08040c));
-            scr.fill(x, 20, 44, 6, bg);
-            let w = (44.0 * frac.clamp(0.0, 1.0)) as i32;
-            scr.fill(x, 20, w, 6, fg);
-            scr.fill(x, 20, w, 1, mix(fg, WHITE, 0.5));
-            scr.fill(x, 25, w, 1, mix(fg, BLACK, 0.35));
-        };
-        bar(scr, 24, self.s.mp / self.s.max_mp as f32, rgb(0x001030), rgb(0x3cbcfc));
-        scr.spr(&self.spr.apple.img, 78.0, 22.0, false);
+        // SNES-style layout across the full 320-pixel width (no centring).
+        scr.ui();
+        scr.sx = 0;
+        let el = self.el();
+        // Element orb with the magic meter beside it (vertical, like A Link to the Past).
+        scr.disc(12, 14, 8, rgb(0x08040c));
+        scr.disc(12, 14, 7, el.main());
+        scr.disc(10, 12, 3, el.light());
+        scr.pset(9, 11, WHITE);
+        let mp = (self.s.mp / self.s.max_mp as f32).clamp(0.0, 1.0);
+        scr.frame_rect(23, 3, 8, 25, rgb(0x08040c));
+        scr.fill(24, 4, 6, 23, rgb(0x001030));
+        let h = (23.0 * mp).round() as i32;
+        scr.fill(24, 27 - h, 6, h, rgb(0x3cbcfc));
+        scr.fill(24, 27 - h, 2, h, rgb(0xa4e4fc));
+        scr.text(el.name(), 35, 3, el.light(), Align::Left, 8);
+        // Food bar.
+        scr.spr(&self.spr.apple.img, 38.0, 20.0, false);
         let hungry = self.s.food <= 25.0 && (self.frame >> 3) & 1 == 1;
         let fc = if hungry { WHITE } else if self.s.food <= 25.0 { rgb(0xd82800) } else { rgb(0xfc9838) };
-        bar(scr, 84, self.s.food / 100.0, rgb(0x301800), fc);
-        let el = self.el();
-        scr.disc(139, 22, 3, el.main());
-        scr.pset(138, 21, el.light());
-        scr.text(el.name(), 145, 19, el.light(), Align::Left, 8);
-        // Carried mana potions.
-        scr.spr(&self.spr.potion.img, 191.0, 22.0, false);
+        scr.frame_rect(44, 16, 50, 8, rgb(0x08040c));
+        scr.fill(45, 17, 48, 6, rgb(0x301800));
+        let w = (48.0 * (self.s.food / 100.0).clamp(0.0, 1.0)) as i32;
+        scr.fill(45, 17, w, 6, fc);
+        scr.fill(45, 17, w, 1, mix(fc, WHITE, 0.5));
+        // Counters: potions, runes (or keys in a dungeon), gold.
+        scr.spr(&self.spr.potion.img, 102.0, 20.0, false);
         let pc = if self.s.potions > 0 { rgb(0x3cbcfc) } else { rgb(0x747474) };
-        scr.text(&self.s.potions.to_string(), 197, 19, pc, Align::Left, 8);
+        scr.text(&self.s.potions.to_string(), 108, 16, pc, Align::Left, 8);
         if self.dungeon.is_some() && self.in_lair == 0 {
-            scr.spr(&self.spr.key.img, 213.0, 22.0, false);
-            scr.text(&format!("X{}", self.dungeon_keys()), 219, 19, rgb(0xfcbc3c), Align::Left, 8);
+            scr.spr(&self.spr.key.img, 126.0, 20.0, false);
+            scr.text(&format!("X{}", self.dungeon_keys()), 132, 16, rgb(0xfcbc3c), Align::Left, 8);
         } else {
             let runes = (1..=5).filter(|&i| self.s.cleared[i]).count();
-            scr.spr(&self.spr.gem.img, 213.0, 22.0, false);
-            scr.text(&format!("{}/5", runes), 219, 19, rgb(0xf878f8), Align::Left, 8);
+            scr.spr(&self.spr.gem.img, 126.0, 20.0, false);
+            scr.text(&format!("{}/5", runes), 132, 16, rgb(0xf878f8), Align::Left, 8);
+        }
+        scr.spr(&self.spr.coin.img, 124.0, 7.0, false);
+        scr.text(&format!("{:04}", self.s.gold), 130, 3, rgb(0xfcbc3c), Align::Left, 8);
+        // Life: rows of hearts under a -LIFE- label, two HP per heart (half hearts show).
+        let per = ((self.s.max_hp + 29) / 30).max(2);
+        let hearts = (self.s.max_hp + per - 1) / per;
+        let low = self.s.hp <= 6 && (self.frame >> 3) & 1 == 1;
+        let (hx, hy) = (178, 11);
+        scr.text("- LIFE -", hx + 66, 1, rgb(0xfc7460), Align::Center, 8);
+        for i in 0..hearts {
+            let (x, y) = (hx + (i % 15) * 9, hy + (i / 15) * 9);
+            let v = self.s.hp - i * per;
+            let full = if low { WHITE } else { rgb(0xd82800) };
+            draw_heart(scr, x, y, rgb(0x401010), 7);
+            if v >= per {
+                draw_heart(scr, x, y, full, 7);
+            } else if v > 0 {
+                draw_heart(scr, x, y, full, 4);
+            }
         }
         if self.muted {
-            scr.text("M", 248, 5, rgb(0x747474), Align::Left, 8);
+            scr.text("M", 312, 22, rgb(0x747474), Align::Left, 8);
         }
+        scr.ui();
     }
     fn draw_map(&self, scr: &mut Screen) {
         scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.88);
@@ -1134,6 +1140,19 @@ impl Game {
         }
         if self.t > 240 && (self.frame >> 4) & 1 == 1 {
             scr.text("PRESS START", 128, 214, WHITE, Align::Center, 8);
+        }
+    }
+}
+
+/// A small heart for the life meter; `cols` < 7 draws only the left part (half heart).
+fn draw_heart(scr: &mut Screen, x: i32, y: i32, c: u32, cols: i32) {
+    const ROWS: [&str; 6] = [".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."];
+    for (j, row) in ROWS.iter().enumerate() {
+        for (i, ch) in row.bytes().enumerate() {
+            if ch == b'X' && (i as i32) < cols {
+                let shade = if j == 1 && i == 1 { mix(c, WHITE, 0.6) } else { c };
+                scr.fill(x + i as i32, y + j as i32, 1, 1, shade);
+            }
         }
     }
 }
