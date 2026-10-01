@@ -1204,6 +1204,10 @@ fn encounters(t: &mut T) {
     t.shot("79_example_level");
     t.g.debug_levels_clear();
 
+    // ---------------------------------------------------------------- format 2 lairs
+    println!("[keep] hand-designed lair engine (test lair)");
+    keep_tests(t);
+
     // Side quest: the scholar's spellbook teaches Arcane Blink.
     println!("[quest] spellbook pages and Arcane Blink");
     let (_, shop) = t.g.debug_rooms();
@@ -1399,4 +1403,168 @@ fn encounters(t: &mut T) {
     t.shot("61_map_markers");
     t.tap(Btn::Start);
     t.release();
+}
+
+/// Exercise every format 2 lair mechanic on a small test lair (src/selftest_keep.json).
+fn keep_tests(t: &mut T) {
+    const T_LOCK: u8 = 5;
+    const T_BIGLOCK: u8 = 16;
+    const T_WATER: u8 = 2;
+    let loaded = t.g.debug_add_level("lair_1.json", include_str!("selftest_keep.json"));
+    t.check(loaded, "keep: the test lair (format 2) loads");
+    t.g.debug_god();
+    t.g.debug_enter_lair(1);
+    t.frames(5);
+    t.check(t.g.debug_dungeon().map_or(false, |d| d.0 == 1), "keep: entering lair 1 builds the hand-designed lair");
+    // Entrance: tablet, pots, the small key.
+    let (tx, ty) = tc(4, 3);
+    t.g.debug_set_player(tx, ty + 16.0, b'u');
+    t.frames(4);
+    t.check(t.g.debug_msg().map_or(false, |m| m.contains("TABLET READS")), "keep: lore tablets can be read");
+    let pots = t.g.debug_objs().iter().filter(|o| o.kind == "pot" && o.visible).count();
+    let (px, py) = tc(3, 9);
+    t.fire_from(px, py - 30.0, b'd');
+    t.frames(25);
+    let pots2 = t.g.debug_objs().iter().filter(|o| o.kind == "pot" && o.visible).count();
+    t.check(pots2 + 1 == pots, "keep: a bolt smashes a pot");
+    let (cx, cy) = tc(12, 4);
+    t.g.debug_set_player(cx, cy + 20.0, b'u');
+    t.walk_to(cx, cy + 10.0, 60);
+    t.frames(3);
+    t.check(t.g.debug_keep().0 == 1, "keep: a chest holds a small key");
+    t.shot("80_keep_entry");
+    // Hall: the small-key door.
+    t.g.debug_keep_goto("hall");
+    t.frames(5);
+    t.check(t.g.debug_tile(15, 6) == T_LOCK, "keep: a locked door bars the east way");
+    t.g.debug_set_player(220.0, tc(0, 6).1, b'r');
+    t.hold_until(Btn::Right, 60, |g| g.debug_tile(15, 6) != 5);
+    t.check(t.g.debug_tile(15, 6) != T_LOCK && t.g.debug_keep().0 == 0, "keep: walking into it with the key opens it (the key is used)");
+    t.check(t.g.debug_tile(3, 2) == T_WATER, "keep: water still blocks the hall's alcove");
+    // Dark room with a crystal switch and orange barriers around the big key.
+    t.g.debug_keep_goto("east");
+    t.frames(5);
+    t.check(t.g.debug_dark().is_some(), "keep: dark rooms are dark");
+    t.check(t.g.debug_solid_for_mage(11, 6), "keep: orange barriers start raised");
+    let (sx, sy) = tc(8, 4);
+    t.fire_from(sx, sy + 34.0, b'u');
+    t.frames(20);
+    t.check(t.g.debug_keep().4 && !t.g.debug_solid_for_mage(11, 6), "keep: a bolt on the crystal switch lowers the orange barriers");
+    t.shot("81_keep_barriers");
+    let (cx, cy) = tc(12, 6);
+    t.g.debug_set_player(cx, cy + 20.0, b'u');
+    t.walk_to(cx, cy + 10.0, 60);
+    t.frames(3);
+    t.check(t.g.debug_keep().1, "keep: the big key is found");
+    // Crystal room: ordered element crystals, a hidden chest and a floor switch.
+    t.g.debug_keep_goto("west");
+    t.frames(5);
+    t.check(t.g.debug_tile(15, 6) == 6, "keep: an unsolved puzzle room shuts its shutter door");
+    t.g.debug_set_element(1);
+    let (ix, iy) = tc(10, 4);
+    t.fire_from(ix, iy + 34.0, b'u');
+    t.frames(20);
+    t.check(t.g.debug_msg().map_or(false, |m| m.contains("ORDER")), "keep: lighting crystals out of order resets them");
+    t.g.debug_set_element(0);
+    let (fx, fy) = tc(5, 4);
+    t.fire_from(fx, fy + 34.0, b'u');
+    t.frames(20);
+    t.g.debug_set_element(1);
+    t.fire_from(ix, iy + 34.0, b'u');
+    t.frames(20);
+    t.check(t.g.debug_keep().5 && t.g.debug_tile(15, 6) != 6, "keep: lighting the crystals in order solves the room and opens the shutter");
+    t.check(t.g.debug_objs().iter().any(|o| o.kind == "chest" && o.visible), "keep: solving it reveals the hidden chest");
+    let (mx, my) = tc(8, 6);
+    t.g.debug_set_player(mx, my + 20.0, b'u');
+    t.walk_to(mx, my + 10.0, 60);
+    t.frames(3);
+    t.check(t.g.debug_keep().2, "keep: the map is found");
+    let (wx, wy) = tc(8, 10);
+    t.g.debug_set_player(wx, wy + 14.0, b'u');
+    t.walk_to(wx, wy, 40);
+    t.frames(3);
+    t.check(t.g.debug_has_flag("drain"), "keep: a floor switch sets a lair-wide flag");
+    t.g.debug_keep_goto("hall");
+    t.frames(5);
+    t.check(t.g.debug_tile(3, 2) != T_WATER, "keep: the flag drains the water in another room");
+    let (fx, fy) = tc(1, 2);
+    t.g.debug_set_player(fx + 2.0, fy + 20.0, b'u');
+    t.walk_to(fx + 2.0, fy + 8.0, 60);
+    t.frames(3);
+    t.check(t.g.debug_keep().3, "keep: the finder is found behind the drained water");
+    t.tap(Btn::Start);
+    t.frames(2);
+    t.shot("82_keep_map");
+    t.tap(Btn::Start);
+    // The big-key door and the great chest with the relic.
+    t.check(t.g.debug_tile(8, 0) == T_BIGLOCK, "keep: the big-key door bars the stairs");
+    t.g.debug_set_player(128.0, 60.0, b'u');
+    t.hold_until(Btn::Up, 60, |g| g.debug_tile(8, 0) != 16);
+    t.check(t.g.debug_tile(8, 0) != T_BIGLOCK, "keep: the big key opens the great lock");
+    t.g.debug_keep_goto("stairs");
+    t.frames(5);
+    let (bx, by) = tc(12, 9);
+    t.g.debug_set_player(bx, by + 22.0, b'u');
+    t.walk_to(bx, by + 12.0, 60);
+    t.frames(3);
+    t.check(t.g.debug_relics() & 1 != 0, "keep: the great chest holds the Vine Whip");
+    t.frames(20);
+    t.shot("83_keep_relic");
+    // Pits: falling hurts and puts you back; the whip swings you over; the cloak floats.
+    let hp0 = t.g.debug_hp();
+    let (ppx, ppy) = tc(6, 9);
+    t.g.debug_set_player(ppx, ppy, b'l');
+    t.frames(3);
+    t.check(t.g.debug_hp() < hp0 && t.g.debug_player().0 > 100.0, "keep: falling into a pit hurts and returns you to the room's entrance");
+    let ok = t.g.debug_select_slot("VINE WHIP");
+    t.check(ok, "keep: the Vine Whip is in the bag");
+    let (qx, qy) = tc(9, 9);
+    t.g.debug_set_player(qx, qy, b'l');
+    t.frames(70);
+    t.tap(Btn::Potion);
+    t.frames(30);
+    t.check(t.g.debug_player().0 < 96.0, "keep: the whip latches onto a post and swings the mage over the pit");
+    t.shot("84_keep_whip");
+    t.g.debug_grant_relic(4);
+    let ok = t.g.debug_select_slot("FEATHER CLOAK");
+    t.check(ok, "keep: the Feather Cloak is in the bag");
+    t.g.debug_set_player(qx, qy, b'l');
+    t.tap(Btn::Potion);
+    let hover = t.g.debug_hover() > 0;
+    let hp1 = t.g.debug_hp();
+    t.g.debug_set_player(ppx, ppy, b'l');
+    t.frames(10);
+    t.check(hover && t.g.debug_hp() == hp1 && (t.g.debug_player().0 - ppx).abs() < 2.0, "keep: floating with the cloak crosses pits");
+    t.frames(90);
+    // Trials: an ice block slides onto a plate; boulders need the gloves; lava the boots.
+    t.g.debug_keep_goto("trial");
+    t.frames(5);
+    let (ix, iy) = tc(4, 3);
+    t.g.debug_set_player(ix - 16.0, iy, b'r');
+    t.hold_until(Btn::Right, 60, |g| g.debug_objs().iter().any(|o| o.kind == "iceblock" && o.c == 12));
+    t.release();
+    t.frames(90);
+    t.check(t.g.debug_keep().5, "keep: a pushed ice block slides onto the plate and solves the room");
+    let (rx, ry) = tc(8, 10);
+    t.g.debug_set_player(rx, ry + 16.0, b'u');
+    t.hold_until(Btn::Up, 40, |_| false);
+    let blocked = t.g.debug_objs().iter().any(|o| o.kind == "boulder" && o.visible);
+    t.check(blocked, "keep: boulders can't be moved by hand");
+    t.g.debug_grant_relic(2);
+    t.g.debug_set_player(rx, ry + 16.0, b'u');
+    t.hold_until(Btn::Up, 40, |g| !g.debug_objs().iter().any(|o| o.kind == "boulder" && o.visible));
+    t.check(!t.g.debug_objs().iter().any(|o| o.kind == "boulder" && o.visible), "keep: the Titan Gloves heave a boulder away");
+    t.check(t.g.debug_solid_for_mage(3, 10), "keep: lava blocks the way");
+    t.g.debug_grant_relic(3);
+    t.check(!t.g.debug_solid_for_mage(3, 10), "keep: the Ember Boots walk on lava");
+    t.shot("85_keep_trials");
+    // The boss stairs.
+    t.g.debug_keep_goto("stairs");
+    t.frames(5);
+    let (sx, sy) = tc(7, 3);
+    t.g.debug_set_player(sx + 8.0, sy + 22.0, b'u');
+    t.frames(5);
+    t.check(t.g.debug_mode() == Mode::Descend, "keep: the boss stairs lead down");
+    t.frames(200);
+    t.g.debug_levels_clear();
 }

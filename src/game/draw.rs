@@ -366,7 +366,8 @@ impl Game {
                 }
             }
         }
-        if d.cur == R_STAIRS && !d.cave {
+        let legacy = d.keep.is_none() && !d.cave;
+        if d.cur == R_STAIRS && legacy {
             let (sx, sy) = (STAIRS_C * TS, HUD + STAIRS_R * TS);
             if room.tiles[STAIRS_R as usize][STAIRS_C as usize] == T_BARRIER {
                 let a = 0.3 + (self.frame as f32 * 0.1).sin().abs() * 0.25;
@@ -380,10 +381,10 @@ impl Game {
                 scr.blend(sx, sy, 32, 32, rgb(0xb040fc), a);
             }
         }
-        if d.cur == R_FEAST {
+        if legacy && d.cur == R_FEAST {
             self.draw_feast_tables(scr);
         }
-        if d.cur == R_PANTRY {
+        if legacy && d.cur == R_PANTRY {
             self.draw_pantry(scr, room);
         }
         for o in d.objs[d.cur].iter().filter(|o| o.visible) {
@@ -1114,15 +1115,36 @@ impl Game {
                 }
             }
             let room = &d.rooms[d.cur];
-            if d.cur == R_STAIRS {
+            // The old fixed-layout lairs light their staircase, entrance and feast hall by room
+            // number; hand-designed lairs light the stairs, the way out, torches and props.
+            let legacy = d.keep.is_none() && !d.cave;
+            let stairs_here = match &d.keep {
+                Some(k) => k.def.rooms[d.cur].boss_stairs,
+                None => d.cur == R_STAIRS,
+            };
+            if let Some(k) = &d.keep {
+                if k.def.rooms[d.cur].doors.iter().any(|door| door.to.is_none()) {
+                    lights.push((128.0, room.hf() - 6.0, 64.0, 0.75));
+                }
+                for o in d.objs[d.cur].iter().filter(|o| o.visible) {
+                    let (x, y) = o.pos();
+                    match o.k {
+                        OK::Crystal(_) if o.on => lights.push((x, y - 6.0, 34.0, 0.8)),
+                        OK::BigChest if !o.on => lights.push((x, y, 30.0, 0.6)),
+                        OK::Prop if k.texts.get(o.tag).map_or(false, |n| n.contains("brazier")) => lights.push((x, y - 10.0, 56.0 * flick(x), 0.9)),
+                        _ => {}
+                    }
+                }
+            }
+            if stairs_here {
                 let (sx, sy) = tile_center(STAIRS_C, STAIRS_R);
                 let lit = room.tiles[STAIRS_R as usize][STAIRS_C as usize] == T_STAIRS;
                 lights.push((sx + 8.0, sy + 8.0, if lit { 52.0 } else { 44.0 }, 0.8));
             }
-            if d.cur == R_ENTRY {
+            if legacy && d.cur == R_ENTRY {
                 lights.push((128.0, HF - 6.0, 64.0, 0.75)); // daylight through the way out
             }
-            if d.cur == R_FEAST {
+            if legacy && d.cur == R_FEAST {
                 for row in [4, 8] {
                     let y = (HUD + row * TS - 5) as f32;
                     for x in [4 * TS + 5, 12 * TS - 4] {

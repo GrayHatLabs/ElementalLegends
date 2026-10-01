@@ -146,15 +146,15 @@ fn mob(s: &str) -> Option<Mob> {
 }
 /// Format 2 adds pits, lava, coloured barriers, hidden bridges and thorns.
 pub fn tile2(c: char) -> Option<u8> {
-    tile(c).or(Some(match c {
-        'p' => T_PIT,
-        'l' => T_LAVA,
-        'r' => T_ORANGE,
-        'u' => T_BLUE,
-        'h' => T_HIDDEN,
-        't' => T_THORNS,
-        _ => return None,
-    }))
+    tile(c).or(match c {
+        'p' => Some(T_PIT),
+        'l' => Some(T_LAVA),
+        'r' => Some(T_ORANGE),
+        'u' => Some(T_BLUE),
+        'h' => Some(T_HIDDEN),
+        't' => Some(T_THORNS),
+        _ => None,
+    })
 }
 
 /// Parse a format 2 lair. Returns the lair and warnings for skipped parts.
@@ -233,6 +233,19 @@ pub fn parse_keep(v: &Value) -> Result<(Keep, Vec<String>), String> {
     }
     for (j, d) in extra {
         rooms[j].doors.push(d);
+    }
+    // A lock (other than a room's own shutter) belongs to both sides of the doorway.
+    for i in 0..rooms.len() {
+        for di in 0..rooms[i].doors.len() {
+            let d = rooms[i].doors[di].clone();
+            let (Some(j), true) = (d.to, matches!(d.lock, Lock::Small | Lock::Big | Lock::Bomb | Lock::Flag(_))) else { continue };
+            let back = [1, 0, 3, 2][d.side];
+            if let Some(bd) = rooms[j].doors.iter_mut().find(|bd| bd.side == back && bd.to == Some(i)) {
+                if bd.lock == Lock::None {
+                    bd.lock = d.lock.clone();
+                }
+            }
+        }
     }
     let entry = rooms.iter().position(|r| r.doors.iter().any(|d| d.to.is_none())).ok_or("no room has a door out of the lair (\"to\": \"exit\")")?;
     if !rooms.iter().any(|r| r.boss_stairs) {
@@ -492,4 +505,35 @@ pub fn check_solvable(k: &Keep) -> Vec<String> {
         out.push("the big chest needs the big key, which is never found".into());
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_test_lair_parses_and_is_solvable() {
+        let v: Value = serde_json::from_str(include_str!("selftest_keep.json")).unwrap();
+        let (k, warn) = parse_keep(&v).expect("parses");
+        assert!(warn.is_empty(), "{warn:?}");
+        assert_eq!(k.rooms.len(), 6);
+        assert_eq!(k.rooms[k.entry].id, "entry");
+        // Doors were mirrored: the hall's small-key door has a twin in the east room.
+        let east = k.rooms.iter().position(|r| r.id == "east").unwrap();
+        assert!(k.rooms[east].doors.iter().any(|d| d.side == 3 && d.lock == Lock::Small));
+        assert!(check_solvable(&k).is_empty(), "{:?}", check_solvable(&k));
+    }
+
+    #[test]
+    fn unsolvable_lairs_are_reported() {
+        let mut v: Value = serde_json::from_str(include_str!("selftest_keep.json")).unwrap();
+        // Remove the small key: the east room (and the big key in it) can't be reached.
+        let rooms = v["rooms"].as_array_mut().unwrap();
+        let objs = rooms[0]["objects"].as_array_mut().unwrap();
+        objs.retain(|o| o["contents"] != "small_key");
+        let (k, _) = parse_keep(&v).unwrap();
+        let problems = check_solvable(&k);
+        assert!(problems.iter().any(|p| p.contains("east")), "{problems:?}");
+        assert!(problems.iter().any(|p| p.contains("big key")), "{problems:?}");
+    }
 }

@@ -6,7 +6,7 @@ use super::dungeon::OK;
 use super::*;
 use crate::keepdef::Relic;
 
-const WHIP_REACH: f32 = 64.0;
+const WHIP_REACH: f32 = 80.0;
 const WHIP_FRAMES: i32 = 14;
 const HOVER_FRAMES: i32 = 80;
 

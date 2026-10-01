@@ -1136,6 +1136,9 @@ impl Game {
 
     /// A dungeon's display name: the level file's, else the built-in one.
     pub(super) fn dname(&self, n: usize) -> String {
+        if let Some(name) = self.levels.keep(n).filter(|_| (1..=6).contains(&n)).and_then(|k| k.name.clone()) {
+            return name;
+        }
         let from_level = if n == shop::SHOP_N {
             None
         } else if cave::is_cave(n) {

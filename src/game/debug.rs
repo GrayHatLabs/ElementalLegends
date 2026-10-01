@@ -203,6 +203,62 @@ impl Game {
         self.gate_room = self.shop_room;
         self.start_dungeon(shop::SHOP_N);
     }
+    /// Walk into lair n's dungeon directly (as if through its door).
+    pub fn debug_enter_lair(&mut self, n: usize) {
+        self.gate_room = self.rooms.iter().position(|r| r.gate == n).unwrap_or(self.start);
+        self.start_dungeon(n);
+    }
+    /// Jump to a format 2 lair room by id, standing near its south side.
+    pub fn debug_keep_goto(&mut self, id: &str) -> bool {
+        let Some(i) = self.dungeon.as_ref().and_then(|d| d.keep.as_ref()).and_then(|k| k.def.rooms.iter().position(|r| r.id == id)) else { return false };
+        if let Some(d) = self.dungeon.as_mut() {
+            d.cur = i;
+        }
+        let h = self.cur_room().hf();
+        self.pl.x = 128.0;
+        self.pl.y = h - 30.0;
+        self.enter_droom();
+        self.follow_cam(true);
+        true
+    }
+    /// (small keys, big key, map, finder, crystal switches blue, current room solved)
+    pub fn debug_keep(&self) -> (i32, bool, bool, bool, bool, bool) {
+        let cur = self.dungeon.as_ref().map_or(0, |d| d.cur);
+        (self.kkeys(), self.ktok("bigkey"), self.ktok("map"), self.ktok("finder"), self.crystals_blue(), self.ktok(&format!("s{cur}")))
+    }
+    pub fn debug_has_flag(&self, f: &str) -> bool {
+        self.ktok(&format!("f:{f}"))
+    }
+    pub fn debug_relics(&self) -> u8 {
+        self.s.relics
+    }
+    pub fn debug_grant_relic(&mut self, i: usize) {
+        self.s.relics |= 1 << i;
+    }
+    /// Would this tile block the mage right now?
+    pub fn debug_solid_for_mage(&self, c: i32, r: i32) -> bool {
+        self.moving_pl.set(true);
+        let (x, y) = tile_center(c, r);
+        let s = self.solid_at(x, y);
+        self.moving_pl.set(false);
+        s
+    }
+    /// Select a bag slot by name ("VINE WHIP", "FEATHER CLOAK", ...).
+    pub fn debug_select_slot(&mut self, name: &str) -> bool {
+        match self.slots().iter().position(|s| s.name() == name) {
+            Some(i) => {
+                self.s.bag_sel = i;
+                true
+            }
+            None => false,
+        }
+    }
+    pub fn debug_hover(&self) -> i32 {
+        self.hover
+    }
+    pub fn debug_dark(&self) -> Option<f32> {
+        self.keep_darkness()
+    }
     /// Forget every level file (the self-test runs on the generated layouts).
     pub fn debug_levels_clear(&mut self) {
         self.levels = crate::levels::Levels::default();
@@ -216,7 +272,8 @@ impl Game {
     }
     pub fn debug_add_level(&mut self, file: &str, text: &str) -> bool {
         self.levels.add(file, text, "self-test");
-        self.levels.by_name.contains_key(file.trim_end_matches(".json"))
+        let stem = file.trim_end_matches(".json");
+        self.levels.by_name.contains_key(stem) || stem.strip_prefix("lair_").and_then(|n| n.parse().ok()).map_or(false, |n| self.levels.keeps.contains_key(&n))
     }
     /// Jump to a room of the current dungeon.
     pub fn debug_droom(&mut self, room: usize) {

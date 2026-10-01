@@ -1036,6 +1036,11 @@ impl Game {
     /// If something solid appeared on top of the mage (a portcullis slamming shut in the
     /// doorway, a block sliding in), push them out toward the middle of the room.
     fn unstick_player(&mut self) {
+        self.moving_pl.set(true);
+        self.unstick_player_inner();
+        self.moving_pl.set(false);
+    }
+    fn unstick_player_inner(&mut self) {
         let mut p = self.pl;
         if !self.box_solid(p.x, p.y, p.w, p.h) {
             return;

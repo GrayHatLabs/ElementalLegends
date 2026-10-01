@@ -315,7 +315,7 @@ impl Game {
                 .filter(|(_, o)| o.visible)
                 .filter(|(_, o)| {
                     let (ox, oy) = tile_center(o.c, o.r);
-                    let reach = if o.solid() { 17.0 } else { 10.0 };
+                    let reach = if o.solid() { 18.0 } else { 12.0 };
                     (ox - px).abs() < reach && (oy - py).abs() < reach
                 })
                 .map(|(i, o)| (i, o.k, o.on))
