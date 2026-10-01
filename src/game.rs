@@ -1593,6 +1593,7 @@ impl Game {
         if self.overworld() {
             self.overworld_bump(ix, iy, blocked);
             self.heave_rocks(ix, iy, blocked);
+            self.gate_hint(ix, iy, blocked);
         }
         if self.pl.cd > 0 {
             self.pl.cd -= 1;

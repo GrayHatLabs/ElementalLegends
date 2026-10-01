@@ -203,6 +203,13 @@ impl Game {
         self.gate_room = self.shop_room;
         self.start_dungeon(shop::SHOP_N);
     }
+    /// Overworld relic gates: (area, side, segment, relic).
+    pub fn debug_relic_gates(&self) -> Vec<(usize, usize, usize, usize)> {
+        self.rooms.iter().flat_map(|r| r.relic_gates.iter().map(move |g| (r.i, g.0, g.1, g.2))).collect()
+    }
+    pub fn debug_clear_relics(&mut self) {
+        self.s.relics = 0;
+    }
     /// Walk into lair n's dungeon directly (as if through its door).
     pub fn debug_enter_lair(&mut self, n: usize) {
         self.gate_room = self.rooms.iter().position(|r| r.gate == n).unwrap_or(self.start);

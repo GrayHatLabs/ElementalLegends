@@ -123,6 +123,11 @@ pub struct Room {
     pub cave: usize,
     /// Where the cave mouth opens: logic x of its centre line and the tile row just below it.
     pub cave_door: (i32, i32),
+    /// Relic gates on this area's doorways: (side, segment, relic 0..5 = whip, lantern,
+    /// gloves, boots, cloak). The obstacle sits just inside the doorway.
+    pub relic_gates: Vec<(usize, usize, usize)>,
+    /// Progression zone: entering zone z needs relic z-1 (0 = open from the start).
+    pub zone: usize,
     pub tank: bool,
     pub cache: bool,
     pub dist: i32,
@@ -167,7 +172,7 @@ impl Room {
     }
     pub fn sized(i: usize, x: usize, y: usize, seed: u32, cw: usize, ch: usize) -> Self {
         Room {
-            i, x, y, cw, ch, doors: [false; 4], links: vec![], visited: false, gate: 0, cave: 0, cave_door: (8, 6), tank: false, cache: false,
+            i, x, y, cw, ch, doors: [false; 4], links: vec![], visited: false, gate: 0, cave: 0, cave_door: (8, 6), relic_gates: vec![], zone: 0, tank: false, cache: false,
             dist: -1, theme: 0, seed, special: SP_NONE, tiles: vec![vec![0; RC * cw]; RR * ch], img: Sprite::new(1, 1), img_hd: None,
             chest: None, shrine: None, mini: 0, mini_dir: 0, trees: vec![], treant: None, graves: vec![], pool: None,
             fruit: false,
@@ -452,10 +457,87 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
     }
     assign_minis(&mut rooms, start, shop);
     assign_caves(&mut rooms, start, shop);
+    assign_zones(&mut rooms, start, shop);
     for r in rooms.iter_mut() {
         build_room(r, themes);
     }
     (rooms, start, shop)
+}
+
+/// Relic progression on the overworld. Lair i (1-5) holds relic i. An area is in zone z
+/// when it lies farther from the monolith than lairs 1..z, and walking from a lower zone
+/// into zone z needs relic z: thorns (whip), a hidden bridge (lantern), a boulder
+/// (gloves), lava (boots) or a pit (cloak) blocks that doorway. The village and the way
+/// to it stay open.
+fn assign_zones(rooms: &mut [Room], start: usize, shop: usize) {
+    let lair_dist: Vec<i32> = (1..=5).map(|g| rooms.iter().find(|r| r.gate == g).map_or(i32::MAX, |r| r.dist)).collect();
+    for r in rooms.iter_mut() {
+        r.zone = (1..=5).filter(|&i| lair_dist[i - 1] < r.dist).max().unwrap_or(0);
+    }
+    // Keep the village (and every area on the shortest way there) in zone 0.
+    let mut prev = vec![usize::MAX; rooms.len()];
+    let mut q = VecDeque::from([start]);
+    let mut seen = vec![false; rooms.len()];
+    seen[start] = true;
+    while let Some(c) = q.pop_front() {
+        for l in rooms[c].links.clone() {
+            if !seen[l.to] {
+                seen[l.to] = true;
+                prev[l.to] = c;
+                q.push_back(l.to);
+            }
+        }
+    }
+    let mut c = shop;
+    while c != usize::MAX {
+        rooms[c].zone = 0;
+        c = prev[c];
+    }
+    rooms[start].zone = 0;
+    // A lair's own building must be reachable before its relic exists.
+    for g in 1..=5 {
+        if let Some(i) = rooms.iter().position(|r| r.gate == g) {
+            if rooms[i].zone >= g {
+                rooms[i].zone = g - 1;
+            }
+        }
+    }
+    // Gate every doorway that climbs into a higher zone, on the lower side.
+    for a in 0..rooms.len() {
+        for l in rooms[a].links.clone() {
+            let (za, zb) = (rooms[a].zone, rooms[l.to].zone);
+            if zb > za {
+                rooms[a].relic_gates.push((l.d, l.seg, zb - 1));
+            }
+        }
+    }
+}
+
+/// Lay the obstacle for a relic gate just inside a doorway.
+fn place_relic_gate(r: &mut Room, side: usize, seg: usize, relic: usize) {
+    let t = [T_THORNS, T_HIDDEN, T_ROCK, T_LAVA, T_PIT][relic.min(4)];
+    let (cols, rows) = (r.cols(), r.rows());
+    let (ox, oy) = (seg * RC, seg * RR);
+    // Two tiles deep, across the whole doorway (plus a tile either side for safety).
+    let cells: Vec<(usize, usize)> = match side {
+        0 => (5..=10).flat_map(|x| [(ox + x, 1), (ox + x, 2)]).collect(),
+        1 => (5..=10).flat_map(|x| [(ox + x, rows - 2), (ox + x, rows - 3)]).collect(),
+        2 => (4..=8).flat_map(|y| [(cols - 2, oy + y), (cols - 3, oy + y)]).collect(),
+        _ => (4..=8).flat_map(|y| [(1, oy + y), (2, oy + y)]).collect(),
+    };
+    for (x, y) in cells {
+        if x < cols && y < rows && matches!(r.tiles[y][x], T_FLOOR | T_WALL | T_DECOR) {
+            // Keep walls that frame the doorway; fill the passage itself.
+            let edge = match side {
+                0 | 1 => x == ox + 5 || x == ox + 10,
+                _ => y == oy + 4 || y == oy + 8,
+            };
+            if edge && r.tiles[y][x] == T_WALL {
+                continue;
+            }
+            r.tiles[y][x] = t;
+        }
+    }
 }
 
 /// Optional caves to clear, numbered from the nearest (1) to the farthest (CAVES).
@@ -648,6 +730,9 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
                 r.shrine = Some((rng.f() * 4.0) as usize);
             }
         }
+    }
+    for (side, seg, relic) in r.relic_gates.clone() {
+        place_relic_gate(r, side, seg, relic);
     }
     render(r, &themes[r.theme]);
 }
@@ -950,7 +1035,7 @@ fn render_hd(r: &Room, th: &Theme, wall: &[Sprite]) -> Sprite {
     // Special tiles keep their code-drawn look, scaled up from the 16 px image.
     for rr in 0..rows {
         for c in 0..cols {
-            if !matches!(t(c, rr), T_ICE | T_CRACK | T_LOCK | T_SEAL | T_PLATE | T_STAIRS | T_BARRIER | T_PIT | T_HIDDEN | T_LAVA | T_BIGLOCK | T_THORNS | T_ROCK) {
+            if !matches!(t(c, rr), T_ICE | T_CRACK | T_LOCK | T_SEAL | T_PLATE | T_STAIRS | T_BARRIER | T_PIT | T_HIDDEN | T_LAVA | T_BIGLOCK) {
                 continue;
             }
             for dy in 0..HD_TS {
@@ -1001,6 +1086,31 @@ mod tests {
         assert!(!rooms[start].big() && !rooms[shop].big(), "monolith and shop are single screens");
         assert!((2..=3).contains(&rooms[shop].dist), "the village is two or three areas from the monolith");
         assert!(rooms[shop].x.abs_diff(START_X) + rooms[shop].y.abs_diff(START_Y) >= 2, "the village isn't next door on the map");
+        // Relic progression: with k relics every area of zone <= k is reachable, which
+        // includes lair k+1 (holding relic k+1); the village needs none.
+        for k in 0..=5 {
+            let mut seen = vec![false; rooms.len()];
+            seen[start] = true;
+            let mut q = VecDeque::from([start]);
+            while let Some(c) = q.pop_front() {
+                for l in &rooms[c].links {
+                    let gated = rooms[c].relic_gates.iter().any(|g| g.0 == l.d && g.1 == l.seg && g.2 >= k);
+                    if !seen[l.to] && !gated {
+                        seen[l.to] = true;
+                        q.push_back(l.to);
+                    }
+                }
+            }
+            assert!(seen[shop], "the village is reachable with {k} relics");
+            for r in rooms.iter().filter(|r| r.zone <= k) {
+                assert!(seen[r.i], "area {} (zone {}) is reachable with {k} relics", r.i, r.zone);
+            }
+            if k < 5 {
+                let lair = rooms.iter().find(|r| r.gate == k + 1).unwrap();
+                assert!(seen[lair.i], "lair {} is reachable with {k} relics", k + 1);
+            }
+        }
+        assert!(rooms.iter().any(|r| !r.relic_gates.is_empty()), "the world has relic gates");
         let caves: Vec<&Room> = rooms.iter().filter(|r| r.cave > 0).collect();
         assert_eq!(caves.len(), CAVES, "every cave has a screen");
         assert!(caves.iter().all(|r| r.gate == 0 && r.mini == 0 && r.special == SP_NONE && r.dist >= 2), "caves are on screens of their own");

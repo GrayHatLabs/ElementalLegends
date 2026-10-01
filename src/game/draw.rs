@@ -955,6 +955,7 @@ impl Game {
             self.draw_room_img(scr, self.cur_room(), 0, 0);
             if self.overworld() {
                 self.draw_room_objs(scr, self.room, 0, 0);
+                self.draw_keep_tiles(scr);
             } else if self.in_lair == 0 {
                 self.draw_dungeon_overlays(scr);
                 if self.in_keep() {

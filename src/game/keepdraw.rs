@@ -171,7 +171,19 @@ impl Game {
                         }
                     }
                     T_THORNS => {
-                        self.obj_hd(scr, "tile_thorns", cx, cy + 8.0);
+                        if !self.obj_hd(scr, "tile_thorns", cx, cy + 8.0) {
+                            for k in 0..4 {
+                                let (ax, ay) = (px + (k * 5) % 14, py + (k * 7) % 12);
+                                scr.fill(ax, ay + 2, 8, 2, rgb(0x2c5c18));
+                                scr.fill(ax + 2, ay, 2, 6, rgb(0x2c5c18));
+                            }
+                        }
+                    }
+                    T_ROCK => {
+                        if !self.obj_hd(scr, "obj_boulder", cx, cy + 8.0) {
+                            scr.disc(px + 8, py + 8, 7, rgb(0x6c6c78));
+                            scr.disc(px + 6, py + 6, 3, rgb(0x9c9ca8));
+                        }
                     }
                     _ => {}
                 }

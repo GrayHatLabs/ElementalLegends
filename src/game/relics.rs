@@ -191,6 +191,10 @@ impl Game {
             self.part(x, y, a.cos() * 0.6, a.sin() * 0.6, 18, rgb(0x5c5c64), 2, PK::Dot);
         }
         self.float("FELL!", x - 20.0, y - 18.0, rgb(0xfc7460));
+        if self.dungeon.is_none() && !self.gate_warned {
+            self.gate_warned = true;
+            self.show_msg(if self.has_relic(Relic::Lantern) { "A DEEP CHASM. YOU WOULD NEED TO FLOAT ACROSS IT." } else { "THE GROUND GIVES WAY! A LIGHT THAT SHOWS HIDDEN THINGS MIGHT REVEAL A SAFE PATH." });
+        }
         let (rx, ry) = self.room_entry_pos;
         self.pl.x = rx;
         self.pl.y = ry;
@@ -249,5 +253,33 @@ impl Game {
         self.rerender_current();
         self.sfx(Sfx::Rumble);
         self.shake = 8;
+    }
+
+    /// Bumping into an overworld obstacle without its relic: say what might help.
+    pub(super) fn gate_hint(&mut self, ix: f32, iy: f32, blocked: (bool, bool)) {
+        if self.gate_warned {
+            return;
+        }
+        let axis = if ix != 0.0 && iy == 0.0 && blocked.0 {
+            (ix.signum(), 0.0)
+        } else if iy != 0.0 && ix == 0.0 && blocked.1 {
+            (0.0, iy.signum())
+        } else {
+            return;
+        };
+        let probe = (self.pl.x + axis.0 * (self.pl.w / 2.0 + 3.0), self.pl.y + axis.1 * (self.pl.h / 2.0 + 3.0));
+        let (c, r) = tile_of(probe.0, probe.1);
+        let (relic, text) = match self.tile_at(c, r) {
+            T_THORNS => (Relic::Whip, "THORNY VINES CHOKE THE PATH. SOMETHING SHARP AND SUPPLE COULD CUT THEM."),
+            T_ROCK => (Relic::Gloves, "A HUGE BOULDER BLOCKS THE WAY. ONLY GREAT STRENGTH COULD MOVE IT."),
+            T_LAVA => (Relic::Boots, "A RIVER OF LAVA BARS THE WAY. BOOTS THAT DEFY FIRE WOULD BE NEEDED."),
+            _ => return,
+        };
+        if self.has_relic(relic) {
+            return;
+        }
+        self.gate_warned = true;
+        self.show_msg(text);
+        self.sfx(Sfx::Deny);
     }
 }

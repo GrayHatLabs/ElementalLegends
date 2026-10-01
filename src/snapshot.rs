@@ -603,7 +603,9 @@ fn run_dungeon(t: &mut T, n: usize) {
     t.check(t.g.debug_tile(7, 4) == T_DECOR, &format!("dungeon {n}: entrance building occupies its footprint"));
     t.shot(&format!("20_building_{n}"));
     // Walking behind the building (e.g. arriving through a north doorway) must not pull you in.
-    t.g.debug_set_player(128.0, 56.0, b'u');
+    // (Pick an open tile behind it: a relic gate may fill the north doorway.)
+    let bx = (1..15).filter(|&c| t.g.debug_tile(c, 1) == T_FLOOR).min_by_key(|&c| (c - 8).abs()).unwrap_or(8);
+    t.g.debug_set_player(bx as f32 * 16.0 + 8.0, 56.0, b'u');
     t.frames(6);
     t.check(t.g.debug_mode() == Mode::Play && t.g.debug_dungeon().is_none(), &format!("dungeon {n}: standing behind the building doesn't enter it"));
     t.g.debug_set_player(128.0, 176.0, b'u');
@@ -1208,6 +1210,10 @@ fn encounters(t: &mut T) {
     println!("[keep] hand-designed lair engine (test lair)");
     keep_tests(t);
 
+    // ---------------------------------------------------------------- overworld relic gates
+    println!("[gates] relics open the way to new regions");
+    gate_tests(t);
+
     // Side quest: the scholar's spellbook teaches Arcane Blink.
     println!("[quest] spellbook pages and Arcane Blink");
     let (_, shop) = t.g.debug_rooms();
@@ -1567,4 +1573,50 @@ fn keep_tests(t: &mut T) {
     t.check(t.g.debug_mode() == Mode::Descend, "keep: the boss stairs lead down");
     t.frames(200);
     t.g.debug_levels_clear();
+}
+
+/// Thorns need the Vine Whip and boulders the Titan Gloves; every relic gates some path.
+fn gate_tests(t: &mut T) {
+    const T_THORNS: u8 = 17;
+    const T_ROCK: u8 = 18;
+    let gates = t.g.debug_relic_gates();
+    for r in 0..5 {
+        t.check(gates.iter().any(|g| g.3 == r), &format!("gates: some path needs relic {}", r + 1));
+    }
+    t.g.debug_clear_relics();
+    for (relic, tile, name) in [(0usize, T_THORNS, "thorns"), (2, T_ROCK, "boulder")] {
+        let Some(&(room, side, seg, _)) = gates.iter().find(|g| g.3 == relic) else {
+            t.check(false, &format!("gates: a doorway is blocked by {name}"));
+            continue;
+        };
+        let (w, h) = t.g.debug_room_size(room);
+        // Stand just inside the doorway, facing the obstacle.
+        let (cols, rows) = ((w / 16.0) as i32, ((h - 32.0) / 16.0) as i32);
+        let (gx, gy) = (seg as f32 * 256.0 + 128.0, 32.0 + seg as f32 * 208.0 + 6.0 * 16.0 + 8.0);
+        let (x, y, face, toward, oc, orow) = match side {
+            0 => (gx, 32.0 + 64.0, b'u', Btn::Up, seg as i32 * 16 + 8, 1),
+            1 => (gx, h - 64.0, b'd', Btn::Down, seg as i32 * 16 + 8, rows - 2),
+            2 => (w - 64.0, gy, b'r', Btn::Right, cols - 2, seg as i32 * 13 + 6),
+            _ => (64.0, gy, b'l', Btn::Left, 1, seg as i32 * 13 + 6),
+        };
+        t.g.debug_play_room(room, x, y);
+        t.g.debug_kill_enemies();
+        t.g.debug_set_player(x, y, face);
+        t.check(t.g.debug_tile(oc, orow) == tile, &format!("gates: {name} sit in the doorway"));
+        t.hold_until(toward, 40, |_| false);
+        t.check(t.g.debug_tile(oc, orow) == tile && t.g.debug_msg().is_some(), &format!("gates: {name} can't be passed without the relic (and a hint shows)"));
+        t.shot(&format!("86_gate_{name}"));
+        t.g.debug_grant_relic(relic);
+        t.g.debug_set_player(x, y, face);
+        if relic == 0 {
+            t.g.debug_select_slot("VINE WHIP");
+            t.frames(2);
+            t.tap(Btn::Potion);
+            t.frames(5);
+        } else {
+            t.hold_until(toward, 40, |_| false);
+        }
+        t.check(t.g.debug_tile(oc, orow) != tile, &format!("gates: the relic clears the {name}"));
+        t.g.debug_clear_relics();
+    }
 }
