@@ -181,3 +181,106 @@ editor's **Check** button reports the same problems before you save:
 - a `plates` puzzle with fewer blocks than plates, or a `freeze_plate` room without plates
 - a lair west room with no key chest
 - enemies placed on walls
+
+---
+
+# Format 2: hand-designed lairs
+
+Format 2 describes a **whole lair** with a free room layout, in the style of *A Link to
+the Past* dungeons: small keys and locked doors, a big key and great chest holding the
+lair's relic, a map and finder, switches, and puzzles that span rooms. It replaces the
+lair's built-in layout completely. Only lairs use format 2; caves stay on format 1.
+
+The six shipped lairs are `levels/lair_1.json` .. `lair_6.json`. They were drawn with
+`scripts/design_lairs.py`, which writes the JSON, but the JSON is the source of truth.
+
+```json
+{
+  "format": 2,
+  "kind": "lair",
+  "number": 1,
+  "name": "OVERGROWN SHRINE",
+  "theme": 4,
+  "relic": "vine_whip",
+  "rooms": [ { "id": "entry", "name": "SHRINE GATE", "at": [1, 4], ... }, ... ]
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `relic` | What the great chest holds: `vine_whip`, `spirit_lantern`, `titan_gloves`, `ember_boots`, `feather_cloak`. Leave it out for the Dark Tower |
+| `rooms` | A list of rooms (any number). Each room has a unique `id` |
+
+## A format 2 room
+
+| Key | Meaning |
+|---|---|
+| `id` | Unique name used by doors (`"to": "hall"`) |
+| `name` | Shown when you first enter and on the pause map |
+| `at` | `[x, y]` grid cell of the room's top-left screen (0-12). Rooms must not overlap |
+| `size` | `[w, h]` in screens, 1 or 2 each way (default `[1, 1]`). A 2x2 room is 32x26 tiles |
+| `tiles` | `13*h` strings of `16*w` characters (see the table below) |
+| `dark` | `true`: nearly black without the Spirit Lantern |
+| `doors` | See *Doors* |
+| `shutter` | What opens this room's `shutter` doors: `none`, `combat` (every door seals until all monsters are gone), `switch` (every floor switch pressed), `torches`, `crystals`, `plates` (every plate covered by a block, ice block or frozen monster). When solved, hidden chests appear |
+| `flag_tiles` | `[{"flag": "drain", "from": "~", "to": "."}]`: when the flag is set anywhere in the lair, these tiles change in this room |
+| `boss_stairs` | `true`: the boss staircase is here (columns 7-8, rows 3-4) |
+| `enemies`, `random_enemies` | As in format 1 |
+| `objects` | See *Objects* |
+
+Extra tile characters in format 2:
+
+| Char | Tile |
+|---|---|
+| `p` | pit: you fall back to where you entered the room (Feather Cloak floats over it) |
+| `l` | lava: solid without the Ember Boots |
+| `r` / `u` | orange / blue barrier pegs: orange starts raised; a crystal switch swaps them |
+| `h` | hidden bridge: a pit unless you carry the Spirit Lantern |
+| `t` | thorns: cut with the Vine Whip |
+
+### Doors
+
+`{"side": "n", "to": "hall", "lock": "small", "seg": 0}`
+
+- `side` is `n`, `s`, `e` or `w`. `seg` picks the screen along that side for 2-screen rooms.
+- `to` is a room id, or `"exit"` for the way out (the room holding it is the entrance).
+- The two rooms must touch there. You only need to declare a door once; the other side
+  is added automatically, and a lock applies to both sides.
+- `lock`:
+
+| Lock | Opens with |
+|---|---|
+| `none` | always open |
+| `small` | a small key (used up) |
+| `big` | the big key |
+| `shutter` | this room's `shutter` condition |
+| `bomb` | a cracked wall: bombs, Quake or three bolts |
+| `flag:NAME` | a lever or floor switch somewhere in the lair that `sets` NAME |
+
+### Objects (format 2 adds these)
+
+| `type` | Keys | Notes |
+|---|---|---|
+| `chest` | `contents`, `hidden` | Also `small_key`, `map`, `finder`, `big_key` |
+| `big_chest` | `relic` (optional) | Needs the big key; holds the lair's relic |
+| `lever` | `sets` | Pulled by walking into it or with the whip |
+| `floor_switch` | `sets` | Pressed by the mage or a pushed block |
+| `crystal_switch` | | A bolt or the whip swaps the orange/blue barriers lair-wide |
+| `crystal` | `element`, `order` | Lit by a bolt of its element; with `order` 1, 2, 3... they must be lit in sequence or they all go dark |
+| `ice_block` | | Pushed blocks slide until they hit something or reach a plate |
+| `whip_post` | | The Vine Whip pulls you to the tile in front of it (reach 6 tiles) |
+| `boulder` | | Heaved aside with the Titan Gloves |
+| `pot`, `crate` | | Bolts smash them; sometimes a heart, magic or coins |
+| `tablet` | `text` | Lore and hints, read by walking up to it |
+| `prop` | `name`, `solid` | Decoration from the art sheets, e.g. `prop_4_statue`; `"solid": false` for flat rugs and floor art |
+
+## Checks
+
+The game checks every format 2 lair when it loads (warnings go to the console):
+
+- every room can be reached, counting keys found before the doors they open
+- the boss stairs can be reached
+- the big key exists if there is a great chest
+
+`scripts/design_lairs.py` also lints each room: blocked doorways, objects in walls and
+things that can't be reached on foot (anything that needs a relic is marked as intended).
