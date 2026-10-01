@@ -127,10 +127,35 @@ The rune/monolith start is unchanged (user decision).
 | Overworld encounters: Hoard Dragon, Deceiving Dryad (+ poison status, antidote), Food Trees + Angry Treant, Graveyard + Grave Lord — one-time, save-flagged, map markers, old saves load | H, V (snapshots 50–61 reviewed); not yet playtested for feel or on hardware |
 | Better-looking dungeon entrances (playtest feedback) | Done in the SNES upgrade (generated building art) |
 | Less childish boss art (playtest feedback) | Done in the SNES upgrade (generated boss art) |
-| Mini-boss batch 1: Mimic Chest, Treasure Goblin, Bandit Raccoon, Wandering Merchant Ogre | Queued |
-| Mini-boss batch 2: Mushroom Ring Fairy King, Honey Bear, Headless Knight, Banshee | Queued |
-| Mini-boss batch 3: Bog Witch, Giant Toad, Will-o'-wisp, Salamander Queen, Lava Golem Forge, Phoenix | Queued |
-| Mini-boss batch 4: Doppelganger Mage | Queued |
+| Mini-boss batch 1: Mimic Chest, Treasure Goblin, Bandit Raccoon, Wandering Merchant Ogre | H (self-test checks for each); placeholder shapes until the PixelLab art is imported; not playtested |
+| Mini-boss batch 2: Mushroom Ring Fairy King, Honey Bear, Headless Knight, Banshee | H; placeholder art; not playtested |
+| Mini-boss batch 3: Bog Witch, Giant Toad, Will-o'-wisp, Salamander Queen, Lava Golem Forge, Phoenix | H; placeholder art; not playtested |
+| Mini-boss batch 4: Doppelganger Mage | H (uses the mage sheets, darkened); not playtested |
+
+### Second-wave encounters (src/game/encounters.rs)
+
+The world now has 40 areas (8 big wilderness areas) so all 13 fixed encounters get a home screen; the
+Treasure Goblin (5% on entering a plain screen) and Merchant Ogre (6%) roam. Save version is 3: older
+saves are ignored and a new game is needed. The Greenwood ones (Fairy King, Honey Bear, Raccoon) fall back
+to other regions when Greenwood has no free screen; this world places them outside Greenwood.
+
+| Encounter | How it works | Reward |
+|---|---|---|
+| Mimic Chest | Sits as a chest; wakes when you come close or hit it; hops at you; weak to fire | Gold, 3 bombs |
+| Treasure Goblin | Flees, spills coins on every hit, escapes after ~15 s | Its sack (gold, gem) |
+| Bandit Raccoon | Steals up to a third of your gold and some food, runs out a doorway to the next screen and waits there | Your loot back, 60 gold, bread |
+| Merchant Ogre | Fed: press A to buy 5 bombs (40 g) or an elixir (90 g). Starving (food < 20) or hit: he fights | Elixir, 5 bombs |
+| Fairy King | Step into the mushroom ring: it closes, 45 s to beat the king and his pixies or you are thrown out | Speed charm (+12% walk speed) |
+| Honey Bear | Shoot the hive: a bee swarm stings the bear (and you) | Full food, heart container |
+| Headless Knight | Armour can't be hurt ("CLANG"); hit the rolling head | Mana crystal (+10 max MP) |
+| Banshee | Invisible while you move; stand still or hit her with storm to reveal her; her scream stuns | Gold, elixir |
+| Bog Witch | 5-gold stew bowls: eating curses you (reversed controls ~10 s, poison) and she attacks with hexes and slimes | Merchant card (shop 25% off) |
+| Giant Toad | Tongue pulls you in when in front; swallowed, hammer A to hit its belly until it spits you out | Gold, elixir |
+| Will-o'-wisp | Fog and a quicksand field; sinking drags you back to the entrance (hurt); ice freezes quicksand | 2 elixirs |
+| Salamander Queen | "TOO HOT" until an ice hit turns her to stone for 4 s; then fire/earth do double | Heart container |
+| Lava Golem Forge | Reforges from any unfrozen lava pool; freeze the four pools with ice | Gold, mana crystal |
+| Phoenix | Dies into an egg; destroy it within 8 s or it hatches at full strength | Heart container, elixir |
+| Doppelganger Mage | Copies your element (immune to it) and recopies 5 s after you switch; four element shrines on the screen | Mirror charm (+20% bolt damage) |
 
 Playtest notes: the player likes the mana potions, and the lighting is "just about right".
 

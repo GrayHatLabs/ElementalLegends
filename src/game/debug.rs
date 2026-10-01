@@ -217,6 +217,9 @@ impl Game {
     pub fn debug_relic_gates(&self) -> Vec<(usize, usize, usize, usize)> {
         self.rooms.iter().flat_map(|r| r.relic_gates.iter().map(move |g| (r.i, g.0, g.1, g.2))).collect()
     }
+    pub fn debug_room_has_lair(&self, room: usize) -> bool {
+        self.rooms.get(room).map_or(false, |r| r.gate > 0)
+    }
     pub fn debug_clear_relics(&mut self) {
         self.s.relics = 0;
     }
@@ -406,7 +409,13 @@ impl Game {
     pub fn debug_kill_enemies(&mut self) {
         let mut en = std::mem::take(&mut self.enemies);
         for e in en.iter_mut() {
-            self.damage_enemy(e, 9999.0, Elem::Neutral);
+            // Second-wave encounters are just cleared away (no rewards, not finished), so
+            // tests that tidy up a screen don't finish them by accident.
+            if super::encounters::is_encounter_kind(e.k) {
+                e.dead = true;
+            } else {
+                self.damage_enemy(e, 9999.0, Elem::Neutral);
+            }
         }
         en.append(&mut self.enemies);
         self.enemies = en;

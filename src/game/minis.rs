@@ -34,7 +34,11 @@ pub(super) struct Fruit {
 pub(super) fn enemy_mult(e: &Enemy, el: Elem) -> f32 {
     match e.k {
         // Rotting and dry things burn: neutral, but weak to fire.
-        EK::Zombie | EK::GraveLord | EK::Dryad if el == Elem::Fire => 2.0,
+        EK::Zombie | EK::GraveLord | EK::Dryad | EK::Mimic | EK::Bear if el == Elem::Fire => 2.0,
+        // Cooled to stone, the salamander queen breaks under fire and earth.
+        EK::Salamander if e.mode == 2 && matches!(el, Elem::Fire | Elem::Earth) => 2.0,
+        EK::Salamander if e.mode == 2 => 1.0,
+        EK::LavaGolem | EK::PhoenixEgg if el == Elem::Ice => 2.0,
         _ => mult(el, e.el),
     }
 }
@@ -46,7 +50,7 @@ impl Game {
     pub(super) fn done(&self, id: u8) -> bool {
         self.s.mini_done(id)
     }
-    fn finish_mini(&mut self, id: u8) {
+    pub(super) fn finish_mini(&mut self, id: u8) {
         self.s.mini_done |= Self::bit(id);
         self.save();
     }
@@ -86,6 +90,13 @@ impl Game {
         }
         self.dryad_stage = 0;
         self.poison = 0;
+        self.curse = 0;
+        self.pl_stun = 0;
+        self.swallowed = None;
+        self.raccoon = None;
+        self.bees = None;
+        self.fairy_t = 0;
+        self.ring_tiles.clear();
     }
 
     pub(super) fn enter_mini_room(&mut self) {
@@ -156,7 +167,7 @@ impl Game {
             self.show_msg("THE VILLAGER BECKONS: THIS WAY... JUST A LITTLE FURTHER...");
         }
     }
-    fn make_mini(&mut self, k: EK, id: u8, x: f32, y: f32) -> Enemy {
+    pub(super) fn make_mini(&mut self, k: EK, id: u8, x: f32, y: f32) -> Enemy {
         let th = self.theme_now();
         let mut e = self.make_enemy(k, x, y, th);
         e.mini = id;
@@ -268,7 +279,10 @@ impl Game {
 
     // ------------------------------------------------------------ damage hooks
     /// React to a hit. Returns false when the hit does no damage.
-    pub(super) fn mini_hit(&mut self, e: &mut Enemy, _el: Elem) -> bool {
+    pub(super) fn mini_hit(&mut self, e: &mut Enemy, el: Elem) -> bool {
+        if super::encounters::is_encounter_kind(e.k) {
+            return self.enc_hit(e, el);
+        }
         match e.k {
             EK::HoardDragon => {
                 self.hoard_anger = (self.hoard_anger + 0.12).min(1.5);
@@ -323,6 +337,9 @@ impl Game {
         any
     }
     pub(super) fn mini_defeated(&mut self, e: &Enemy) {
+        if super::encounters::is_encounter_kind(e.k) {
+            return self.enc_defeated(e);
+        }
         let th = self.theme_now() as i32;
         match e.k {
             EK::Dryad => {
@@ -584,6 +601,7 @@ impl Game {
         if !self.overworld() {
             return;
         }
+        self.enc_bolt_tile(c, r);
         if let Some(i) = self.fruit_at(c, r) {
             self.shake_tree(i);
         } else if let Some(g) = self.grave_at(c, r) {

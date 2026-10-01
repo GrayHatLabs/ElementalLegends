@@ -184,6 +184,7 @@ pub fn run(dir: Option<&str>) -> i32 {
     });
     let mut t = T { g: Game::new(None), scr: Screen::new(), input: Input::default(), dir, fails: vec![], passes: 0 };
     t.g.debug_no_save();
+    t.g.debug_no_roamers();
     t.g.debug_levels_clear();
     t.g.debug_seed(0xE1E7);
 
@@ -575,6 +576,7 @@ pub fn run(dir: Option<&str>) -> i32 {
 
     // ---------------------------------------------------------------- overworld encounters
     encounters(&mut t);
+    encounters2(&mut t);
 
     // ---------------------------------------------------------------- dungeons, puzzles, stairs, bosses
     for n in 1..=6 {
@@ -1490,6 +1492,340 @@ fn encounters(t: &mut T) {
     t.release();
 }
 
+/// The second wave of overworld encounters (see game/encounters.rs).
+fn encounters2(t: &mut T) {
+    use crate::world::*;
+    let hp_of = |t: &T, id: u32| t.g.debug_mobs().into_iter().find(|m| m.id == id).map_or(0.0, |m| m.hp);
+    let alive = |t: &T, kind: &str| t.g.debug_mob(kind).is_some();
+    t.release();
+    t.g.debug_enc_clear();
+    // Go to an encounter's home screen, standing south of its centre.
+    let goto = |t: &mut T, id: u8, name: &str| -> bool {
+        let Some(room) = t.g.debug_mini_room(id) else {
+            t.check(false, &format!("{name}: has a home screen"));
+            return false;
+        };
+        t.g.debug_god();
+        t.g.debug_play_room(room, 128.0, 200.0);
+        let (cx, cy) = t.g.debug_enc().center;
+        t.g.debug_set_player(cx, cy + 70.0, b'u');
+        t.frames(3);
+        t.check(t.g.debug_mini_seen(id), &format!("{name}: its screen is marked as discovered"));
+        let kinds: Vec<String> = t.g.debug_mobs().iter().map(|m| m.kind.clone()).collect();
+        println!("  mobs on the {name} screen: {kinds:?}");
+        t.check(!t.g.debug_mini_done(id), &format!("{name}: not finished before the fight"));
+        true
+    };
+    let kill = |t: &mut T, kind: &str, el: usize| {
+        if let Some(m) = t.g.debug_mob(kind) {
+            t.g.debug_hit(m.id, 9999.0, el);
+        }
+        t.frames(3);
+    };
+
+    // ---------------------------------------------------------------- mimic chest
+    println!("[encounter] mimic chest");
+    if goto(t, MINI_MIMIC, "mimic") {
+        let m = t.g.debug_mob("Mimic");
+        t.check(m.as_ref().map_or(false, |m| m.mode == 0), "mimic: it sits disguised as a chest");
+        t.shot("62_mimic_disguised");
+        if let Some(m) = m {
+            t.g.debug_set_player(m.x, m.y + 16.0, b'u');
+            t.frames(3);
+            t.check(t.g.debug_mob("Mimic").map_or(false, |m| m.mode == 1), "mimic: walking up to it wakes the mimic");
+            let h0 = hp_of(t, m.id);
+            t.g.debug_hit(m.id, 2.0, 0);
+            t.check((h0 - hp_of(t, m.id) - 4.0).abs() < 0.01, "mimic: it is weak to fire");
+            let bombs = t.g.debug_bag().1;
+            kill(t, "Mimic", 0);
+            t.check(t.g.debug_mini_done(MINI_MIMIC) && t.g.debug_bag().1 >= (bombs + 3).min(9), "mimic: beating it gives gold and bombs");
+        }
+    }
+
+    // ---------------------------------------------------------------- treasure goblin
+    println!("[encounter] treasure goblin");
+    let plain = t.g.debug_mini_room(MINI_MIMIC).unwrap_or(0);
+    t.g.debug_play_room(plain, 128.0, 200.0);
+    t.frames(2);
+    t.g.debug_kill_enemies();
+    let g = t.g.debug_enc_spawn("Goblin");
+    let coins0 = t.g.debug_items().iter().filter(|i| i.0 == "Coin").count();
+    t.g.debug_hit(g, 1.0, 1);
+    t.check(t.g.debug_items().iter().filter(|i| i.0 == "Coin").count() > coins0, "goblin: hitting it spills coins");
+    t.shot("63_goblin");
+    t.frames(1000);
+    t.check(!alive(t, "Goblin") && !t.g.debug_mini_done(MINI_GOBLIN), "goblin: left alone it escapes");
+    let g = t.g.debug_enc_spawn("Goblin");
+    t.g.debug_hit(g, 9999.0, 1);
+    t.frames(2);
+    t.check(t.g.debug_mini_done(MINI_GOBLIN), "goblin: caught, it drops its whole sack");
+
+    // ---------------------------------------------------------------- merchant ogre
+    println!("[encounter] merchant ogre");
+    t.g.debug_kill_enemies();
+    t.g.debug_set_food(80.0);
+    t.g.debug_enc_spawn("Ogre");
+    t.check(t.g.debug_mob("Ogre").map_or(false, |m| m.mode == 0), "ogre: fed, he is a friendly trader");
+    t.g.debug_set_gold(100);
+    t.g.debug_set_bag(0, 0, 0);
+    if let Some(m) = t.g.debug_mob("Ogre") {
+        t.g.debug_set_player(m.x, m.y + 22.0, b'u');
+        t.frames(2);
+        t.tap(Btn::Fire);
+        t.check(t.g.debug_bag().1 == 5 && t.g.debug_gold() == 60 && t.g.debug_player_bolts().is_empty(), "ogre: A buys 5 bombs for 40 gold (no bolt cast)");
+        t.shot("64_ogre_trader");
+    }
+    t.g.debug_kill_enemies();
+    t.g.debug_set_food(10.0);
+    t.g.debug_enc_spawn("Ogre");
+    t.check(t.g.debug_mob("Ogre").map_or(false, |m| m.mode == 1), "ogre: if you're starving, so is he: he attacks");
+    t.g.debug_god();
+    kill(t, "Ogre", 0);
+    t.check(t.g.debug_mini_done(MINI_OGRE), "ogre: beaten, he drops his pack");
+
+    // ---------------------------------------------------------------- bandit raccoon
+    println!("[encounter] bandit raccoon");
+    if goto(t, MINI_RACCOON, "raccoon") {
+        t.g.debug_set_gold(300);
+        if let Some(r) = t.g.debug_mob("Raccoon") {
+            t.g.debug_set_player(r.x, r.y + 8.0, b'u');
+            t.frames(20);
+            let st = t.g.debug_enc().raccoon;
+            t.check(st.map_or(false, |s| s.1 > 0) && t.g.debug_gold() < 300, "raccoon: it snatches your gold");
+            t.g.debug_set_player(r.x, r.y + 60.0, b'u');
+            t.frames(900);
+            let home = t.g.debug_mini_room(MINI_RACCOON).unwrap();
+            let st = t.g.debug_enc().raccoon;
+            t.check(st.map_or(false, |s| s.0 != home) && !alive(t, "Raccoon"), "raccoon: it flees to the next screen with your loot");
+            if let Some((to, _)) = st {
+                t.g.debug_play_room(to, 128.0, 200.0);
+                t.frames(3);
+                t.check(alive(t, "Raccoon"), "raccoon: you find it on the screen it fled to");
+                t.shot("65_raccoon");
+                let g0 = t.g.debug_gold();
+                kill(t, "Raccoon", 1);
+                t.check(t.g.debug_mini_done(MINI_RACCOON) && t.g.debug_gold() >= g0 + 60, "raccoon: cornered, it returns your loot and its stash");
+            }
+        } else {
+            t.check(false, "raccoon: it waits on its home screen");
+        }
+    }
+
+    // ---------------------------------------------------------------- fairy king
+    println!("[encounter] fairy king");
+    if goto(t, MINI_FAIRY, "fairy king") {
+        t.check(!alive(t, "FairyKing"), "fairy: only a ring of mushrooms at first");
+        let (cx, cy) = t.g.debug_enc().center;
+        t.g.debug_set_player(cx, cy + 10.0, b'u');
+        t.frames(3);
+        let e = t.g.debug_enc();
+        t.check(e.fairy_t > 0 && e.ring > 6 && alive(t, "FairyKing") && alive(t, "Pixie"), "fairy: stepping in closes the ring around the pixie court");
+        t.shot("66_fairy_ring");
+        kill(t, "FairyKing", 0);
+        let e = t.g.debug_enc();
+        t.check(t.g.debug_mini_done(MINI_FAIRY) && e.charms & 1 != 0 && e.ring == 0, "fairy: beating the king opens the ring and gives the speed charm");
+    }
+
+    // ---------------------------------------------------------------- honey bear
+    println!("[encounter] honey bear");
+    if goto(t, MINI_BEAR, "honey bear") {
+        let b = t.g.debug_mob("Bear");
+        t.check(b.is_some(), "bear: it guards its hive tree");
+        if let Some(b) = b {
+            let (cc, cr) = t.g.debug_enc_center_tile();
+            t.g.debug_enc_bolt_tile(cc, cr - 2);
+            t.check(t.g.debug_enc().bees, "bear: shooting the hive lets the bees out");
+            t.shot("67_bear_bees");
+            t.frames(400);
+            t.check(hp_of(t, b.id) < b.hp, "bear: the swarm stings the bear too");
+            let mh = t.g.debug_max().0;
+            kill(t, "Bear", 0);
+            t.check(t.g.debug_mini_done(MINI_BEAR) && t.g.debug_max().0 == mh + 4 && t.g.debug_food() >= 99.9, "bear: honey and a heart container");
+        }
+    }
+
+    // ---------------------------------------------------------------- headless knight
+    println!("[encounter] headless knight");
+    if goto(t, MINI_KNIGHT, "knight") {
+        if let Some(body) = t.g.debug_mob("KnightBody") {
+            t.g.debug_hit(body.id, 10.0, 0);
+            t.check((hp_of(t, body.id) - body.hp).abs() < 0.01, "knight: the armour can't be hurt");
+            t.check(alive(t, "KnightHead"), "knight: its head rolls about separately");
+            t.shot("68_knight");
+            let mp = t.g.debug_max().1;
+            kill(t, "KnightHead", 0);
+            t.check(t.g.debug_mini_done(MINI_KNIGHT) && !alive(t, "KnightBody") && t.g.debug_max().1 == mp + 10, "knight: breaking the head drops the armour (mana crystal)");
+        }
+    }
+
+    // ---------------------------------------------------------------- banshee
+    println!("[encounter] banshee");
+    if goto(t, MINI_BANSHEE, "banshee") {
+        if let Some(b) = t.g.debug_mob("Banshee") {
+            t.check(b.mode == 0, "banshee: she is invisible at first");
+            t.g.debug_hit(b.id, 5.0, 0);
+            t.check((hp_of(t, b.id) - b.hp).abs() < 0.01, "banshee: unseen, ordinary bolts pass through her");
+            t.release();
+            t.frames(60);
+            t.check(t.g.debug_mob("Banshee").map_or(false, |m| m.mode == 1), "banshee: stand still and she appears");
+            t.shot("69_banshee");
+            kill(t, "Banshee", 2);
+            t.check(t.g.debug_mini_done(MINI_BANSHEE), "banshee: beaten");
+        }
+    }
+
+    // ---------------------------------------------------------------- bog witch
+    println!("[encounter] bog witch");
+    if goto(t, MINI_WITCH, "bog witch") {
+        let p0 = t.g.debug_enc().prices;
+        let (cx, cy) = t.g.debug_enc().center;
+        t.g.debug_set_gold(50);
+        t.g.debug_set_player(cx - 32.0, cy + 4.0, b'u');
+        t.frames(2);
+        t.shot("70_witch_shop");
+        t.tap(Btn::Fire);
+        let e = t.g.debug_enc();
+        t.check(e.curse > 0 && t.g.debug_poison() > 0 && t.g.debug_gold() == 45, "witch: her cheap stew curses you (reversed controls and poison)");
+        t.check(t.g.debug_mob("Witch").map_or(false, |m| m.mode == 1), "witch: then she attacks");
+        let (x0, _) = t.g.debug_player();
+        t.hold_until(Btn::Right, 10, |_| false);
+        t.check(t.g.debug_player().0 < x0, "witch: cursed, right walks left");
+        kill(t, "Witch", 0);
+        let e = t.g.debug_enc();
+        t.check(t.g.debug_mini_done(MINI_WITCH) && e.charms & 2 != 0 && e.curse == 0 && e.prices[0] < p0[0], "witch: beaten, her merchant card cuts shop prices");
+    }
+
+    // ---------------------------------------------------------------- giant toad
+    println!("[encounter] giant toad");
+    if goto(t, MINI_TOAD, "toad") {
+        if let Some(to) = t.g.debug_mob("Toad") {
+            t.g.debug_set_player(to.x, to.y + 50.0, b'u');
+            let mut swallowed = false;
+            for _ in 0..400 {
+                t.frames(1);
+                if t.g.debug_enc().swallowed {
+                    swallowed = true;
+                    break;
+                }
+            }
+            t.check(swallowed, "toad: standing in front, its tongue drags you in and it swallows you");
+            t.shot("71_toad_inside");
+            let h0 = hp_of(t, to.id);
+            for _ in 0..6 {
+                t.tap(Btn::Fire);
+            }
+            t.frames(2);
+            t.check(!t.g.debug_enc().swallowed && hp_of(t, to.id) < h0, "toad: hammering its belly makes it spit you out");
+            kill(t, "Toad", 0);
+            t.check(t.g.debug_mini_done(MINI_TOAD), "toad: beaten");
+        }
+    }
+
+    // ---------------------------------------------------------------- will-o-wisp
+    println!("[encounter] wisp");
+    if goto(t, MINI_WISP, "wisp") {
+        let q = t.g.debug_enc_tiles(false);
+        t.check(q.len() > 20 && alive(t, "Wisp"), "wisp: the light floats over a field of quicksand");
+        t.shot("72_wisp_fog");
+        if !q.is_empty() {
+            let (qx, qy) = q[q.len() / 2];
+            t.g.debug_set_player(qx, qy - 3.0, b'u');
+            t.frames(130);
+            let (hx, hy) = t.g.debug_player();
+            t.check((hx - qx).abs() + (hy - qy).abs() > 30.0, "wisp: sinking in quicksand drags you back out (hurt)");
+            let n0 = t.g.debug_enc().quick;
+            t.g.debug_enc_freeze(qx, qy);
+            t.check(t.g.debug_enc().quick < n0, "wisp: ice freezes the quicksand solid");
+        }
+        kill(t, "Wisp", 1);
+        t.check(t.g.debug_mini_done(MINI_WISP), "wisp: snuffed out");
+    }
+
+    // ---------------------------------------------------------------- salamander queen
+    println!("[encounter] salamander queen");
+    if goto(t, MINI_SALAMANDER, "salamander") {
+        if let Some(s) = t.g.debug_mob("Salamander") {
+            t.g.debug_hit(s.id, 5.0, 0);
+            t.check((hp_of(t, s.id) - s.hp).abs() < 0.01, "salamander: too hot to harm at first");
+            t.g.debug_hit(s.id, 1.0, 1);
+            t.check(t.g.debug_mob("Salamander").map_or(false, |m| m.mode == 2), "salamander: ice cools her armour to stone");
+            t.shot("73_salamander_stone");
+            let h0 = hp_of(t, s.id);
+            t.g.debug_hit(s.id, 2.0, 0);
+            t.check((h0 - hp_of(t, s.id) - 4.0).abs() < 0.01, "salamander: cooled, fire breaks her for double damage");
+            let mh = t.g.debug_max().0;
+            kill(t, "Salamander", 3);
+            t.check(t.g.debug_mini_done(MINI_SALAMANDER) && t.g.debug_max().0 == mh + 4, "salamander: a heart container");
+        }
+    }
+
+    // ---------------------------------------------------------------- lava golem forge
+    println!("[encounter] lava golem forge");
+    if goto(t, MINI_FORGE, "forge") {
+        let pools = t.g.debug_enc_tiles(true);
+        t.check(pools.len() >= 12, &format!("forge: lava pools surround the golem ({})", pools.len()));
+        t.shot("74_forge");
+        kill(t, "LavaGolem", 1);
+        t.frames(200);
+        t.check(alive(t, "LavaGolem") && !t.g.debug_mini_done(MINI_FORGE), "forge: it reforges from an unfrozen pool");
+        for (x, y) in pools {
+            t.g.debug_enc_freeze(x, y);
+        }
+        t.check(t.g.debug_enc().lava == 0, "forge: ice bolts freeze every pool");
+        kill(t, "LavaGolem", 1);
+        t.frames(200);
+        t.check(t.g.debug_mini_done(MINI_FORGE) && !alive(t, "LavaGolem"), "forge: with the pools frozen it stays down");
+    }
+
+    // ---------------------------------------------------------------- phoenix
+    println!("[encounter] phoenix");
+    if goto(t, MINI_PHOENIX, "phoenix") {
+        kill(t, "Phoenix", 1);
+        t.check(alive(t, "PhoenixEgg") && !t.g.debug_mini_done(MINI_PHOENIX), "phoenix: it falls into a glowing egg");
+        t.shot("75_phoenix_egg");
+        t.frames(500);
+        t.check(alive(t, "Phoenix") && !alive(t, "PhoenixEgg"), "phoenix: left alone, the egg hatches and it revives");
+        kill(t, "Phoenix", 1);
+        kill(t, "PhoenixEgg", 1);
+        t.check(t.g.debug_mini_done(MINI_PHOENIX), "phoenix: smashing the egg ends it for good");
+    }
+
+    // ---------------------------------------------------------------- doppelganger
+    println!("[encounter] doppelganger");
+    if goto(t, MINI_DOPPEL, "doppelganger") {
+        t.g.debug_set_element(0);
+        // (Stay put: its bolts knock the mage about.)
+        let (cx, cy) = t.g.debug_enc().center;
+        let hold = |t: &mut T, n: usize| {
+            for _ in 0..n / 10 {
+                t.g.debug_set_player(cx, cy + 50.0, b'u');
+                t.frames(10);
+            }
+        };
+        hold(t, 330);
+        let d = t.g.debug_mob("Doppel");
+        t.check(d.is_some(), "doppelganger: it survives while you change element");
+        if let Some(d) = d {
+            t.g.debug_hit(d.id, 5.0, 0);
+            t.check((hp_of(t, d.id) - d.hp).abs() < 0.01, "doppelganger: it copies your element and shrugs it off");
+            t.shot("76_doppel");
+            t.g.debug_set_element(3);
+            t.frames(5);
+            let h0 = hp_of(t, d.id);
+            t.g.debug_hit(d.id, 2.0, 3);
+            t.check(hp_of(t, d.id) < h0, "doppelganger: switch element and it can be hurt");
+            hold(t, 330);
+            let h1 = hp_of(t, d.id);
+            t.g.debug_hit(d.id, 2.0, 3);
+            t.check((hp_of(t, d.id) - h1).abs() < 0.01, "doppelganger: a few seconds later it copies the new element");
+            kill(t, "Doppel", 0);
+            t.check(t.g.debug_mini_done(MINI_DOPPEL) && t.g.debug_enc().charms & 4 != 0, "doppelganger: shattered, it leaves the mirror charm");
+        }
+    }
+    t.g.debug_enc_clear();
+    t.release();
+}
+
 /// Exercise every format 2 lair mechanic on a small test lair (src/selftest_keep.json).
 fn keep_tests(t: &mut T) {
     const T_LOCK: u8 = 5;
@@ -1669,7 +2005,9 @@ fn gate_tests(t: &mut T) {
     }
     t.g.debug_clear_relics();
     for (relic, tile, name) in [(0usize, T_THORNS, "thorns"), (2, T_ROCK, "boulder")] {
-        let Some(&(room, side, seg, _)) = gates.iter().find(|g| g.3 == relic) else {
+        // Prefer a doorway on a plain screen (a lair building can stand in front of the door).
+        let pick = gates.iter().find(|g| g.3 == relic && !t.g.debug_room_has_lair(g.0)).or(gates.iter().find(|g| g.3 == relic));
+        let Some(&(room, side, seg, _)) = pick else {
             t.check(false, &format!("gates: a doorway is blocked by {name}"));
             continue;
         };

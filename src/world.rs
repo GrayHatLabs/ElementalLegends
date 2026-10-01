@@ -51,6 +51,8 @@ pub const T_BLUE: u8 = 14;
 pub const T_HIDDEN: u8 = 15;
 /// Big-key door.
 pub const T_BIGLOCK: u8 = 16;
+/// Quicksand: slows the mage and swallows them if they linger; Ice magic freezes it.
+pub const T_QUICK: u8 = 19;
 /// Thorny vines: solid until cut with the Vine Whip.
 pub const T_THORNS: u8 = 17;
 /// A huge boulder on an overworld path: the Titan Gloves heave it aside.
@@ -162,6 +164,38 @@ pub const MINI_HOARD: u8 = 1;
 pub const MINI_DRYAD: u8 = 2;
 pub const MINI_TREANT: u8 = 3;
 pub const MINI_GRAVE: u8 = 4;
+// The second wave of encounters (see game/encounters.rs).
+pub const MINI_MIMIC: u8 = 5;
+pub const MINI_GOBLIN: u8 = 6;
+pub const MINI_RACCOON: u8 = 7;
+pub const MINI_OGRE: u8 = 8;
+pub const MINI_FAIRY: u8 = 9;
+pub const MINI_BEAR: u8 = 10;
+pub const MINI_KNIGHT: u8 = 11;
+pub const MINI_BANSHEE: u8 = 12;
+pub const MINI_WITCH: u8 = 13;
+pub const MINI_TOAD: u8 = 14;
+pub const MINI_WISP: u8 = 15;
+pub const MINI_SALAMANDER: u8 = 16;
+pub const MINI_FORGE: u8 = 17;
+pub const MINI_PHOENIX: u8 = 18;
+pub const MINI_DOPPEL: u8 = 19;
+/// Encounters with a home screen, and the region (theme) each prefers.
+pub const FIXED_ENCOUNTERS: [(u8, usize); 13] = [
+    (MINI_MIMIC, 1),
+    (MINI_KNIGHT, 1),
+    (MINI_BANSHEE, 1),
+    (MINI_FAIRY, 0),
+    (MINI_BEAR, 0),
+    (MINI_RACCOON, 0),
+    (MINI_WITCH, 2),
+    (MINI_TOAD, 2),
+    (MINI_WISP, 2),
+    (MINI_SALAMANDER, 3),
+    (MINI_FORGE, 3),
+    (MINI_PHOENIX, 3),
+    (MINI_DOPPEL, 9),
+];
 /// The poison pool is 4 tiles wide and 2 tall.
 pub const POOL_W: i32 = 4;
 pub const POOL_H: i32 = 2;
@@ -222,7 +256,11 @@ impl Room {
     }
     /// Screens whose layout must stay clear (no random obstacles, chests or shrines).
     fn clean(&self) -> bool {
-        matches!(self.mini, MINI_HOARD | MINI_DRYAD | MINI_GRAVE) || self.pool.is_some()
+        matches!(self.mini, MINI_HOARD | MINI_DRYAD | MINI_GRAVE) || self.mini >= MINI_MIMIC || self.pool.is_some()
+    }
+    /// The centre tile of the area (where encounters set up).
+    pub fn center_tile(&self) -> (i32, i32) {
+        ((self.cols() / 2) as i32, (self.rows() / 2) as i32)
     }
     /// Border walls with door gaps: one per link, or the standard gap for each open side
     /// of a single-cell room without links (dungeon rooms).
@@ -293,7 +331,7 @@ fn partition(rng: &mut Mul) -> (Vec<(usize, usize, usize)>, Vec<usize>) {
     }
     let start = START_Y * WW + START_X;
     // First the big wilderness areas (about two thirds of the map), then single screens.
-    const BIG_AREAS: usize = 11;
+    const BIG_AREAS: usize = 8;
     for &c in &order {
         if areas.len() >= BIG_AREAS {
             break;
@@ -457,6 +495,7 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
     }
     assign_minis(&mut rooms, start, shop);
     assign_caves(&mut rooms, start, shop);
+    assign_encounters(&mut rooms, start, shop);
     assign_zones(&mut rooms, start, shop);
     for r in rooms.iter_mut() {
         build_room(r, themes);
@@ -555,6 +594,40 @@ fn assign_caves(rooms: &mut [Room], start: usize, shop: usize) {
         let r = &mut rooms[i];
         r.cave = k + 1;
         r.cave_door = ((r.cols() / 2) as i32, if r.big() { r.rows() as i32 / 2 } else { 6 });
+    }
+}
+
+/// Home screens for the second wave of encounters: plain single screens and wilderness
+/// areas without a cave, in the encounter's region when possible.
+fn assign_encounters(rooms: &mut [Room], start: usize, shop: usize) {
+    let ok = |r: &Room| {
+        r.free(start, shop) || (r.big() && r.dist >= 2 && r.special == SP_NONE && r.gate == 0 && r.mini == 0 && r.cave == 0)
+    };
+    // Dead-end treasure hoards can host one too (the encounter's reward replaces the gold).
+    let hoard = |r: &Room| r.cache && !r.big() && r.mini == 0 && r.dist >= 2;
+    let mut spots: Vec<usize> = rooms.iter().filter(|r| ok(r)).map(|r| r.i).collect();
+    spots.sort_by_key(|&i| rooms[i].seed);
+    let mut extra: Vec<usize> = rooms.iter().filter(|r| hoard(r)).map(|r| r.i).collect();
+    extra.sort_by_key(|&i| rooms[i].seed);
+    spots.extend(extra);
+    // Home regions first; whatever is left over goes to the first free screens.
+    let mut left = vec![];
+    for (id, region) in FIXED_ENCOUNTERS {
+        match spots.iter().position(|&i| rooms[i].theme == region) {
+            Some(p) => {
+                let i = spots.remove(p);
+                rooms[i].mini = id;
+                rooms[i].cache = false;
+            }
+            None => left.push(id),
+        }
+    }
+    for id in left {
+        if !spots.is_empty() {
+            let i = spots.remove(0);
+            rooms[i].mini = id;
+            rooms[i].cache = false;
+        }
     }
 }
 
@@ -731,10 +804,51 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
             }
         }
     }
+    place_encounter_features(r);
     for (side, seg, relic) in r.relic_gates.clone() {
         place_relic_gate(r, side, seg, relic);
     }
     render(r, &themes[r.theme]);
+}
+
+/// Encounter set pieces laid into their home screen, around its centre tile.
+fn place_encounter_features(r: &mut Room) {
+    let (cx, cy) = r.center_tile();
+    let set = |r: &mut Room, x: i32, y: i32, t: u8| {
+        if x > 0 && y > 0 && (x as usize) < r.cols() - 1 && (y as usize) < r.rows() - 1 {
+            r.tiles[y as usize][x as usize] = t;
+        }
+    };
+    match r.mini {
+        MINI_BEAR => {
+            // The beehive tree.
+            for (x, y) in [(cx - 1, cy - 3), (cx, cy - 3), (cx - 1, cy - 2), (cx, cy - 2)] {
+                set(r, x, y, T_DECOR);
+            }
+        }
+        MINI_WITCH => {
+            for y in cy - 5..=cy - 4 {
+                for x in cx - 2..=cx + 1 {
+                    set(r, x, y, T_DECOR);
+                }
+            }
+        }
+        MINI_WISP => {
+            for y in cy - 3..=cy + 3 {
+                for x in cx - 5..=cx + 4 {
+                    set(r, x, y, T_QUICK);
+                }
+            }
+        }
+        MINI_FORGE => {
+            for (px, py) in [(cx - 5, cy - 3), (cx + 3, cy - 3), (cx - 5, cy + 2), (cx + 3, cy + 2)] {
+                for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                    set(r, px + dx, py + dy, T_LAVA);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Re-draw a room's static image from its tiles (call after tiles change).
@@ -786,6 +900,16 @@ pub fn render(r: &mut Room, th: &Theme) {
                     img.fill(px + 2, py + 11, 6, 1, WHITE);
                     img.fill(px + 8, py + 4, 5, 1, rgb(0xd4f4fc));
                     img.fill(px + 3, py + 3, 1, 1, WHITE);
+                }
+                T_QUICK => {
+                    // Quicksand: wet mud with a slow swirl.
+                    img.fill(px, py, TS, TS, rgb(0x6c5030));
+                    img.fill(px + 1, py + 1, TS - 2, TS - 2, rgb(0x8c6c40));
+                    img.fill(px + 4, py + 5, 8, 1, rgb(0x5c4020));
+                    img.fill(px + 3, py + 6, 1, 4, rgb(0x5c4020));
+                    img.fill(px + 4, py + 10, 7, 1, rgb(0x5c4020));
+                    img.fill(px + 11, py + 7, 1, 3, rgb(0x5c4020));
+                    img.fill(px + 6, py + 8, 3, 1, rgb(0xa88c5c));
                 }
                 T_LOCK => {
                     img.fill(px, py, TS, TS, rgb(0x5c3410));
@@ -1035,7 +1159,7 @@ fn render_hd(r: &Room, th: &Theme, wall: &[Sprite]) -> Sprite {
     // Special tiles keep their code-drawn look, scaled up from the 16 px image.
     for rr in 0..rows {
         for c in 0..cols {
-            if !matches!(t(c, rr), T_ICE | T_CRACK | T_LOCK | T_SEAL | T_PLATE | T_STAIRS | T_BARRIER | T_PIT | T_HIDDEN | T_LAVA | T_BIGLOCK) {
+            if !matches!(t(c, rr), T_ICE | T_CRACK | T_LOCK | T_SEAL | T_PLATE | T_STAIRS | T_BARRIER | T_PIT | T_HIDDEN | T_LAVA | T_BIGLOCK | T_QUICK) {
                 continue;
             }
             for dy in 0..HD_TS {
@@ -1111,6 +1235,8 @@ mod tests {
             }
         }
         assert!(rooms.iter().any(|r| !r.relic_gates.is_empty()), "the world has relic gates");
+        let homes: Vec<(u8, usize, bool)> = FIXED_ENCOUNTERS.iter().filter_map(|&(id, _)| rooms.iter().find(|r| r.mini == id).map(|r| (id, r.theme, r.big()))).collect();
+        println!("encounter homes: {} of {}: {:?}", homes.len(), FIXED_ENCOUNTERS.len(), homes);
         let caves: Vec<&Room> = rooms.iter().filter(|r| r.cave > 0).collect();
         assert_eq!(caves.len(), CAVES, "every cave has a screen");
         assert!(caves.iter().all(|r| r.gate == 0 && r.mini == 0 && r.special == SP_NONE && r.dist >= 2), "caves are on screens of their own");

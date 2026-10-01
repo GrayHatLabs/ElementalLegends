@@ -21,6 +21,7 @@ mod debug;
 mod draw;
 mod dungeon;
 mod minis;
+mod encounters;
 mod scenes;
 mod bag;
 mod cave;
@@ -54,7 +55,7 @@ const HF: f32 = H as f32;
 const HUDF: f32 = HUD as f32;
 const SPAWN_Y: f32 = GATE_Y + 34.0;
 /// Bump when the world layout changes; older saves are detected and ignored.
-const SAVE_VERSION: u32 = 2;
+const SAVE_VERSION: u32 = 3;
 
 #[allow(clippy::too_many_arguments)]
 fn hit(ax: f32, ay: f32, aw: f32, ah: f32, bx: f32, by: f32, bw: f32, bh: f32) -> bool {
@@ -289,6 +290,25 @@ enum EK {
     Treant,
     Zombie,
     GraveLord,
+    // The second wave of encounters (see encounters.rs).
+    Mimic,
+    Goblin,
+    Raccoon,
+    Ogre,
+    FairyKing,
+    Pixie,
+    Bear,
+    KnightBody,
+    KnightHead,
+    Banshee,
+    Witch,
+    Toad,
+    Wisp,
+    Salamander,
+    LavaGolem,
+    Phoenix,
+    PhoenixEgg,
+    Doppel,
 }
 const POOLS: [&[EK]; 4] = [
     &[EK::Slime, EK::Slime, EK::Bat, EK::Skeleton],
@@ -490,6 +510,8 @@ pub struct SaveData {
     blink: bool,
     /// Relics owned (bit per keepdef::Relic).
     relics: u8,
+    /// Encounter charms (bit per encounters::CHARM_*).
+    charms: u8,
     /// Progress in format 2 lairs, by lair number: opened chests and doors, solved rooms,
     /// flags, keys held, map/finder/big key (see keep.rs).
     keeps: std::collections::BTreeMap<usize, std::collections::BTreeSet<String>>,
@@ -528,6 +550,7 @@ impl SaveData {
             pages: 0,
             blink: false,
             relics: 0,
+            charms: 0,
             keeps: std::collections::BTreeMap::new(),
         }
     }
@@ -539,11 +562,11 @@ impl SaveData {
         let l = |v: &[usize]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         let dp = self.dprog.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         format!(
-            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\npages={}\nblink={}\nrelics={}\n{}",
+            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\npages={}\nblink={}\nrelics={}\ncharms={}\n{}",
             SAVE_VERSION, self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
             b(&self.cleared), l(&self.tanks), l(&self.caches), l(&self.opened), l(&self.visited), self.room,
             self.time, self.heart_price, dp, self.potions, self.mini_seen, self.mini_done, self.hoard_left,
-            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel, self.pages, self.blink as u8, self.relics,
+            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel, self.pages, self.blink as u8, self.relics, self.charms,
             self.keeps.iter().map(|(n, t)| format!("keep{}={}\n", n, t.iter().cloned().collect::<Vec<_>>().join(","))).collect::<String>()
         )
     }
@@ -594,6 +617,7 @@ impl SaveData {
                 "pages" => s.pages = num() as u32 & 0x1f,
                 "blink" => s.blink = num() as i32 == 1,
                 "relics" => s.relics = num() as u8 & 0x1f,
+                "charms" => s.charms = num() as u8 & 7,
                 k if k.starts_with("keep") => {
                     if let Ok(n) = k[4..].parse::<usize>() {
                         s.keeps.insert(n, v.split(',').map(str::trim).filter(|t| !t.is_empty()).map(str::to_string).collect());
@@ -692,6 +716,9 @@ pub struct Game {
     pull: Option<(f32, f32)>,
     /// Where the mage entered the current room (respawn after falling into a pit).
     room_entry_pos: (f32, f32),
+    enc_last: (f32, f32),
+    /// Random roaming encounters (goblin, ogre) may appear; the self-test turns them off.
+    roamers: bool,
     /// Frames pushing against an overworld boulder (Titan Gloves).
     rock_t: i32,
     /// True while moving the mage (pits and lava behave differently for the mage).
@@ -737,6 +764,21 @@ pub struct Game {
     hazards: Vec<bosses::Hazard>,
     hoard_anger: f32,
     mini_hint: bool,
+    /// Second-wave encounter state (see encounters.rs).
+    pl_stun: i32,
+    curse: i32,
+    swallowed: Option<u32>,
+    gulps: i32,
+    tongue: i32,
+    qsink: i32,
+    still_t: i32,
+    raccoon: Option<(usize, i32, f32)>,
+    bees: Option<(f32, f32, i32)>,
+    fairy_t: i32,
+    ring_tiles: Vec<(i32, i32)>,
+    doppel_copy: i32,
+    enc_shrines: Vec<(f32, f32, usize)>,
+    enc_reforge: i32,
     no_save: bool,
     pub quit: bool,
 }
@@ -819,6 +861,22 @@ impl Game {
             hazards: vec![],
             hoard_anger: 0.0,
             mini_hint: false,
+            pl_stun: 0,
+            curse: 0,
+            swallowed: None,
+            gulps: 0,
+            tongue: 0,
+            qsink: 0,
+            still_t: 0,
+            raccoon: None,
+            bees: None,
+            fairy_t: 0,
+            ring_tiles: vec![],
+            doppel_copy: 0,
+            enc_shrines: vec![],
+            enc_reforge: 0,
+            enc_last: (0.0, 0.0),
+            roamers: true,
             no_save: false,
             quit: false,
         };
@@ -1265,6 +1323,9 @@ impl Game {
         }
         // Encounters appear whenever their screen is entered, even without regular spawns.
         self.enter_mini_room();
+        if self.overworld() {
+            self.enter_encounter_room();
+        }
         if self.mode == Mode::Play {
             let song = self.area_song();
             self.play_song(Some(song));
@@ -1295,6 +1356,10 @@ impl Game {
             EK::Treant => (50.0, 0.3, 22.0, 26.0, 4),
             EK::Zombie => (10.0, 0.35, 10.0, 13.0, 3),
             EK::GraveLord => (70.0, 0.45, 16.0, 22.0, 4),
+            k => {
+                let (hp, spd, w, h, touch, _) = encounters::enc_stats(k).unwrap();
+                (hp, spd, w, h, touch)
+            }
         };
         let th = theme.min(3);
         let per = match k {
@@ -1303,6 +1368,7 @@ impl Game {
             EK::Dryad | EK::Treant | EK::GraveLord => 8.0,
             EK::Zombie => 2.0,
             EK::HoardDragon => 0.0,
+            k if encounters::is_encounter_kind(k) => if matches!(k, EK::Pixie | EK::PhoenixEgg | EK::KnightBody) { 0.0 } else { 6.0 },
             _ => 1.0,
         };
         let hp = hp + th as f32 * per;
@@ -1315,6 +1381,7 @@ impl Game {
             EK::Imp => Elem::Fire,
             EK::Ghost => Elem::Ice,
             EK::Golem | EK::Treant => Elem::Earth,
+            k => encounters::enc_stats(k).unwrap().5,
         };
         let rate = match k {
             EK::Imp => 110 - th as i32 * 10,
@@ -1535,6 +1602,17 @@ impl Game {
             p.kbx = 0.0;
             p.kby = 0.0;
         }
+        // Stunned by a scream or swallowed whole: no walking. Cursed stew: reversed controls.
+        if self.pl_stun > 0 || self.swallowed.is_some() {
+            self.pl_stun = (self.pl_stun - 1).max(0);
+            dx = 0.0;
+            dy = 0.0;
+        }
+        if self.curse > 0 {
+            self.curse -= 1;
+            dx = -dx;
+            dy = -dy;
+        }
         let (ix, iy) = (dx, dy);
         p.moving = dx != 0.0 || dy != 0.0;
         let mut blocked = (false, false);
@@ -1556,7 +1634,13 @@ impl Game {
                 };
             }
             p.walk += 1;
-            let sp = self.s.speed;
+            let mut sp = self.s.speed;
+            if self.s.charms & encounters::CHARM_SPEED != 0 {
+                sp *= 1.12;
+            }
+            if self.qsink > 0 {
+                sp *= 0.45;
+            }
             blocked = self.move_player(&mut p, dx * sp, dy * sp);
         }
         // Twin-stick aiming (right stick, e.g. RG35XX Pro): face and cast where it points.
@@ -1612,7 +1696,7 @@ impl Game {
             self.pl.scd -= 1;
         }
         let aiming = self.inp.aim().is_some();
-        if (self.held(Btn::Fire) || aiming) && self.pl.cd <= 0 && !self.boss_dead && !self.on_pedestal() {
+        if (self.held(Btn::Fire) || aiming) && self.pl.cd <= 0 && !self.boss_dead && !self.on_pedestal() && !self.encounter_talk_spot() {
             self.cast_bolt();
         }
         if self.held(Btn::Sub) && self.pl.scd <= 0 && !self.boss_dead {
@@ -1636,6 +1720,7 @@ impl Game {
         self.update_enemies();
         self.update_boss();
         self.update_minis();
+        self.update_encounters();
         self.update_ebullets();
         self.update_items();
         self.update_parts();
@@ -1988,7 +2073,13 @@ impl Game {
         38.0 + i as f32 * 36.0
     }
     fn shop_prices(&self) -> [i32; SHOP_ITEMS] {
-        [15, 25, 20, 30, 120, self.s.heart_price]
+        let p = [15, 25, 20, 30, 120, self.s.heart_price];
+        // The bog witch's merchant card: a quarter off everything.
+        if self.s.charms & encounters::CHARM_DISCOUNT != 0 {
+            p.map(|v| (v * 3 + 3) / 4)
+        } else {
+            p
+        }
     }
     fn shop(&mut self) {
         let prices = self.shop_prices();
@@ -2198,11 +2289,13 @@ mod tests {
         let old = "max_hp=24\nhp=20\ngold=77\ncleared=0,1,0,0,0,0,0\nroom=31\n";
         assert!(SaveData::from_text(old).is_none(), "pre-SNES saves must not load into the new map");
         assert!(SaveData::from_text("version=1\nmax_hp=24\n").is_none());
+        // Version 2 saves are from the 31-area map (before the second wave of encounters).
+        assert!(SaveData::from_text("version=2\nmax_hp=24\n").is_none());
     }
 
     #[test]
     fn saves_without_dungeon_progress_still_load() {
-        let old = "version=2\nmax_hp=24\nhp=20\ngold=77\ncleared=0,1,0,0,0,0,0\nroom=31\n";
+        let old = "version=3\nmax_hp=24\nhp=20\ngold=77\ncleared=0,1,0,0,0,0,0\nroom=31\n";
         let s = SaveData::from_text(old).expect("parse");
         assert_eq!(s.gold, 77);
         assert!(s.cleared[1]);

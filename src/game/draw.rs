@@ -559,7 +559,7 @@ impl Game {
         }
     }
     #[allow(clippy::too_many_arguments)]
-    fn draw_creature_hd(&self, scr: &mut Screen, e: &Enemy, name: &str, forced: Option<&str>, bob: f32, flying: bool, tint: Tint) -> bool {
+    pub(super) fn draw_creature_hd(&self, scr: &mut Screen, e: &Enemy, name: &str, forced: Option<&str>, bob: f32, flying: bool, tint: Tint) -> bool {
         let Some(sh) = self.art.sheet(name) else { return false };
         let still = e.st.immobile();
         let moving = !still && e.vx.abs() + e.vy.abs() > 0.05;
@@ -605,7 +605,7 @@ impl Game {
             }
             return;
         }
-        if self.draw_mini_hd(scr, e) || self.draw_mini_enemy(scr, e) {
+        if self.draw_encounter(scr, e) || self.draw_mini_hd(scr, e) || self.draw_mini_enemy(scr, e) {
             return;
         }
         let still = e.st.immobile();
@@ -964,6 +964,7 @@ impl Game {
                     self.draw_keep_tiles(scr);
                 }
             }
+            self.draw_encounter_scene(scr);
             self.draw_items(scr);
             self.draw_bombs(scr, false);
             self.draw_hazards(scr);
@@ -993,6 +994,9 @@ impl Game {
         }
         scr.ui();
         scr.unclip();
+        if self.scroll.is_none() {
+            self.draw_encounter_overlay(scr);
+        }
         if self.in_lair > 0 {
             if let Some(b) = &self.boss {
                 if b.alive && b.state != BState::Intro {

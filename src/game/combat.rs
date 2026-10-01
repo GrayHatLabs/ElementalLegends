@@ -141,6 +141,8 @@ impl Game {
     pub(super) fn cast_bolt(&mut self) {
         let el = self.el();
         let (spd, dmg, r, cd, _) = bolt_stats(el);
+        // The mirror charm (doppelganger reward) sharpens every bolt.
+        let dmg = if self.s.charms & super::encounters::CHARM_MIRROR != 0 { dmg * 1.2 } else { dmg };
         let life = ((self.bolt_range() / spd).round() as i32).max(8);
         let p = self.pl;
         let a = p.fy.atan2(p.fx);
@@ -462,6 +464,9 @@ impl Game {
             if b.el == Elem::Ice && self.tile_at(c, r) == T_WATER {
                 self.freeze_water(c, r);
             }
+            if b.el == Elem::Ice && matches!(self.tile_at(c, r), T_QUICK | T_LAVA) && self.overworld() {
+                self.enc_freeze_near(b.x, b.y);
+            }
             if self.shot_blocked(b.x, b.y) {
                 b.dead = true;
                 self.dungeon_bolt_hit(c, r, b.el);
@@ -691,6 +696,7 @@ impl Game {
                     self.enemies.push(c);
                 }
             }
+            _ => self.upd_encounter(e, f),
         }
         e.x = e.x.clamp(10.0, self.room_wf() - 10.0);
         e.y = e.y.clamp(HUDF + 10.0, self.room_hf() - 10.0);
