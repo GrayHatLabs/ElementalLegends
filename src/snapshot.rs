@@ -1232,6 +1232,58 @@ fn encounters(t: &mut T) {
         }
         t.check(t.g.debug_mode() == Mode::Play, &format!("lair {n}: every room can be visited"));
     }
+    // Every whip swing the lairs rely on lands on solid ground beside its post.
+    t.g.debug_grant_relic(0);
+    for (n, room, (c, r), dir, (pc, pr)) in [
+        (1, "roothall", (4, 8), b'u', (4, 2)),
+        (2, "chapels", (10, 6), b'l', (4, 6)),
+        (3, "towerstair", (8, 9), b'u', (8, 3)),
+        (4, "vents", (4, 6), b'r', (10, 6)),
+        (5, "baptistry", (3, 6), b'r', (9, 6)),
+        (6, "seals", (8, 11), b'u', (8, 5)),
+        (6, "void", (3, 5), b'r', (9, 5)),
+    ] {
+        if !t.g.debug_has_keep(n) {
+            continue;
+        }
+        t.g.debug_enter_lair(n);
+        t.g.debug_keep_goto(room);
+        t.g.debug_kill_enemies();
+        t.frames(70);
+        t.g.debug_select_slot("VINE WHIP");
+        let (x, y) = tc(c, r);
+        t.g.debug_set_player(x, y, dir);
+        t.frames(2);
+        t.tap(Btn::Potion);
+        t.frames(40);
+        let (px, py) = tc(pc, pr);
+        let (ex, ey) = match dir {
+            b'u' => (px, py + 16.0),
+            b'l' => (px + 16.0, py),
+            _ => (px - 16.0, py),
+        };
+        let (mx, my) = t.g.debug_player();
+        t.check((mx - ex).abs() < 6.0 && (my - ey).abs() < 8.0, &format!("lair {n}: the whip swing in {room} lands beside its post ({mx:.0},{my:.0} vs {ex:.0},{ey:.0})"));
+    }
+    // The Feather Cloak floats across the Sky Chasm (4 rows of pits).
+    if t.g.debug_has_keep(5) {
+        t.g.debug_grant_relic(4);
+        t.g.debug_enter_lair(5);
+        t.g.debug_keep_goto("chasm");
+        t.g.debug_kill_enemies();
+        t.frames(70);
+        t.g.debug_select_slot("FEATHER CLOAK");
+        let (x, y) = tc(8, 9);
+        t.g.debug_set_player(x, y, b'u');
+        t.frames(2);
+        t.tap(Btn::Potion);
+        t.hold_until(Btn::Up, 70, |g| g.debug_player().1 < 32.0 + 3.0 * 16.0);
+        t.release();
+        t.frames(5);
+        let (_, my) = t.g.debug_player();
+        t.check(my < 32.0 + 4.0 * 16.0, &format!("lair 5: the cloak floats the mage over the Sky Chasm (y {my:.0})"));
+    }
+    t.g.debug_clear_relics();
     t.g.debug_levels_clear();
 
     // ---------------------------------------------------------------- overworld relic gates
