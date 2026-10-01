@@ -557,6 +557,8 @@ impl Game {
         if !cave && n != shop::SHOP_N {
             if self.s.cleared[n.min(6)] {
                 self.show_msg(format!("THE RUNE STONE GRINDS ASIDE. {} LIES QUIET NOW.", self.dname(n)));
+            } else if self.in_keep() {
+                self.show_msg(format!("{}. SEEK ITS GREAT CHEST, THEN ITS GUARDIAN.", self.dname(n)));
             } else {
                 self.show_msg(format!("{}. FIND THE KEY AND BREAK THE SEAL ON THE STAIRS.", self.dname(n)));
             }

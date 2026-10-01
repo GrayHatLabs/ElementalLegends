@@ -1,0 +1,404 @@
+{
+  "format": 2,
+  "kind": "lair",
+  "number": 2,
+  "name": "UNDERGROUND CRYPT",
+  "theme": 5,
+  "relic": "spirit_lantern",
+  "rooms": [
+    {
+      "id": "entry",
+      "name": "CRYPT STAIRS",
+      "at": [2, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "exit" },
+        { "side": "n", "to": "nave" },
+        { "side": "w", "to": "ossuary" },
+        { "side": "e", "to": "catacomb", "lock": "small" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 5, "y": 8 },
+        { "kind": "bat", "x": 10, "y": 6 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_5_statue" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_5_statue" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_5_brazier" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_5_brazier" },
+        { "type": "prop", "x": 8, "y": 7, "name": "prop_5_runes", "solid": false },
+        { "type": "tablet", "x": 5, "y": 2, "text": "The dead keep a light that shows the hidden way." }
+      ]
+    },
+    {
+      "id": "ossuary",
+      "name": "OSSUARY",
+      "at": [1, 5],
+      "tiles": [
+        "################",
+        "#..........#...#",
+        "#..........#...#",
+        "#..........#...#",
+        "#..........#ttt#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "entry" }
+      ],
+      "enemies": [
+        { "kind": "zombie", "x": 6, "y": 6 },
+        { "kind": "skeleton", "x": 9, "y": 7 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 13, "y": 2, "contents": "small_key" },
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_5_bones" },
+        { "type": "prop", "x": 6, "y": 9, "name": "prop_5_bones" },
+        { "type": "prop", "x": 8, "y": 3, "name": "prop_5_bones" },
+        { "type": "prop", "x": 4, "y": 11, "name": "prop_5_bones" },
+        { "type": "pot", "x": 2, "y": 10 },
+        { "type": "pot", "x": 12, "y": 10 },
+        { "type": "pot", "x": 13, "y": 9 },
+        { "type": "tablet", "x": 9, "y": 9, "text": "Bones and thorns guard the key. Cut your way through." }
+      ]
+    },
+    {
+      "id": "nave",
+      "name": "GREAT NAVE",
+      "at": [2, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#....uuuuuu....#",
+        "#...#......#...#",
+        "#.r............#",
+        "#.r............#",
+        "#.r............#",
+        "#.r............#",
+        "#.r............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "entry" },
+        { "side": "w", "to": "chapels" },
+        { "side": "e", "to": "reliquary", "lock": "big" },
+        { "side": "n", "to": "choir", "lock": "flag:bellrope" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 6, "y": 9 },
+        { "kind": "zombie", "x": 10, "y": 8 }
+      ],
+      "objects": [
+        { "type": "crystal_switch", "x": 8, "y": 7 },
+        { "type": "tablet", "x": 13, "y": 10, "text": "Ring the bell rope in the chapels to open the choir." },
+        { "type": "prop", "x": 6, "y": 1, "name": "prop_5_banner" },
+        { "type": "prop", "x": 9, "y": 1, "name": "prop_5_banner" }
+      ]
+    },
+    {
+      "id": "chapels",
+      "name": "SIDE CHAPELS",
+      "at": [1, 4],
+      "dark": true,
+      "tiles": [
+        "################",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "nave" },
+        { "side": "w", "to": "charnel", "lock": "bomb" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 12, "y": 9 },
+        { "kind": "ghost", "x": 3, "y": 4 }
+      ],
+      "objects": [
+        { "type": "whip_post", "x": 4, "y": 6 },
+        { "type": "whip_post", "x": 11, "y": 4 },
+        { "type": "floor_switch", "x": 3, "y": 9, "sets": "bellrope" },
+        { "type": "chest", "x": 2, "y": 2, "contents": "map" },
+        { "type": "pot", "x": 13, "y": 10 },
+        { "type": "pot", "x": 12, "y": 2 },
+        { "type": "prop", "x": 2, "y": 5, "name": "prop_5_statue" },
+        { "type": "prop", "x": 13, "y": 7, "name": "prop_5_statue" }
+      ]
+    },
+    {
+      "id": "charnel",
+      "name": "CHARNEL PIT",
+      "at": [0, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "chapels" }
+      ],
+      "enemies": [
+        { "kind": "zombie", "x": 5, "y": 7 },
+        { "kind": "zombie", "x": 11, "y": 7 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_5_bones" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_5_bones" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_5_bones" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_5_bones" },
+        { "type": "prop", "x": 6, "y": 2, "name": "prop_5_bones" },
+        { "type": "chest", "x": 8, "y": 6, "contents": "elixir" },
+        { "type": "tablet", "x": 8, "y": 10, "text": "The forgotten dead rest here. Take what they cannot." }
+      ]
+    },
+    {
+      "id": "catacomb",
+      "name": "CATACOMBS",
+      "at": [3, 5],
+      "size": [2, 1],
+      "tiles": [
+        "################################",
+        "#..............................#",
+        "#..............................#",
+        "#....##...##.........##...##...#",
+        "#..............................#",
+        "#..............................#",
+        "#..............................#",
+        "#..............................#",
+        "#..............................#",
+        "#....##...##.........##...##...#",
+        "#..............................#",
+        "#..............................#",
+        "################################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "w", "to": "entry" },
+        { "side": "n", "to": "embalmer", "seg": 1 }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 8, "y": 6 },
+        { "kind": "skeleton", "x": 16, "y": 4 },
+        { "kind": "skeleton", "x": 24, "y": 8 },
+        { "kind": "zombie", "x": 12, "y": 8 },
+        { "kind": "zombie", "x": 20, "y": 5 },
+        { "kind": "ghost", "x": 28, "y": 6 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 2, "name": "prop_5_bones" },
+        { "type": "prop", "x": 14, "y": 10, "name": "prop_5_bones" },
+        { "type": "prop", "x": 17, "y": 2, "name": "prop_5_bones" },
+        { "type": "prop", "x": 29, "y": 10, "name": "prop_5_bones" },
+        { "type": "chest", "x": 16, "y": 6, "contents": "finder", "hidden": true }
+      ]
+    },
+    {
+      "id": "embalmer",
+      "name": "EMBALMING ROOM",
+      "at": [4, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#...o......o...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "plates",
+      "doors": [
+        { "side": "s", "to": "catacomb" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "ice_block", "x": 4, "y": 8 },
+        { "type": "ice_block", "x": 11, "y": 8 },
+        { "type": "chest", "x": 8, "y": 5, "contents": "small_key", "hidden": true },
+        { "type": "tablet", "x": 8, "y": 10, "text": "The cold slabs slide where they are pushed." },
+        { "type": "prop", "x": 2, "y": 1, "name": "prop_5_brazier" },
+        { "type": "prop", "x": 13, "y": 1, "name": "prop_5_brazier" }
+      ]
+    },
+    {
+      "id": "choir",
+      "name": "CHOIR LOFT",
+      "at": [2, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "crystals",
+      "doors": [
+        { "side": "s", "to": "nave" },
+        { "side": "n", "to": "bridge", "lock": "small" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 5, "y": 7 }
+      ],
+      "objects": [
+        { "type": "crystal", "x": 4, "y": 3, "element": "fire", "order": 1 },
+        { "type": "crystal", "x": 11, "y": 3, "element": "ice", "order": 2 },
+        { "type": "crystal", "x": 8, "y": 2, "element": "storm", "order": 3 },
+        { "type": "shrine", "x": 3, "y": 9, "element": "fire" },
+        { "type": "shrine", "x": 12, "y": 9, "element": "ice" },
+        { "type": "shrine", "x": 8, "y": 10, "element": "storm" },
+        { "type": "chest", "x": 8, "y": 6, "contents": "big_key", "hidden": true },
+        { "type": "tablet", "x": 5, "y": 10, "text": "Flame, then frost, then storm." }
+      ]
+    },
+    {
+      "id": "reliquary",
+      "name": "RELIQUARY",
+      "at": [3, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "nave" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "big_chest", "x": 8, "y": 4 },
+        { "type": "prop", "x": 5, "y": 4, "name": "prop_5_statue" },
+        { "type": "prop", "x": 11, "y": 4, "name": "prop_5_statue" },
+        { "type": "prop", "x": 8, "y": 8, "name": "prop_5_runes", "solid": false }
+      ]
+    },
+    {
+      "id": "bridge",
+      "name": "BRIDGE OF SOULS",
+      "at": [2, 2],
+      "dark": true,
+      "tiles": [
+        "################",
+        "#..............#",
+        "#ppppphpppppppp#",
+        "#ppppphpppppppp#",
+        "#ppppphpppppppp#",
+        "#ppppphhhhppppp#",
+        "#pppppppphppppp#",
+        "#pppppppphppppp#",
+        "#pppppphhhppppp#",
+        "#pppppphppppppp#",
+        "#pppppphppppppp#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "choir" },
+        { "side": "n", "to": "stairs" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 4, "y": 11 },
+        { "kind": "bat", "x": 11, "y": 1 }
+      ],
+      "objects": [
+        { "type": "tablet", "x": 12, "y": 11, "text": "Only the Spirit Lantern reveals the bridge of souls." }
+      ]
+    },
+    {
+      "id": "stairs",
+      "name": "BONE THRONE STAIR",
+      "at": [2, 1],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "boss_stairs": true,
+      "doors": [
+        { "side": "s", "to": "bridge" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "prop", "x": 5, "y": 2, "name": "prop_5_brazier" },
+        { "type": "prop", "x": 10, "y": 2, "name": "prop_5_brazier" },
+        { "type": "prop", "x": 3, "y": 7, "name": "prop_5_pillar" },
+        { "type": "prop", "x": 12, "y": 7, "name": "prop_5_pillar" },
+        { "type": "prop", "x": 4, "y": 1, "name": "prop_5_banner" },
+        { "type": "prop", "x": 11, "y": 1, "name": "prop_5_banner" }
+      ]
+    }
+  ]
+}

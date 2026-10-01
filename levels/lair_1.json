@@ -1,0 +1,338 @@
+{
+  "format": 2,
+  "kind": "lair",
+  "number": 1,
+  "name": "OVERGROWN SHRINE",
+  "theme": 4,
+  "relic": "vine_whip",
+  "rooms": [
+    {
+      "id": "entry",
+      "name": "SHRINE GATE",
+      "at": [1, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "exit" },
+        { "side": "n", "to": "atrium" },
+        { "side": "e", "to": "cellar" }
+      ],
+      "enemies": [
+        { "kind": "slime", "x": 5, "y": 8 },
+        { "kind": "slime", "x": 10, "y": 8 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_4_statue" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_4_statue" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_4_brazier" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_4_brazier" },
+        { "type": "prop", "x": 8, "y": 7, "name": "prop_4_roots", "solid": false },
+        { "type": "tablet", "x": 5, "y": 2, "text": "Shrine of the Vine. Its guardian stirs above." }
+      ]
+    },
+    {
+      "id": "cellar",
+      "name": "FUNGUS CELLAR",
+      "at": [2, 4],
+      "tiles": [
+        "################",
+        "#........#.....#",
+        "#........#.....#",
+        "#........#.....#",
+        "#........#.....#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#........#.....#",
+        "#........#.....#",
+        "#........#.....#",
+        "#........#.....#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "entry" }
+      ],
+      "enemies": [
+        { "kind": "slime", "x": 6, "y": 6 }
+      ],
+      "objects": [
+        { "type": "pot", "x": 3, "y": 3 },
+        { "type": "pot", "x": 4, "y": 3 },
+        { "type": "pot", "x": 12, "y": 9 },
+        { "type": "pot", "x": 3, "y": 9 },
+        { "type": "pot", "x": 13, "y": 2 },
+        { "type": "crate", "x": 12, "y": 3 },
+        { "type": "crate", "x": 13, "y": 4 },
+        { "type": "crate", "x": 2, "y": 9 },
+        { "type": "chest", "x": 12, "y": 6, "contents": "bombs:3" },
+        { "type": "tablet", "x": 6, "y": 9, "text": "Fire wakes the cold braziers of the Seed Vault." },
+        { "type": "prop", "x": 5, "y": 2, "name": "prop_4_clump" },
+        { "type": "prop", "x": 6, "y": 10, "name": "prop_4_clump" }
+      ]
+    },
+    {
+      "id": "atrium",
+      "name": "VINE ATRIUM",
+      "at": [1, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "entry" },
+        { "side": "w", "to": "gallery" },
+        { "side": "e", "to": "nest", "lock": "small" },
+        { "side": "n", "to": "roothall" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 7, "y": 6 },
+        { "kind": "imp", "x": 9, "y": 9 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 1, "name": "prop_4_banner" },
+        { "type": "prop", "x": 12, "y": 1, "name": "prop_4_banner" },
+        { "type": "prop", "x": 2, "y": 3, "name": "prop_4_pillar" },
+        { "type": "prop", "x": 13, "y": 3, "name": "prop_4_pillar" },
+        { "type": "tablet", "x": 5, "y": 2, "text": "The Great Seed sleeps behind a golden lock." },
+        { "type": "pot", "x": 2, "y": 10 },
+        { "type": "pot", "x": 13, "y": 10 }
+      ]
+    },
+    {
+      "id": "gallery",
+      "name": "MOSS GALLERY",
+      "at": [0, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#......rrr.....#",
+        "#......r.r.....#",
+        "#......rrr.....#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "atrium" },
+        { "side": "n", "to": "seedhall", "lock": "big" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 6, "y": 8 },
+        { "kind": "slime", "x": 11, "y": 7 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 8, "y": 4, "contents": "small_key" },
+        { "type": "crystal_switch", "x": 4, "y": 9 },
+        { "type": "chest", "x": 12, "y": 10, "contents": "map" },
+        { "type": "tablet", "x": 11, "y": 2, "text": "Strike the crystal and the bars will fall." },
+        { "type": "prop", "x": 2, "y": 2, "name": "prop_4_pillar" },
+        { "type": "prop", "x": 2, "y": 10, "name": "prop_4_pillar" }
+      ]
+    },
+    {
+      "id": "seedhall",
+      "name": "HALL OF THE GREAT SEED",
+      "at": [0, 2],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "gallery" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "big_chest", "x": 8, "y": 4 },
+        { "type": "prop", "x": 5, "y": 4, "name": "prop_4_statue" },
+        { "type": "prop", "x": 11, "y": 4, "name": "prop_4_statue" },
+        { "type": "prop", "x": 3, "y": 2, "name": "prop_4_brazier" },
+        { "type": "prop", "x": 12, "y": 2, "name": "prop_4_brazier" },
+        { "type": "prop", "x": 8, "y": 8, "name": "prop_4_roots", "solid": false },
+        { "type": "tablet", "x": 4, "y": 9, "text": "With the vine, cross the chasm of the Root Hall." }
+      ]
+    },
+    {
+      "id": "nest",
+      "name": "THORN NEST",
+      "at": [2, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#....#....#....#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "w", "to": "atrium" },
+        { "side": "n", "to": "vault" }
+      ],
+      "enemies": [
+        { "kind": "slime", "x": 5, "y": 4 },
+        { "kind": "slime", "x": 10, "y": 4 },
+        { "kind": "bat", "x": 8, "y": 5 },
+        { "kind": "imp", "x": 4, "y": 9 },
+        { "kind": "skeleton", "x": 11, "y": 9 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 2, "y": 2, "name": "prop_4_clump" },
+        { "type": "prop", "x": 13, "y": 2, "name": "prop_4_clump" },
+        { "type": "prop", "x": 2, "y": 10, "name": "prop_4_clump" },
+        { "type": "prop", "x": 13, "y": 10, "name": "prop_4_clump" },
+        { "type": "chest", "x": 8, "y": 8, "contents": "finder", "hidden": true }
+      ]
+    },
+    {
+      "id": "vault",
+      "name": "SEED VAULT",
+      "at": [2, 2],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "torches",
+      "doors": [
+        { "side": "s", "to": "nest" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "torch", "x": 3, "y": 3 },
+        { "type": "torch", "x": 12, "y": 3 },
+        { "type": "torch", "x": 3, "y": 9 },
+        { "type": "torch", "x": 12, "y": 9 },
+        { "type": "shrine", "x": 8, "y": 9, "element": "fire" },
+        { "type": "chest", "x": 8, "y": 4, "contents": "big_key", "hidden": true },
+        { "type": "prop", "x": 6, "y": 1, "name": "prop_4_banner" },
+        { "type": "prop", "x": 9, "y": 1, "name": "prop_4_banner" }
+      ]
+    },
+    {
+      "id": "roothall",
+      "name": "ROOT HALL",
+      "at": [1, 2],
+      "tiles": [
+        "################",
+        "#..#...........#",
+        "#..#...........#",
+        "#tt#...........#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "atrium" },
+        { "side": "n", "to": "stairs", "lock": "flag:roots" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 8, "y": 8 },
+        { "kind": "bat", "x": 13, "y": 2 }
+      ],
+      "objects": [
+        { "type": "whip_post", "x": 4, "y": 2 },
+        { "type": "whip_post", "x": 11, "y": 9 },
+        { "type": "lever", "x": 12, "y": 2, "sets": "roots" },
+        { "type": "chest", "x": 1, "y": 1, "contents": "gold:50" },
+        { "type": "tablet", "x": 6, "y": 9, "text": "A lever across the chasm opens the guardian's stair." },
+        { "type": "prop", "x": 8, "y": 9, "name": "prop_4_roots", "solid": false }
+      ]
+    },
+    {
+      "id": "stairs",
+      "name": "GUARDIAN'S STAIR",
+      "at": [1, 1],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "boss_stairs": true,
+      "doors": [
+        { "side": "s", "to": "roothall" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "prop", "x": 5, "y": 2, "name": "prop_4_brazier" },
+        { "type": "prop", "x": 10, "y": 2, "name": "prop_4_brazier" },
+        { "type": "prop", "x": 3, "y": 7, "name": "prop_4_pillar" },
+        { "type": "prop", "x": 12, "y": 7, "name": "prop_4_pillar" },
+        { "type": "prop", "x": 4, "y": 1, "name": "prop_4_banner" },
+        { "type": "prop", "x": 11, "y": 1, "name": "prop_4_banner" }
+      ]
+    }
+  ]
+}

@@ -203,6 +203,16 @@ impl Game {
         self.gate_room = self.shop_room;
         self.start_dungeon(shop::SHOP_N);
     }
+    /// Room ids of the current format 2 lair.
+    pub fn debug_keep_ids(&self) -> Vec<String> {
+        self.dungeon.as_ref().and_then(|d| d.keep.as_ref()).map_or(vec![], |k| k.def.rooms.iter().map(|r| r.id.clone()).collect())
+    }
+    pub fn debug_room_size_cur(&self) -> (f32, f32) {
+        (self.cur_room().wf(), self.cur_room().hf())
+    }
+    pub fn debug_has_keep(&self, n: usize) -> bool {
+        self.levels.keep(n).is_some()
+    }
     /// Overworld relic gates: (area, side, segment, relic).
     pub fn debug_relic_gates(&self) -> Vec<(usize, usize, usize, usize)> {
         self.rooms.iter().flat_map(|r| r.relic_gates.iter().map(move |g| (r.i, g.0, g.1, g.2))).collect()

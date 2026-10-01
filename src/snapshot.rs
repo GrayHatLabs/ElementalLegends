@@ -1210,6 +1210,30 @@ fn encounters(t: &mut T) {
     println!("[keep] hand-designed lair engine (test lair)");
     keep_tests(t);
 
+    // ---------------------------------------------------------------- the real lairs
+    println!("[lairs] every room of the hand-designed lairs builds and can be entered");
+    t.g.debug_levels_builtin();
+    for n in 1..=6 {
+        if !t.g.debug_has_keep(n) {
+            continue;
+        }
+        t.g.debug_enter_lair(n);
+        t.frames(3);
+        let ids = t.g.debug_keep_ids();
+        t.check(!ids.is_empty(), &format!("lair {n}: the hand-designed lair builds ({} rooms)", ids.len()));
+        for id in ids {
+            t.g.debug_keep_goto(&id);
+            t.g.debug_kill_enemies();
+            t.frames(60);
+            let (w, h) = t.g.debug_room_size_cur();
+            t.g.debug_set_player(w / 2.0, (h + 32.0) / 2.0 + 20.0, b'u');
+            t.frames(30);
+            t.shot(&format!("90_lair{n}_{id}"));
+        }
+        t.check(t.g.debug_mode() == Mode::Play, &format!("lair {n}: every room can be visited"));
+    }
+    t.g.debug_levels_clear();
+
     // ---------------------------------------------------------------- overworld relic gates
     println!("[gates] relics open the way to new regions");
     gate_tests(t);

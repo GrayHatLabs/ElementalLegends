@@ -115,7 +115,7 @@ class Room:
         if self.random_enemies is not None:
             d['random_enemies'] = self.random_enemies
         if self.objects:
-            d['objects'] = self.objects
+            d['objects'] = [{k: v for k, v in o.items() if not k.startswith('_')} for o in self.objects]
         return d
 
 
@@ -170,3 +170,61 @@ def _small_obj(lines, i):
         n += 1
         j += 1
     return 0 < n <= 8
+
+
+# ---------------------------------------------------------------- design checks
+WALK = set('.oiDh')  # D is solid but drawn as floor; treated separately below
+SOLID_OBJ = {'torch', 'block', 'ice_block', 'lever', 'big_chest', 'pot', 'crate', 'boulder', 'whip_post',
+             'crystal', 'crystal_switch', 'tablet'}
+
+
+def door_cells(room, d):
+    """Floor cells just inside a door gap."""
+    side, seg = d['side'], d.get('seg', 0)
+    ox, oy = seg * RC, seg * RR
+    if side == 'n':
+        return [(ox + x, 1) for x in range(6, 10)]
+    if side == 's':
+        return [(ox + x, room.h - 2) for x in range(6, 10)]
+    if side == 'e':
+        return [(room.w - 2, oy + y) for y in range(5, 8)]
+    return [(1, oy + y) for y in range(5, 8)]
+
+
+def lint(rooms, extra_walk=''):
+    """Print problems: blocked doorways, objects in walls, unreachable things per room.
+    `extra_walk` adds tile kinds the player can cross (e.g. 'l' with the Ember Boots)."""
+    problems = []
+    for r in rooms:
+        walk = set('.oih') | set(extra_walk)
+        solid = {(o['x'], o['y']) for o in r.objects if o['type'] in SOLID_OBJ or (o['type'] == 'prop' and o.get('solid', True))}
+        for o in r.objects:
+            if r.g[o['y']][o['x']] not in walk and o['type'] != 'prop':
+                problems.append(f"{r.id}: {o['type']} at {o['x']},{o['y']} stands on '{r.g[o['y']][o['x']]}'")
+        for e in r.enemies:
+            if r.g[e['y']][e['x']] not in walk:
+                problems.append(f"{r.id}: {e['kind']} at {e['x']},{e['y']} is in '{r.g[e['y']][e['x']]}'")
+        starts = []
+        for d in r.doors:
+            cells = door_cells(r, d)
+            open_cells = [c for c in cells if r.g[c[1]][c[0]] in walk and c not in solid]
+            if not open_cells:
+                problems.append(f"{r.id}: the {d['side']} door is blocked inside")
+            starts += open_cells
+        seen = set(starts)
+        stack = list(starts)
+        while stack:
+            x, y = stack.pop()
+            for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if 0 < nx < r.w - 1 and 0 < ny < r.h - 1 and (nx, ny) not in seen and r.g[ny][nx] in walk and (nx, ny) not in solid:
+                    seen.add((nx, ny))
+                    stack.append((nx, ny))
+        for d in r.doors:
+            if not any(c in seen for c in door_cells(r, d)):
+                problems.append(f"{r.id}: the {d['side']} door can't be walked to")
+        for o in r.objects:
+            x, y = o['x'], o['y']
+            near = [(x, y), (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+            if not any(c in seen for c in near) and not o.get('_ok'):
+                problems.append(f"{r.id}: {o['type']} at {x},{y} can't be reached on foot")
+    return problems

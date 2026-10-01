@@ -2,4 +2,6 @@
 /// (file name, JSON text) for every built-in level.
 pub const LEVELS: &[(&str, &str)] = &[
     ("cave_2.json", include_str!("../levels/cave_2.json")),
+    ("lair_1.json", include_str!("../levels/lair_1.json")),
+    ("lair_2.json", include_str!("../levels/lair_2.json")),
 ];
