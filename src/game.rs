@@ -27,6 +27,7 @@ mod cave;
 mod keep;
 mod relics;
 mod keepdraw;
+mod menus;
 mod quest;
 mod shop;
 mod status;
@@ -677,6 +678,8 @@ pub struct Game {
     /// Fade-in from black after scene changes (frames remaining).
     fade: i32,
     paused: bool,
+    /// Pause screen page: 0 items, 1 map.
+    pause_view: u8,
     bombs: Vec<bag::Bomb>,
     blink_cd: i32,
     /// A relic just found, held up over the mage's head (frames left).
@@ -771,6 +774,7 @@ impl Game {
             shake: 0,
             fade: 0,
             paused: false,
+            pause_view: 0,
             bombs: vec![],
             blink_cd: 0,
             held_up: None,
@@ -1465,15 +1469,21 @@ impl Game {
     fn update_play(&mut self) {
         if self.p(Btn::Start) {
             self.paused = !self.paused;
+            self.pause_view = 0;
             self.sfx(Sfx::Select);
         }
         if self.paused {
-            // The pause menu picks the bag item with Left / Right.
-            if self.p(Btn::Left) {
-                self.cycle_bag(-1);
+            // The item screen picks the bag item with the d-pad; A flips to the map and back.
+            if self.p(Btn::Fire) || self.p(Btn::Sub) {
+                self.pause_view ^= 1;
+                self.sfx(Sfx::Select);
             }
-            if self.p(Btn::Right) {
-                self.cycle_bag(1);
+            if self.pause_view == 0 {
+                for (b, dx, dy) in [(Btn::Left, -1, 0), (Btn::Right, 1, 0), (Btn::Up, 0, -1), (Btn::Down, 0, 1)] {
+                    if self.p(b) {
+                        self.item_cursor(dx, dy);
+                    }
+                }
             }
             return;
         }

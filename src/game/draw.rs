@@ -18,8 +18,8 @@ impl Game {
             scr.oy = ((h >> 3) & 7) % 5 - 2;
         }
         match self.mode {
-            Mode::Title => self.draw_title(scr),
-            Mode::Choose => self.draw_choose(scr),
+            Mode::Title => self.draw_title_screen(scr),
+            Mode::Choose => self.draw_choose_screen(scr),
             Mode::Intro => self.draw_intro(scr),
             Mode::Awaken => self.draw_awaken(scr),
             Mode::Play | Mode::Dying | Mode::EnterDungeon | Mode::Descend | Mode::BossIntro => {
@@ -33,7 +33,9 @@ impl Game {
                 self.draw_hud(scr);
                 self.draw_status_icons(scr);
                 if self.paused {
-                    if self.in_lair > 0 {
+                    if self.pause_view == 0 {
+                        self.draw_item_screen(scr);
+                    } else if self.in_lair > 0 {
                         scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.6);
                         scr.text("PAUSED", 128, 120, WHITE, Align::Center, 16);
                     } else if self.in_keep() {
@@ -41,7 +43,7 @@ impl Game {
                     } else if self.dungeon.is_some() && !self.in_shop() {
                         self.draw_dungeon_map(scr);
                     } else {
-                        self.draw_map(scr);
+                        self.draw_world_map(scr);
                     }
                 }
             }
@@ -1295,86 +1297,6 @@ impl Game {
         }
         scr.ui();
     }
-    fn draw_map(&self, scr: &mut Screen) {
-        scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.88);
-        scr.text(&format!("- {} -", self.themes[self.rooms[self.room].theme].name), 128, HUD + 5, rgb(0xfcbc3c), Align::Center, 8);
-        let (cw, ch) = (24, 15);
-        let (ox, oy) = ((W - WW as i32 * cw) / 2, HUD + 16);
-        for r in &self.rooms {
-            if !r.visited {
-                continue;
-            }
-            let (x, y) = (ox + r.x as i32 * cw, oy + r.y as i32 * ch);
-            let (aw, ah) = (r.cw as i32 * cw, r.ch as i32 * ch);
-            let c = self.themes[r.theme].map_col;
-            scr.fill(x + 3, y + 3, aw - 6, ah - 6, c);
-            for l in &r.links {
-                let s = l.seg as i32;
-                match l.d {
-                    0 => scr.fill(x + s * cw + cw / 2 - 1, y - 3, 3, 6, c),
-                    1 => scr.fill(x + s * cw + cw / 2 - 1, y + ah - 3, 3, 6, c),
-                    2 => scr.fill(x + aw - 3, y + s * ch + ch / 2 - 1, 6, 3, c),
-                    _ => scr.fill(x - 3, y + s * ch + ch / 2 - 1, 6, 3, c),
-                }
-            }
-            // Features sit at the area's centre (single screens: the middle of the square).
-            let (x, y) = (x + aw / 2 - cw / 2, y + ah / 2 - ch / 2);
-            if r.gate > 0 {
-                let st = self.gate_state(r.gate);
-                let col = [rgb(0x747474), WHITE, rgb(0xb8f818)][st as usize];
-                let label = if r.gate == 6 { "X".to_string() } else { r.gate.to_string() };
-                scr.text(&label, x + cw / 2 + 1, y + 5, col, Align::Center, 8);
-            }
-            let dot = |scr: &mut Screen, dx: i32, c: u32| scr.fill(x + cw / 2 - 2 + dx, y + ch / 2 - 2, 4, 4, c);
-            if r.tank && !self.s.tanks.contains(&r.i) {
-                dot(scr, 0, rgb(0xfc7460));
-            }
-            if r.cache && !self.s.caches.contains(&r.i) {
-                dot(scr, 0, rgb(0xfcbc3c));
-            }
-            if let Some(se) = r.shrine {
-                dot(scr, -6, EL_LIGHT[se]);
-            }
-            if r.chest.is_some() && !self.s.opened.contains(&r.i) {
-                dot(scr, 6, rgb(0xa85020));
-            }
-            if r.cave > 0 {
-                let c = if self.cave_cleared(r.cave) { rgb(0x747474) } else { rgb(0xd8b878) };
-                scr.text("C", x + cw / 2 + 1, y + 5, c, Align::Center, 8);
-            }
-            if r.special == SP_MONOLITH {
-                scr.text("M", x + cw / 2 + 1, y + 5, rgb(0xa4e4fc), Align::Center, 8);
-            }
-            if r.special == SP_SHOP {
-                scr.text("V", x + cw / 2 + 1, y + 5, rgb(0xfcbc3c), Align::Center, 8);
-            }
-            // Discovered encounters: a red diamond until finished, then grey.
-            if let Some(c) = self.mini_marker(r.mini) {
-                let (mx, my) = (x + cw - 6, y + 4);
-                scr.fill(mx, my - 2, 1, 5, c);
-                scr.fill(mx - 2, my, 5, 1, c);
-                scr.fill(mx - 1, my - 1, 3, 3, c);
-            }
-            if r.i == self.room && (self.frame >> 4) & 1 == 1 {
-                scr.frame_rect(x + 1, y + 1, cw - 2, ch - 2, WHITE);
-            }
-        }
-        let y = oy + WH as i32 * ch + 6;
-        let el = self.el();
-        scr.text(&format!("{} MAGIC: {}", el.name(), SPELL_NAMES[el.idx()]), 128, y, el.light(), Align::Center, 8);
-        let slot = self.slot();
-        scr.text(&format!("LV{} RUNES {}/5  BAG: < {} X{} >", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count(), slot.name(), self.slot_count(slot)), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
-        scr.text("M MONOLITH  V VILLAGE  C CAVE", 128, y + 26, rgb(0x747474), Align::Center, 8);
-        scr.text(&self.quest_line(), 128, y + 38, rgb(0xd878fc), Align::Center, 8);
-        // Relics found so far, in a column at the right edge (empty boxes for the rest).
-        for (i, r) in crate::keepdef::RELICS.iter().enumerate() {
-            let (rx, ry) = (268, HUD + 26 + i as i32 * 22);
-            scr.frame_rect(rx - 9, ry - 9, 18, 18, rgb(0x5c4880));
-            if self.has_relic(*r) && !self.relic_icon(scr, r.key(), rx as f32, ry as f32, false) {
-                scr.disc(rx, ry, 4, rgb(0x98d858));
-            }
-        }
-    }
     fn draw_dungeon_map(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };
         scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.88);
@@ -1436,62 +1358,10 @@ impl Game {
 
     // ------------------------------------------------------------ menus
     /// The generated wizard facing the viewer (walking or standing), for menus.
-    fn mage_hd(&self, el: usize, walking: bool) -> Option<&Sprite> {
+    pub(super) fn mage_hd(&self, el: usize, walking: bool) -> Option<&Sprite> {
         let sh = self.art.sheet(["mage_fire", "mage_ice", "mage_storm", "mage_earth"][el.min(3)])?;
         let a = sh.anim(if walking { "walk_down" } else { "idle_down" })?;
         Some(a.at(self.frame as u32))
-    }
-    fn draw_title(&self, scr: &mut Screen) {
-        self.draw_stars(scr);
-        scr.text("ELEMENTAL", 128, 30, rgb(0x3cbcfc), Align::Center, 16);
-        scr.text("LEGENDS", 130, 52, rgb(0x881400), Align::Center, 32);
-        scr.text("LEGENDS", 128, 50, rgb(0xfcbc3c), Align::Center, 32);
-        let e = ((self.frame / 60) % 4) as usize;
-        let bob = ((self.frame as f32 * 0.06).sin() * 2.0) as i32;
-        match self.mage_hd(e, true) {
-            Some(img) => scr.blit_hd(img, (128 - img.w / 2) as f32, (90 + bob) as f32, false),
-            None => scr.blit_scaled(&self.spr.mage_d[e][((self.frame / 8) % 4) as usize].img, 128 - 16, 90 + bob, 2),
-        }
-        let opts = self.menu_opts();
-        for (i, o) in opts.iter().enumerate() {
-            let sel = i == self.menu;
-            let prefix = if sel && (self.frame >> 4) & 1 == 1 { "> " } else { "  " };
-            scr.text(&format!("{}{}", prefix, o), 92, 136 + i as i32 * 12, if sel { WHITE } else { rgb(0x747474) }, Align::Left, 8);
-        }
-        scr.text("MOVE: D-PAD   CAST: A / Z", 128, 184, rgb(0x747474), Align::Center, 8);
-        scr.text("SPELL: B / X  MAP: START", 128, 196, rgb(0x747474), Align::Center, 8);
-        scr.text("POTION: Y / C  STRAFE: HOLD A", 128, 208, rgb(0x747474), Align::Center, 8);
-        let c = if (self.frame >> 5) & 1 == 1 { rgb(0xfcbc3c) } else { rgb(0xfc7460) };
-        scr.text("PRESS START", 128, 224, c, Align::Center, 8);
-    }
-    fn draw_choose(&self, scr: &mut Screen) {
-        self.draw_stars(scr);
-        scr.text("CHOOSE YOUR ELEMENT", 128, 24, WHITE, Align::Center, 8);
-        for i in 0..4 {
-            let cx = 32 + i as i32 * 64;
-            let sel = i == self.menu;
-            let bob = if sel { ((self.frame as f32 * 0.15).sin() * 3.0) as i32 } else { 0 };
-            if sel {
-                scr.frame_rect(cx - 24, 48, 48, 68, EL_LIGHT[i]);
-            }
-            match self.mage_hd(i, sel) {
-                Some(img) => scr.blit_hd(img, (cx - img.w / 2) as f32, (60 + bob) as f32, false),
-                None => scr.blit_scaled(&self.spr.mage_d[i][if sel { ((self.frame / 8) % 4) as usize } else { 0 }].img, cx - 18, 56 + bob, 2),
-            }
-            scr.text(Elem::from_idx(i).name(), cx, 104, if sel { EL_LIGHT[i] } else { rgb(0x747474) }, Align::Center, 8);
-        }
-        let desc: [[&str; 3]; 4] = [
-            ["FIREBOLTS SET FOES ABLAZE", "SPELL: FLAME RING", "STRONG VS ICE FOES"],
-            ["SHARDS CHILL, THEN FREEZE", "SPELL: FROST NOVA", "STRONG VS FIRE FOES"],
-            ["FAST PIERCING BOLTS", "SPELL: CHAIN BOLT", "STRONG VS EARTH FOES"],
-            ["HEAVY ROCKS SMASH ICE", "SPELL: QUAKE", "STRONG VS STORM FOES"],
-        ];
-        for (j, l) in desc[self.menu].iter().enumerate() {
-            scr.text(l, 128, 126 + j as i32 * 14, if j == 2 { rgb(0xfce040) } else { WHITE }, Align::Center, 8);
-        }
-        scr.text("FIND ORB SHRINES TO", 128, 180, rgb(0x747474), Align::Center, 8);
-        scr.text("CHANGE ELEMENT LATER", 128, 192, rgb(0x747474), Align::Center, 8);
-        scr.text("< >  CHOOSE    START  OK", 128, 220, rgb(0xfcbc3c), Align::Center, 8);
     }
     fn draw_intro(&self, scr: &mut Screen) {
         self.draw_stars(scr);

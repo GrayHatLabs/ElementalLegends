@@ -43,7 +43,7 @@ impl Game {
     fn bit(id: u8) -> u32 {
         1 << id
     }
-    fn done(&self, id: u8) -> bool {
+    pub(super) fn done(&self, id: u8) -> bool {
         self.s.mini_done(id)
     }
     fn finish_mini(&mut self, id: u8) {

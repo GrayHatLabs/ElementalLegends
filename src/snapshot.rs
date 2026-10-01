@@ -1480,6 +1480,9 @@ fn encounters(t: &mut T) {
     t.frames(2);
     t.tap(Btn::Start);
     t.frames(2);
+    t.shot("60b_item_screen");
+    t.tap(Btn::Fire);
+    t.frames(2);
     let all_seen = (1..=4).all(|i| t.g.debug_mini_seen(i));
     t.check(t.g.debug_paused() && all_seen, "every encounter shows on the map once discovered");
     t.shot("61_map_markers");
@@ -1575,6 +1578,8 @@ fn keep_tests(t: &mut T) {
     t.frames(3);
     t.check(t.g.debug_keep().3, "keep: the finder is found behind the drained water");
     t.tap(Btn::Start);
+    t.frames(2);
+    t.tap(Btn::Fire);
     t.frames(2);
     t.shot("82_keep_map");
     t.tap(Btn::Start);
