@@ -40,14 +40,29 @@ pub const T_PLATE: u8 = 8;
 pub const T_STAIRS: u8 = 9;
 /// Solid, drawn as floor: the footprint of big sprites (monolith, buildings, standing stones).
 pub const T_DECOR: u8 = 10;
+/// Bottomless pit: the mage falls in (unless floating with the Feather Cloak); monsters avoid it.
+pub const T_PIT: u8 = 11;
+/// Lava: solid unless the mage wears the Ember Boots.
+pub const T_LAVA: u8 = 12;
+/// Coloured barrier pegs toggled by crystal switches (orange starts raised, blue lowered).
+pub const T_ORANGE: u8 = 13;
+pub const T_BLUE: u8 = 14;
+/// A hidden bridge: looks and acts like a pit unless the Spirit Lantern reveals it.
+pub const T_HIDDEN: u8 = 15;
+/// Big-key door.
+pub const T_BIGLOCK: u8 = 16;
+/// Thorny vines: solid until cut with the Vine Whip.
+pub const T_THORNS: u8 = 17;
+/// A huge boulder on an overworld path: the Titan Gloves heave it aside.
+pub const T_ROCK: u8 = 18;
 
 /// Blocks the player and walking enemies.
 pub fn solid_tile(t: u8) -> bool {
-    matches!(t, T_WALL | T_WATER | T_CRACK | T_LOCK | T_SEAL | T_BARRIER | T_DECOR)
+    matches!(t, T_WALL | T_WATER | T_CRACK | T_LOCK | T_SEAL | T_BARRIER | T_DECOR | T_BIGLOCK | T_THORNS)
 }
 /// Stops projectiles.
 pub fn shot_solid(t: u8) -> bool {
-    matches!(t, T_WALL | T_CRACK | T_LOCK | T_SEAL | T_BARRIER | T_DECOR)
+    matches!(t, T_WALL | T_CRACK | T_LOCK | T_SEAL | T_BARRIER | T_DECOR | T_BIGLOCK | T_THORNS)
 }
 
 /// Seeded PRNG (mulberry32) so the world is identical every playthrough.
@@ -715,6 +730,48 @@ pub fn render(r: &mut Room, th: &Theme) {
                     img.fill(px + 3, py + 3, 10, 1, rgb(0xa0a0ac));
                     img.fill(px + 6, py + 6, 4, 4, rgb(0x505058));
                 }
+                T_PIT | T_HIDDEN => {
+                    img.fill(px, py, TS, TS, rgb(0x040406));
+                    let edge = |yy: usize, xx: usize| yy < rows && xx < cols && !matches!(r.tiles[yy][xx], T_PIT | T_HIDDEN);
+                    if y > 0 && edge(y - 1, x) {
+                        img.fill(px, py, TS, 3, rgb(0x34303c));
+                        img.fill(px, py + 3, TS, 1, rgb(0x18161e));
+                    }
+                }
+                T_LAVA => {
+                    img.fill(px, py, TS, TS, rgb(0xc83000));
+                    img.fill(px + 2, py + 3, 6, 2, rgb(0xfc9838));
+                    img.fill(px + 9, py + 10, 5, 2, rgb(0xfce040));
+                    img.fill(px + 1, py + 12, 3, 1, rgb(0x881800));
+                }
+                T_ORANGE | T_BLUE => img.draw(floor_at(x, y), px, py),
+                T_ROCK => {
+                    img.draw(floor_at(x, y), px, py);
+                    img.fill(px + 1, py + 3, 14, 12, rgb(0x5c5c64));
+                    img.fill(px + 2, py + 2, 12, 2, rgb(0x8c8c98));
+                    img.fill(px + 12, py + 4, 3, 10, rgb(0x3c3c44));
+                    img.fill(px + 4, py + 7, 3, 2, rgb(0x3c3c44));
+                }
+                T_BIGLOCK => {
+                    img.fill(px, py, TS, TS, rgb(0x3c2410));
+                    img.fill(px + 1, py + 1, TS - 2, TS - 2, rgb(0x7c4818));
+                    img.fill(px, py + 3, TS, 2, rgb(0xd8a040));
+                    img.fill(px, py + 11, TS, 2, rgb(0xd8a040));
+                    if x == 7 || x == 8 {
+                        let kx = if x == 7 { px + 12 } else { px };
+                        img.fill(kx, py + 5, 4, 6, rgb(0xfce040));
+                        img.fill(kx + 1, py + 7, 2, 2, rgb(0xd82800));
+                    }
+                }
+                T_THORNS => {
+                    img.draw(floor_at(x, y), px, py);
+                    for k in 0..4 {
+                        let (ax, ay) = (px + (k * 5) % 14, py + (k * 7) % 12);
+                        img.fill(ax, ay + 2, 8, 2, rgb(0x2c5c18));
+                        img.fill(ax + 2, ay, 2, 6, rgb(0x2c5c18));
+                        img.fill(ax + 6, ay + 1, 1, 1, rgb(0xd8d8a0));
+                    }
+                }
                 T_STAIRS | T_BARRIER => {
                     img.fill(px, py, TS, TS, rgb(0x080808));
                     for s in 0..4 {
@@ -893,7 +950,7 @@ fn render_hd(r: &Room, th: &Theme, wall: &[Sprite]) -> Sprite {
     // Special tiles keep their code-drawn look, scaled up from the 16 px image.
     for rr in 0..rows {
         for c in 0..cols {
-            if !matches!(t(c, rr), T_ICE | T_CRACK | T_LOCK | T_SEAL | T_PLATE | T_STAIRS | T_BARRIER) {
+            if !matches!(t(c, rr), T_ICE | T_CRACK | T_LOCK | T_SEAL | T_PLATE | T_STAIRS | T_BARRIER | T_PIT | T_HIDDEN | T_LAVA | T_BIGLOCK | T_THORNS | T_ROCK) {
                 continue;
             }
             for dy in 0..HD_TS {

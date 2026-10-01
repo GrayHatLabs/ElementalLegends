@@ -102,6 +102,23 @@ pub(super) enum OK {
     Lever,
     Chest,
     Shrine(Elem),
+    // Format 2 lairs (keep.rs):
+    BigChest,
+    Pot,
+    Crate,
+    Boulder,
+    /// Vine Whip anchor post.
+    Post,
+    IceBlock,
+    /// Element crystal: lit by a bolt of its element; `tag` = order (0 = any).
+    Crystal(Elem),
+    CrystalSwitch,
+    /// Floor switch; `tag` = flag index (or usize::MAX).
+    FloorSwitch,
+    /// Lore tablet; `tag` = text index.
+    Tablet,
+    /// Decoration; `tag` = prop name index, `hard` = solid.
+    Prop,
 }
 
 #[derive(Clone, Debug)]
@@ -119,13 +136,22 @@ pub(super) struct Obj {
     pub home: (i32, i32),
     /// What a chest holds (level files can choose; Default = the usual reward).
     pub loot: Loot,
+    /// Kind-specific index (see OK) and whether a prop is solid.
+    pub tag: usize,
+    pub hard: bool,
 }
 impl Obj {
     pub(super) fn new(k: OK, c: i32, r: i32) -> Self {
-        Obj { k, c, r, on: false, visible: true, slide: 0, sdx: 0, sdy: 0, home: (c, r), loot: Loot::Default }
+        Obj { k, c, r, on: false, visible: true, slide: 0, sdx: 0, sdy: 0, home: (c, r), loot: Loot::Default, tag: usize::MAX, hard: true }
     }
     pub fn solid(&self) -> bool {
-        self.visible && matches!(self.k, OK::Torch | OK::Block | OK::Lever)
+        self.visible
+            && match self.k {
+                OK::Torch | OK::Block | OK::Lever | OK::BigChest | OK::Pot | OK::Crate | OK::Boulder | OK::Post | OK::IceBlock => true,
+                OK::Crystal(_) | OK::CrystalSwitch | OK::Tablet => true,
+                OK::Prop => self.hard,
+                OK::Chest | OK::Shrine(_) | OK::FloorSwitch => false,
+            }
     }
     /// Draw position (includes the push slide).
     pub fn pos(&self) -> (f32, f32) {
@@ -138,9 +164,9 @@ pub(super) struct Dungeon {
     pub n: usize,
     pub rooms: Vec<Room>,
     pub objs: Vec<Vec<Obj>>,
-    pub puz: [Option<Puz>; 7],
-    /// Which of the seven room slots this dungeon uses.
-    pub has: [bool; 7],
+    pub puz: Vec<Option<Puz>>,
+    /// Which room slots this dungeon uses.
+    pub has: Vec<bool>,
     /// Food left in the feast hall / pantry, kept while you come and go.
     pub larder: Vec<Vec<(IK, f32, f32)>>,
     pub hub_combat: bool,
@@ -150,7 +176,7 @@ pub(super) struct Dungeon {
     pub push_t: i32,
     /// (room, col, row, hits) for cracked walls being chipped at.
     pub crack_hits: Vec<(usize, i32, i32, i32)>,
-    pub seen: [bool; 7],
+    pub seen: Vec<bool>,
     pub warned: bool,
     /// An optional cave (see cave.rs) rather than a lair dungeon.
     pub cave: bool,
@@ -162,6 +188,8 @@ pub(super) struct Dungeon {
     /// Caves: the challenge room and the treasure room.
     pub chal: usize,
     pub treasure: usize,
+    /// A format 2 lair (free room layout, keys, relics...): its definition and live state.
+    pub keep: Option<Box<super::keep::KeepRt>>,
 }
 
 /// Room slot names used by level files, indexed like the R_* room constants.
@@ -248,7 +276,7 @@ pub(super) fn apply_room_def(r: &mut Room, o: &mut Vec<Obj>, def: &RoomDef, solv
     }
 }
 
-pub(super) fn neighbor(i: usize, d: usize, has: &[bool; 7]) -> Option<usize> {
+pub(super) fn neighbor(i: usize, d: usize, has: &[bool]) -> Option<usize> {
     let (x, y) = (GRID[i].0 + DIRS[d].0, GRID[i].1 + DIRS[d].1);
     let food = |r: usize| r == R_FEAST || r == R_PANTRY;
     GRID.iter()
@@ -281,7 +309,7 @@ pub(super) fn build_dungeon(n: usize, themes: &[Theme], prog: u8, level: Option<
     let theme = level.and_then(|l| l.theme).filter(|&t| t < themes.len()).unwrap_or(dungeon_theme(n));
     let mut rooms = Vec::new();
     let mut objs = Vec::new();
-    let mut has = [true; 7];
+    let mut has = vec![true; 7];
     has[R_FEAST] = n == 1;
     has[R_PANTRY] = n >= 2;
     for i in 0..7 {
@@ -377,7 +405,7 @@ pub(super) fn build_dungeon(n: usize, themes: &[Theme], prog: u8, level: Option<
         rooms.push(r);
         objs.push(o);
     }
-    let mut puz = [None; 7];
+    let mut puz = vec![None; 7];
     puz[R_WEST] = Some(west);
     puz[R_EAST] = Some(east);
     // Food rooms are freshly stocked each time you enter the dungeon.
@@ -397,7 +425,7 @@ pub(super) fn build_dungeon(n: usize, themes: &[Theme], prog: u8, level: Option<
         .collect();
     Dungeon {
         n, rooms, objs, puz, has, larder, hub_combat, cur: R_ENTRY, dirty: false, sealed: false, push_t: 0,
-        crack_hits: vec![], seen: [false; 7], warned: false, cave: false, theme,
+        crack_hits: vec![], seen: vec![false; 7], warned: false, cave: false, theme, keep: None,
         spawns: (0..7).map(|i| def(i).map_or(vec![], |d| d.enemies.clone())).collect(),
         random: (0..7).map(|i| def(i).and_then(|d| d.random_enemies.or(if d.enemies.is_empty() { None } else { Some(0) }))).collect(),
         chal: R_HUB,
@@ -492,6 +520,9 @@ impl Game {
         }
     }
     pub(super) fn dungeon_keys(&self) -> i32 {
+        if self.in_keep() {
+            return self.kkeys();
+        }
         let p = self.dprog();
         (p & D_KEY != 0 && p & D_DOOR == 0) as i32
     }
@@ -500,6 +531,9 @@ impl Game {
     pub(super) fn start_dungeon(&mut self, n: usize) {
         let d = if n == shop::SHOP_N {
             shop::build_shop(&self.themes)
+        } else if let Some(k) = self.levels.keep(n).filter(|_| (1..=6).contains(&n)) {
+            let toks = self.s.keeps.get(&n).cloned().unwrap_or_default();
+            keep::build_keep(k, &self.themes, &toks)
         } else if cave::is_cave(n) {
             let region = self.rooms[self.gate_room].theme;
             cave::build_cave(n, region, &self.themes, self.s.dprog[n], self.levels.cave(n - cave::LAIRS))
@@ -540,6 +574,11 @@ impl Game {
         }
         if self.in_shop() {
             self.enter_shop_room();
+            return;
+        }
+        if self.in_keep() {
+            self.room_entry_pos = (self.pl.x, self.pl.y);
+            self.enter_keep_room();
             return;
         }
         let prog = self.dprog();
@@ -627,6 +666,10 @@ impl Game {
     }
 
     pub(super) fn dungeon_exit(&mut self, dir: usize) {
+        if self.in_keep() {
+            self.keep_exit(dir);
+            return;
+        }
         self.stash_larder();
         let Some(d) = self.dungeon.as_ref() else { return };
         if d.cur == R_ENTRY && dir == 1 {
@@ -703,6 +746,10 @@ impl Game {
         }
     }
     pub(super) fn break_crack(&mut self, c: i32, r: i32) {
+        if self.in_keep() {
+            self.keep_break_crack(c, r);
+            return;
+        }
         let cur = self.dungeon.as_ref().map_or(0, |d| d.cur);
         if cur == R_ENTRY {
             // The pantry wall: the whole doorway crumbles at once.
@@ -737,6 +784,9 @@ impl Game {
     /// A player bolt struck a solid tile or dungeon object.
     pub(super) fn dungeon_bolt_hit(&mut self, c: i32, r: i32, el: Elem) {
         if self.dungeon.is_none() || self.in_lair > 0 {
+            return;
+        }
+        if self.in_keep() && self.keep_bolt_hit(c, r, el) {
             return;
         }
         if self.tile_at(c, r) == T_CRACK {
@@ -861,6 +911,10 @@ impl Game {
         }
         if self.in_shop() {
             self.shop();
+            return;
+        }
+        if self.in_keep() {
+            self.keep_player(ix, iy, blocked);
             return;
         }
         self.try_push(ix, iy, blocked);
@@ -1020,6 +1074,10 @@ impl Game {
         if self.in_shop() {
             return;
         }
+        if self.in_keep() {
+            self.keep_update();
+            return;
+        }
         let prog = self.dprog();
         let Some(d) = self.dungeon.as_mut() else { return };
         let cur = d.cur;
@@ -1160,7 +1218,7 @@ impl Game {
                 }
             }
             Loot::Page => "A TORN PAGE... IT CRUMBLES TO DUST.".to_string(),
-            Loot::Key | Loot::Default => "TREASURE!".to_string(),
+            _ => "TREASURE!".to_string(),
         }
     }
 }

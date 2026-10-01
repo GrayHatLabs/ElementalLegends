@@ -99,7 +99,7 @@ pub(super) fn build_cave(n: usize, region: usize, themes: &[Theme], prog: u8, le
     };
     let def = |i: usize| slot_of(i).and_then(|sl| lrooms.and_then(|r| r.get(sl)));
     let solved = prog & C_SOLVED != 0 || no_challenge;
-    let mut has = [false; 7];
+    let mut has = vec![false; 7];
     has[R_ENTRY] = true;
     has[R_HUB] = true;
     has[R_STAIRS] = three;
@@ -163,13 +163,13 @@ pub(super) fn build_cave(n: usize, region: usize, themes: &[Theme], prog: u8, le
         rooms.push(r);
         objs.push(o);
     }
-    let mut pz = [None; 7];
+    let mut pz = vec![None; 7];
     if !no_challenge {
         pz[chal] = Some(puz);
     }
     Dungeon {
         n, rooms, objs, puz: pz, has, larder: vec![vec![]; 7], hub_combat: false, cur: R_ENTRY, dirty: false, sealed: false,
-        push_t: 0, crack_hits: vec![], seen: [false; 7], warned: false, cave: true, theme,
+        push_t: 0, crack_hits: vec![], seen: vec![false; 7], warned: false, cave: true, theme, keep: None,
         spawns: (0..7).map(|i| def(i).map_or(vec![], |d| d.enemies.clone())).collect(),
         random: (0..7).map(|i| def(i).and_then(|d| d.random_enemies.or(if d.enemies.is_empty() { None } else { Some(0) }))).collect(),
         chal,

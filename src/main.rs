@@ -6,6 +6,7 @@ mod art_gen;
 mod audio;
 mod game;
 mod gfx;
+mod keepdef;
 mod levels;
 mod levels_gen;
 mod snapshot;

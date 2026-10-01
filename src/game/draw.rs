@@ -36,6 +36,8 @@ impl Game {
                     if self.in_lair > 0 {
                         scr.blend_screen(0, HUD_PX, SW, SH - HUD_PX, BLACK, 0.6);
                         scr.text("PAUSED", 128, 120, WHITE, Align::Center, 16);
+                    } else if self.in_keep() {
+                        self.draw_keep_map(scr);
                     } else if self.dungeon.is_some() && !self.in_shop() {
                         self.draw_dungeon_map(scr);
                     } else {
@@ -333,6 +335,7 @@ impl Game {
             }
             OK::Chest => self.draw_chest(scr, fx, fy, o.on),
             OK::Shrine(el) => self.draw_shrine(scr, x, y, el),
+            _ => self.draw_keep_obj(scr, o),
         }
     }
     fn draw_dungeon_overlays(&self, scr: &mut Screen) {
@@ -953,6 +956,9 @@ impl Game {
                 self.draw_room_objs(scr, self.room, 0, 0);
             } else if self.in_lair == 0 {
                 self.draw_dungeon_overlays(scr);
+                if self.in_keep() {
+                    self.draw_keep_tiles(scr);
+                }
             }
             self.draw_items(scr);
             self.draw_bombs(scr, false);
@@ -972,6 +978,7 @@ impl Game {
                 }
             }
             self.draw_bombs(scr, true);
+            self.draw_relic_fx(scr);
             self.draw_bullets(scr);
             self.draw_parts_pass(scr, false);
             self.draw_ambience(scr);
@@ -1085,11 +1092,17 @@ impl Game {
         if self.overworld() || self.in_shop() {
             return;
         }
-        let ambient = if self.in_lair > 0 { 0.38 } else { 0.5 };
+        let dark = self.keep_darkness();
+        let ambient = dark.unwrap_or(if self.in_lair > 0 { 0.38 } else { 0.5 });
         let f = self.frame as f32;
         let flick = |k: f32| 1.0 + (f * 0.31 + k).sin() * 0.03 + (f * 0.77 + k * 2.0).sin() * 0.02;
         let mut lights: Vec<(f32, f32, f32, f32)> = Vec::with_capacity(48);
-        lights.push((self.pl.x, self.pl.y - 2.0, 88.0 * flick(0.0), 1.0));
+        let reach = match dark {
+            Some(_) if self.has_relic(crate::keepdef::Relic::Lantern) => 80.0,
+            Some(_) => 30.0,
+            None => 88.0,
+        };
+        lights.push((self.pl.x, self.pl.y - 2.0, reach * flick(0.0), 1.0));
         if let (Some(d), 0) = (&self.dungeon, self.in_lair) {
             for o in d.objs[d.cur].iter().filter(|o| o.visible) {
                 let (x, y) = o.pos();
@@ -1216,6 +1229,13 @@ impl Game {
             Slot::Antidote => scr.spr(&self.spr.antidote.img, 100.0, 20.0, false),
             Slot::Bomb => draw_bomb_icon(scr, 100, 20),
             Slot::Elixir => draw_elixir_icon(scr, 100, 20),
+            Slot::Whip | Slot::Cloak => {
+                let key = if slot == Slot::Whip { "vine_whip" } else { "feather_cloak" };
+                if !self.relic_icon(scr, key, 100.0, 20.0, false) {
+                    let c = if slot == Slot::Whip { rgb(0x58d854) } else { rgb(0xd4f4fc) };
+                    scr.disc(100, 20, 5, c);
+                }
+            }
         }
         let pc = if n > 0 { rgb(0x3cbcfc) } else { rgb(0x747474) };
         scr.text(&n.to_string(), 109, 16, pc, Align::Left, 8);

@@ -369,6 +369,7 @@ impl Game {
                         OK::Lever => "lever".into(),
                         OK::Chest => "chest".into(),
                         OK::Shrine(_) => "shrine".into(),
+                        other => format!("{other:?}").to_lowercase(),
                     },
                     c: o.c,
                     r: o.r,

@@ -24,6 +24,9 @@ mod minis;
 mod scenes;
 mod bag;
 mod cave;
+mod keep;
+mod relics;
+mod keepdraw;
 mod quest;
 mod shop;
 mod status;
@@ -484,6 +487,11 @@ pub struct SaveData {
     /// Spellbook pages found (bit per quest::PAGE_CAVES slot) and Arcane Blink learned.
     pages: u32,
     blink: bool,
+    /// Relics owned (bit per keepdef::Relic).
+    relics: u8,
+    /// Progress in format 2 lairs, by lair number: opened chests and doors, solved rooms,
+    /// flags, keys held, map/finder/big key (see keep.rs).
+    keeps: std::collections::BTreeMap<usize, std::collections::BTreeSet<String>>,
 }
 
 impl SaveData {
@@ -518,6 +526,8 @@ impl SaveData {
             bag_sel: 0,
             pages: 0,
             blink: false,
+            relics: 0,
+            keeps: std::collections::BTreeMap::new(),
         }
     }
     fn mini_done(&self, id: u8) -> bool {
@@ -528,11 +538,12 @@ impl SaveData {
         let l = |v: &[usize]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         let dp = self.dprog.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         format!(
-            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\npages={}\nblink={}\n",
+            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\npages={}\nblink={}\nrelics={}\n{}",
             SAVE_VERSION, self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
             b(&self.cleared), l(&self.tanks), l(&self.caches), l(&self.opened), l(&self.visited), self.room,
             self.time, self.heart_price, dp, self.potions, self.mini_seen, self.mini_done, self.hoard_left,
-            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel, self.pages, self.blink as u8
+            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel, self.pages, self.blink as u8, self.relics,
+            self.keeps.iter().map(|(n, t)| format!("keep{}={}\n", n, t.iter().cloned().collect::<Vec<_>>().join(","))).collect::<String>()
         )
     }
     fn from_text(txt: &str) -> Option<Self> {
@@ -578,9 +589,15 @@ impl SaveData {
                 "antidotes" => s.antidotes = (num() as i32).clamp(0, 3),
                 "bombs" => s.bombs = (num() as i32).clamp(0, bag::MAX_BOMBS),
                 "elixirs" => s.elixirs = (num() as i32).clamp(0, bag::MAX_ELIXIRS),
-                "bag_sel" => s.bag_sel = (num() as usize).min(bag::SLOTS.len() - 1),
+                "bag_sel" => s.bag_sel = (num() as usize).min(9),
                 "pages" => s.pages = num() as u32 & 0x1f,
                 "blink" => s.blink = num() as i32 == 1,
+                "relics" => s.relics = num() as u8 & 0x1f,
+                k if k.starts_with("keep") => {
+                    if let Ok(n) = k[4..].parse::<usize>() {
+                        s.keeps.insert(n, v.split(',').map(str::trim).filter(|t| !t.is_empty()).map(str::to_string).collect());
+                    }
+                }
                 "dprog" => {
                     for (i, x) in v.split(',').enumerate().take(7) {
                         s.dprog[i] = x.trim().parse().unwrap_or(0);
@@ -662,6 +679,20 @@ pub struct Game {
     paused: bool,
     bombs: Vec<bag::Bomb>,
     blink_cd: i32,
+    /// A relic just found, held up over the mage's head (frames left).
+    held_up: Option<(crate::keepdef::Relic, i32)>,
+    /// Feather Cloak float frames left.
+    hover: i32,
+    /// Vine Whip lash: (frames left, direction, reach).
+    whip: Option<(i32, (f32, f32), f32)>,
+    /// Being pulled to a whip post: target position.
+    pull: Option<(f32, f32)>,
+    /// Where the mage entered the current room (respawn after falling into a pit).
+    room_entry_pos: (f32, f32),
+    /// Frames pushing against an overworld boulder (Titan Gloves).
+    rock_t: i32,
+    /// True while moving the mage (pits and lava behave differently for the mage).
+    moving_pl: std::cell::Cell<bool>,
     boss: Option<Boss>,
     boss_dead: bool,
     clear_t: i32,
@@ -742,6 +773,13 @@ impl Game {
             paused: false,
             bombs: vec![],
             blink_cd: 0,
+            held_up: None,
+            hover: 0,
+            whip: None,
+            pull: None,
+            room_entry_pos: (128.0, 176.0),
+            moving_pl: std::cell::Cell::new(false),
+            rock_t: 0,
             boss: None,
             boss_dead: false,
             clear_t: 0,
@@ -943,11 +981,34 @@ impl Game {
     // ------------------------------------------------------------ collision
     fn solid_at(&self, x: f32, y: f32) -> bool {
         let (c, r) = tile_of(x, y);
-        solid_tile(self.tile_at(c, r)) || self.obj_blocks(c, r)
+        let t = self.tile_at(c, r);
+        self.dyn_solid(t, self.moving_pl.get()).unwrap_or_else(|| solid_tile(t)) || self.obj_blocks(c, r)
     }
     fn shot_blocked(&self, x: f32, y: f32) -> bool {
         let (c, r) = tile_of(x, y);
-        shot_solid(self.tile_at(c, r)) || self.obj_blocks(c, r)
+        let t = self.tile_at(c, r);
+        let raised = match t {
+            T_ORANGE => !self.crystals_blue(),
+            T_BLUE => self.crystals_blue(),
+            _ => false,
+        };
+        raised || shot_solid(t) || self.obj_blocks(c, r)
+    }
+    /// Tiles whose solidity depends on relics and switches (None = the usual rule).
+    fn dyn_solid(&self, t: u8, player: bool) -> Option<bool> {
+        use crate::keepdef::Relic;
+        Some(match t {
+            T_ORANGE => !self.crystals_blue(),
+            T_BLUE => self.crystals_blue(),
+            T_LAVA => !(player && self.has_relic(Relic::Boots)),
+            T_PIT => !player,
+            T_HIDDEN => !(player || self.has_relic(Relic::Lantern)),
+            T_ROCK => true,
+            _ => return None,
+        })
+    }
+    pub(super) fn unstick_player_pub(&mut self) {
+        self.unstick_player();
     }
     fn box_solid(&self, x: f32, y: f32, w: f32, h: f32) -> bool {
         let (x0, x1, y0, y1) = (x - w / 2.0, x + w / 2.0 - 0.01, y - h / 2.0, y + h / 2.0 - 0.01);
@@ -1001,9 +1062,15 @@ impl Game {
     }
     /// Player movement with corner-sliding so doorways are easy to slip into.
     fn move_player(&self, p: &mut Player, dx: f32, dy: f32) -> (bool, bool) {
+        self.moving_pl.set(true);
+        let out = self.move_player_inner(p, dx, dy);
+        self.moving_pl.set(false);
+        out
+    }
+    fn move_player_inner(&self, p: &mut Player, dx: f32, dy: f32) -> (bool, bool) {
         let (mut hx, mut hy) = self.move_box(&mut p.x, &mut p.y, p.w, p.h, dx, 0.0);
         // In caves frozen monsters are solid blocks you can shove.
-        let ice = |p: &Player| self.in_cave() && self.enemies.iter().any(|e| !e.dead && e.st.frozen() && hit(e.x, e.y, e.w, e.h, p.x, p.y, p.w, p.h));
+        let ice = |p: &Player| (self.in_cave() || self.in_keep()) && self.enemies.iter().any(|e| !e.dead && e.st.frozen() && hit(e.x, e.y, e.w, e.h, p.x, p.y, p.w, p.h));
         if dx != 0.0 && !hx && ice(p) && !ice(&Player { x: p.x - dx, ..*p }) {
             p.x -= dx;
             hx = true;
@@ -1520,6 +1587,7 @@ impl Game {
         }
         if self.overworld() {
             self.overworld_bump(ix, iy, blocked);
+            self.heave_rocks(ix, iy, blocked);
         }
         if self.pl.cd > 0 {
             self.pl.cd -= 1;
@@ -1543,6 +1611,7 @@ impl Game {
         if self.blink_cd > 0 {
             self.blink_cd -= 1;
         }
+        self.update_relics();
         if self.p(Btn::Blink) {
             self.blink();
         }
@@ -2102,6 +2171,8 @@ mod tests {
         s.bag_sel = 2;
         s.pages = 0b10110;
         s.blink = true;
+        s.relics = 0b101;
+        s.keeps.insert(2, ["c3.1", "d4.0", "f:drain", "key:2", "map"].iter().map(|t| t.to_string()).collect());
         let back = SaveData::from_text(&s.to_text()).expect("parse");
         assert_eq!(back, s);
     }

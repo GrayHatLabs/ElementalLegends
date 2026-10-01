@@ -10,6 +10,9 @@ pub(super) enum Slot {
     Antidote,
     Bomb,
     Elixir,
+    /// Relics used from the bag (once found).
+    Whip,
+    Cloak,
 }
 pub(super) const SLOTS: [Slot; 4] = [Slot::Potion, Slot::Antidote, Slot::Bomb, Slot::Elixir];
 pub(super) const MAX_BOMBS: i32 = 9;
@@ -27,6 +30,8 @@ impl Slot {
             Slot::Antidote => "ANTIDOTE",
             Slot::Bomb => "BOMB",
             Slot::Elixir => "ELIXIR",
+            Slot::Whip => "VINE WHIP",
+            Slot::Cloak => "FEATHER CLOAK",
         }
     }
 }
@@ -40,8 +45,20 @@ pub(super) struct Bomb {
 }
 
 impl Game {
+    /// The bag's slots: the four consumables, then the Vine Whip and Feather Cloak once found.
+    pub(super) fn slots(&self) -> Vec<Slot> {
+        let mut v = SLOTS.to_vec();
+        if self.has_relic(crate::keepdef::Relic::Whip) {
+            v.push(Slot::Whip);
+        }
+        if self.has_relic(crate::keepdef::Relic::Cloak) {
+            v.push(Slot::Cloak);
+        }
+        v
+    }
     pub(super) fn slot(&self) -> Slot {
-        SLOTS[self.s.bag_sel.min(SLOTS.len() - 1)]
+        let v = self.slots();
+        v[self.s.bag_sel.min(v.len() - 1)]
     }
     pub(super) fn slot_count(&self, s: Slot) -> i32 {
         match s {
@@ -49,16 +66,18 @@ impl Game {
             Slot::Antidote => self.s.antidotes,
             Slot::Bomb => self.s.bombs,
             Slot::Elixir => self.s.elixirs,
+            Slot::Whip | Slot::Cloak => 1,
         }
     }
     /// Select the next (d = 1) or previous (d = -1) bag item.
     pub(super) fn cycle_bag(&mut self, d: i32) {
-        let n = SLOTS.len() as i32;
-        self.s.bag_sel = ((self.s.bag_sel as i32 + d).rem_euclid(n)) as usize;
+        let n = self.slots().len() as i32;
+        self.s.bag_sel = ((self.s.bag_sel.min(n as usize - 1) as i32 + d).rem_euclid(n)) as usize;
         let s = self.slot();
         let (x, y) = (self.pl.x, self.pl.y);
         if !self.paused {
-            self.float(format!("{} X{}", s.name(), self.slot_count(s)), x - 40.0, y - 22.0, WHITE);
+            let label = if matches!(s, Slot::Whip | Slot::Cloak) { s.name().to_string() } else { format!("{} X{}", s.name(), self.slot_count(s)) };
+            self.float(label, x - 40.0, y - 22.0, WHITE);
         }
         self.sfx(Sfx::Select);
     }
@@ -66,6 +85,8 @@ impl Game {
     pub(super) fn use_bag(&mut self) {
         let (x, y) = (self.pl.x, self.pl.y);
         match self.slot() {
+            Slot::Whip => self.use_whip(),
+            Slot::Cloak => self.use_cloak(),
             Slot::Potion => {
                 // The same button cures poison first when you carry an antidote.
                 if self.poison > 0 && self.s.antidotes > 0 {

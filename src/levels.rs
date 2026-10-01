@@ -54,6 +54,11 @@ pub enum Loot {
     Mana,
     Potion,
     Page,
+    /// Format 2 lairs: a small key, the map, the finder and the big key.
+    SmallKey,
+    Map,
+    Finder,
+    BigKey,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -90,6 +95,8 @@ pub struct Level {
 #[derive(Default)]
 pub struct Levels {
     pub by_name: BTreeMap<String, Level>,
+    /// Format 2 lairs (free room layouts), by lair number.
+    pub keeps: BTreeMap<usize, crate::keepdef::Keep>,
 }
 
 impl Levels {
@@ -127,6 +134,29 @@ impl Levels {
     }
     pub fn add(&mut self, file: &str, text: &str, from: &str) {
         let stem = file.trim_end_matches(".json").to_string();
+        // Format 2: a whole lair with free room layouts.
+        if let Ok(v) = serde_json::from_str::<Value>(text) {
+            if v.get("format").and_then(Value::as_i64) == Some(2) {
+                match crate::keepdef::parse_keep(&v) {
+                    Ok((k, warnings)) => {
+                        for w in &warnings {
+                            eprintln!("levels: {file} ({from}): {w}");
+                        }
+                        for p in crate::keepdef::check_solvable(&k) {
+                            eprintln!("levels: {file} ({from}): {p}");
+                        }
+                        if stem != format!("lair_{}", k.number) {
+                            eprintln!("levels: {file} ({from}): number says lair_{}.json, ignoring the file", k.number);
+                            return;
+                        }
+                        self.by_name.remove(&stem);
+                        self.keeps.insert(k.number, k);
+                    }
+                    Err(e) => eprintln!("levels: {file} ({from}): {e}; using the built-in layout"),
+                }
+                return;
+            }
+        }
         match parse(text) {
             Ok((lv, warnings)) => {
                 for w in &warnings {
@@ -144,6 +174,9 @@ impl Levels {
     }
     pub fn cave(&self, k: usize) -> Option<&Level> {
         self.by_name.get(&format!("cave_{k}"))
+    }
+    pub fn keep(&self, n: usize) -> Option<&crate::keepdef::Keep> {
+        self.keeps.get(&n)
     }
     pub fn lair(&self, n: usize) -> Option<&Level> {
         self.by_name.get(&format!("lair_{n}"))
@@ -180,6 +213,10 @@ pub fn loot(s: &str) -> Option<Loot> {
         "mana" => Loot::Mana,
         "potion" => Loot::Potion,
         "page" => Loot::Page,
+        "small_key" => Loot::SmallKey,
+        "map" => Loot::Map,
+        "finder" => Loot::Finder,
+        "big_key" => Loot::BigKey,
         _ => return None,
     })
 }
@@ -432,6 +469,14 @@ mod tests {
     #[test]
     fn every_built_in_level_loads_cleanly() {
         for (file, text) in crate::levels_gen::LEVELS {
+            let v: Value = serde_json::from_str(text).unwrap_or_else(|e| panic!("{file}: {e}"));
+            if v.get("format").and_then(Value::as_i64) == Some(2) {
+                let (k, warn) = crate::keepdef::parse_keep(&v).unwrap_or_else(|e| panic!("{file}: {e}"));
+                assert!(warn.is_empty(), "{file}: {warn:?}");
+                let problems = crate::keepdef::check_solvable(&k);
+                assert!(problems.is_empty(), "{file}: {problems:?}");
+                continue;
+            }
             let (_, warn) = parse(text).unwrap_or_else(|e| panic!("{file}: {e}"));
             assert!(warn.is_empty(), "{file}: {warn:?}");
         }
