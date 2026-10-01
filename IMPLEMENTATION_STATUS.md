@@ -111,7 +111,12 @@ The rune/monolith start is unchanged (user decision).
 | Browser level editor | Done (browser-tested by the helper via a local server; not yet used by the user) | tools/level-editor/index.html; example levels/cave_2.json is checked by the self-test |
 | Conquered lairs: rune stone seals the doorway (replaces the flag); walking up slides it aside to re-enter | H S | Puzzles stay solved, monsters return, the stairs no longer lead to the boss |
 | Playtest tuning: Zelda-style knockback both ways, fire rate a third slower, Earth +50% damage, mage takes 40% less damage, monsters 20% slower | H | Knobs: DAMAGE_TAKEN, ENEMY_SPEED, bolt_stats (game.rs); status_hit / kb_weight (combat.rs). Bosses' speed unchanged |
-| Later puzzle batch: sliding ice blocks, element crystals | Queued | User picked these for the next batch |
+| Cleared caves: glowing rune above the mouth (no flags anywhere) | H S | |
+| **Dungeons v2** (after tag v0.4.0): hand-designed lairs in level format 2 | H S | Lairs 1-6 have 9 / 11 / 12 / 13 / 14 / 16 rooms (2-screen rooms in lairs 3 and 6), drawn with scripts/design_lairs.py into levels/lair_N.json. Small keys and locked doors, big key and great chest, map (pause map shows all rooms) and finder (marks chests and the boss; chimes in rooms with treasure), shutter rooms (fights, switches, torches, crystals, plates), levers/floor switches with lair-wide flags that change other rooms (drawbridge, drained font, cooled lava), crystal switches with orange/blue barriers, ordered element crystals, sliding ice blocks, pots and crates with drops, lore tablets, room names, PixelLab themed props and per-lair ambience. Static solvability check (unit test) and self-test room tour, whip-swing landings and the cloak float on the real lairs. **Not yet played through by a human** |
+| Relics (one per lair) | H S | Vine Whip (bag: swing to posts, cut thorns, flip switches, sting), Spirit Lantern (dark rooms, hidden bridges), Titan Gloves (boulders), Ember Boots (lava), Feather Cloak (bag: float over pits). Pits drop you back to the room's entrance |
+| Overworld relic gates | H S | Areas get progression zones from lair distances; thorns, hidden bridges, boulders, lava and pits block the way into the next zone; the village never needs a relic. Unit test walks the world with 0-5 relics |
+| Level editor support for format 2 | In progress | |
+| Sliding ice blocks, element crystals | Done | Part of Dungeons v2 |
 
 ## Requested backlog (in agreed order; report back after each)
 
