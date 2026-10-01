@@ -187,8 +187,18 @@ impl Game {
             scr.disc(x, base - 20, 9, rgb(0x080808));
         }
         if self.cave_cleared(r.cave) {
-            scr.line(x + 22, base - 2, x + 22, base - 18, rgb(0x5c3410));
-            scr.fill(x + 23, base - 18, 8, 5, rgb(0x58d854));
+            // A rune carved into the rock above the mouth glows softly once cleared.
+            const RUNE: [u8; 5] = [0b101, 0b111, 0b010, 0b111, 0b101];
+            let (gx, gy) = (x - 3, base - 33);
+            let pulse = 0.2 + (self.frame as f32 * 0.05 + r.cave as f32).sin().abs() * 0.25;
+            scr.blend_disc(x, gy + 5, 7, rgb(0x78d8fc), pulse);
+            for (ry, bits) in RUNE.iter().enumerate() {
+                for bx in 0..3 {
+                    if bits & (4 >> bx) != 0 {
+                        scr.fill(gx + bx * 2, gy + ry as i32 * 2, 2, 2, rgb(0xa4e4fc));
+                    }
+                }
+            }
         }
     }
     /// A treasure chest centred on (x, y): the big generated chest, else the classic

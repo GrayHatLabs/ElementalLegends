@@ -1118,7 +1118,7 @@ fn encounters(t: &mut T) {
     let out = t.hold_until(Btn::Down, 300, move |g| g.debug_dungeon().is_none() && g.debug_room() == c1);
     t.check(out, "leaving the cave returns to its mouth on the overworld");
     t.frames(10);
-    t.shot("73_cave_cleared_flag");
+    t.shot("73_cave_cleared_rune");
 
     // Cave 2: three rooms; freeze a monster and shove it onto the pressure plate.
     let c2 = caves[1];
