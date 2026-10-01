@@ -97,6 +97,15 @@ pub const SP_SHOP: u8 = 2;
 pub const INN_COLS: std::ops::RangeInclusive<usize> = 2..=5;
 pub const INN_ROWS: std::ops::RangeInclusive<usize> = 9..=10;
 pub const BOARD_TILE: (usize, usize) = (12, 10);
+/// First of the four columns the merchant's cottage covers (rows 1-2). It stands in the
+/// middle of the north wall, or to the east of the doorway when the village has one there.
+pub fn cottage_col(r: &Room) -> usize {
+    if r.links.iter().any(|l| l.d == 0) {
+        11
+    } else {
+        6
+    }
+}
 
 /// A doorway on side `d` (n, s, e, w) of an area, in edge segment `seg` (one per cell
 /// along that side), leading to area `to`.
@@ -702,8 +711,9 @@ fn build_room(r: &mut Room, themes: &[Theme]) {
         SP_SHOP => {
             // The village: the merchant's cottage along the north wall, the inn in the
             // south-west corner and the notice board to the south-east.
+            let c0 = cottage_col(r);
             for y in 1..=2 {
-                for x in 6..=9 {
+                for x in c0..c0 + 4 {
                     r.tiles[y][x] = T_DECOR;
                 }
             }
@@ -1192,6 +1202,94 @@ pub fn make_arena(th: &Theme, tier: usize) -> Room {
 mod tests {
     use super::*;
     use crate::sprites::build_themes;
+
+    /// Doorways inside each area must be joined by walkable ground (relic gates aside), and
+    /// with no relics the mage can walk from the start to the village and the first lair.
+    #[test]
+    fn areas_are_walkable_between_doorways() {
+        let (rooms, start, shop) = gen_world(&build_themes());
+        let blocks = |t: u8| solid_tile(t) || matches!(t, T_THORNS | T_HIDDEN | T_ROCK | T_LAVA | T_PIT);
+        let inner = |r: &Room, d: usize, seg: usize| -> (usize, usize) {
+            match d {
+                0 => (seg * RC + 7, 1),
+                1 => (seg * RC + 7, r.rows() - 2),
+                2 => (r.cols() - 2, seg * RR + 6),
+                _ => (1, seg * RR + 6),
+            }
+        };
+        // Per area: which doorways reach which (flood fill over walkable tiles).
+        let mut joined: Vec<Vec<Vec<bool>>> = vec![];
+        let mut problems = vec![];
+        for r in &rooms {
+            let n = r.links.len();
+            let mut m = vec![vec![false; n]; n];
+            for a in 0..n {
+                let (sx, sy) = inner(r, r.links[a].d, r.links[a].seg);
+                let mut seen = vec![vec![false; r.cols()]; r.rows()];
+                let mut st = vec![(sx, sy)];
+                // Start on the doorway tile even if a relic gate sits there.
+                while let Some((x, y)) = st.pop() {
+                    if x >= r.cols() || y >= r.rows() || seen[y][x] {
+                        continue;
+                    }
+                    if blocks(r.tiles[y][x]) && (x, y) != (sx, sy) {
+                        continue;
+                    }
+                    seen[y][x] = true;
+                    if x > 0 { st.push((x - 1, y)); }
+                    if y > 0 { st.push((x, y - 1)); }
+                    st.push((x + 1, y));
+                    st.push((x, y + 1));
+                }
+                for b in 0..n {
+                    let (bx, by) = inner(r, r.links[b].d, r.links[b].seg);
+                    m[a][b] = seen[by][bx];
+                }
+            }
+            for a in 0..n {
+                for b in 0..n {
+                    let gated = |k: usize| r.relic_gates.iter().any(|g| g.0 == r.links[k].d && g.1 == r.links[k].seg);
+                    if !m[a][b] && !gated(a) && !gated(b) {
+                        problems.push(format!("area {} (mini {}, special {}, gate {}, cave {}): doorway {:?} can't reach {:?}", r.i, r.mini, r.special, r.gate, r.cave, (r.links[a].d, r.links[a].seg), (r.links[b].d, r.links[b].seg)));
+                    }
+                }
+            }
+            joined.push(m);
+        }
+        for p in &problems {
+            println!("{p}");
+        }
+        // Walk from the start with no relics, entering each area by a real doorway.
+        let opposite = |d: usize| [1, 0, 3, 2][d];
+        let mut seen = vec![false; rooms.len()];
+        let mut done = std::collections::HashSet::new();
+        let mut q: VecDeque<(usize, Option<usize>)> = VecDeque::from([(start, None)]);
+        seen[start] = true;
+        while let Some((c, entry)) = q.pop_front() {
+            if !done.insert((c, entry)) {
+                continue;
+            }
+            let r = &rooms[c];
+            for (k, l) in r.links.iter().enumerate() {
+                let gated = r.relic_gates.iter().any(|g| g.0 == l.d && g.1 == l.seg);
+                let reach = entry.map_or(true, |e| joined[c][e][k]);
+                if gated || !reach {
+                    continue;
+                }
+                seen[l.to] = true;
+                for (j, back) in rooms[l.to].links.iter().enumerate() {
+                    if back.to == c && back.d == opposite(l.d) {
+                        q.push_back((l.to, Some(j)));
+                    }
+                }
+            }
+        }
+        let lair1 = rooms.iter().find(|r| r.gate == 1).unwrap().i;
+        println!("walkable from start with no relics: {:?}", (0..rooms.len()).filter(|&i| seen[i]).collect::<Vec<_>>());
+        assert!(seen[shop], "the village is walkable from the start");
+        assert!(seen[lair1], "lair 1 is walkable from the start");
+        assert!(problems.is_empty(), "{} blocked doorway pairs", problems.len());
+    }
 
     #[test]
     fn world_layout_is_sane() {

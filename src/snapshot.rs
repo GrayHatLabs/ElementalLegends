@@ -232,7 +232,8 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.frames(10);
     t.shot("09_village");
     // The shop is inside the cottage: walk through its door.
-    t.g.debug_set_player(128.0, 112.0, b'u');
+    let (door_x, _) = t.g.debug_door(shop);
+    t.g.debug_set_player(door_x, 112.0, b'u');
     let inside = t.hold_until(Btn::Up, 120, |g| g.debug_dungeon().map_or(false, |d| d.0 == 0) && g.debug_mode() == Mode::Play);
     t.check(inside, "walking through the cottage door enters the shop");
     t.frames(20);

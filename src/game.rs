@@ -1948,7 +1948,7 @@ impl Game {
         if r.cave > 0 {
             ((r.cave_door.0 * TS) as f32, (HUD + r.cave_door.1 * TS + 8) as f32)
         } else if r.special == SP_SHOP {
-            (GATE_X, (HUD + 3 * TS + 8) as f32)
+            ((((crate::world::cottage_col(r) + 2) as i32) * TS) as f32, (HUD + 3 * TS + 8) as f32)
         } else {
             (GATE_X, GATE_Y)
         }

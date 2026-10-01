@@ -94,7 +94,8 @@ impl Game {
         }
     }
     fn draw_cottage(&self, scr: &mut Screen, ox: i32, oy: i32) {
-        self.draw_house(scr, "obj_cottage", 128 + ox, HUD + 16 + oy, (0xa81000, 0x681008));
+        let x = (crate::world::cottage_col(&self.rooms[self.shop_room]) as i32 + 2) * TS;
+        self.draw_house(scr, "obj_cottage", x + ox, HUD + 16 + oy, (0xa81000, 0x681008));
     }
     /// A village house whose base (ground line) is at y + 32; `roof` = (colour, dark edge).
     fn draw_house(&self, scr: &mut Screen, art: &str, x: i32, y: i32, roof: (u32, u32)) {
