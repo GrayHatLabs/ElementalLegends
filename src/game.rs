@@ -55,7 +55,7 @@ const HF: f32 = H as f32;
 const HUDF: f32 = HUD as f32;
 const SPAWN_Y: f32 = GATE_Y + 34.0;
 /// Bump when the world layout changes; older saves are detected and ignored.
-const SAVE_VERSION: u32 = 3;
+const SAVE_VERSION: u32 = 4;
 
 #[allow(clippy::too_many_arguments)]
 fn hit(ax: f32, ay: f32, aw: f32, ah: f32, bx: f32, by: f32, bw: f32, bh: f32) -> bool {
@@ -2291,11 +2291,13 @@ mod tests {
         assert!(SaveData::from_text("version=1\nmax_hp=24\n").is_none());
         // Version 2 saves are from the 31-area map (before the second wave of encounters).
         assert!(SaveData::from_text("version=2\nmax_hp=24\n").is_none());
+        // Version 3 saves are from before the Greenwood encounters moved home.
+        assert!(SaveData::from_text("version=3\nmax_hp=24\n").is_none());
     }
 
     #[test]
     fn saves_without_dungeon_progress_still_load() {
-        let old = "version=3\nmax_hp=24\nhp=20\ngold=77\ncleared=0,1,0,0,0,0,0\nroom=31\n";
+        let old = "version=4\nmax_hp=24\nhp=20\ngold=77\ncleared=0,1,0,0,0,0,0\nroom=31\n";
         let s = SaveData::from_text(old).expect("parse");
         assert_eq!(s.gold, 77);
         assert!(s.cleared[1]);

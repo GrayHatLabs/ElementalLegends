@@ -503,6 +503,7 @@ pub fn gen_world(themes: &[Theme]) -> (Vec<Room>, usize, usize) {
         }
     }
     assign_minis(&mut rooms, start, shop);
+    assign_greenwood(&mut rooms, start, shop);
     assign_caves(&mut rooms, start, shop);
     assign_encounters(&mut rooms, start, shop);
     assign_zones(&mut rooms, start, shop);
@@ -606,6 +607,44 @@ fn assign_caves(rooms: &mut [Room], start: usize, shop: usize) {
     }
 }
 
+/// Greenwood is small (the monolith, the village, lair 1 and a few screens), so its own
+/// encounters claim their screens before the caves do: the Bandit Raccoon on a single
+/// screen next to the monolith (it needs doorways to flee through), the Fairy King's
+/// mushroom ring in the open wilderness, the Honey Bear wherever is left.
+fn assign_greenwood(rooms: &mut [Room], start: usize, shop: usize) {
+    let single = |r: &Room| {
+        !r.big()
+            && r.i != start
+            && r.i != shop
+            && r.dist >= 1
+            && r.theme == 0
+            && r.gate == 0
+            && r.cave == 0
+            && !r.tank
+            && !r.cache
+            && r.special == SP_NONE
+            && r.mini == 0
+            && r.pool.is_none()
+            && !r.fruit
+            && r.links.len() >= 2
+    };
+    let wild = |r: &Room| r.big() && r.theme == 0 && r.dist >= 2 && r.special == SP_NONE && r.gate == 0 && r.mini == 0 && r.cave == 0;
+    let by_seed = |rooms: &[Room], ok: &dyn Fn(&Room) -> bool| -> Vec<usize> {
+        let mut v: Vec<usize> = rooms.iter().filter(|r| ok(r)).map(|r| r.i).collect();
+        v.sort_by_key(|&i| rooms[i].seed);
+        v
+    };
+    if let Some(&i) = by_seed(rooms, &single).first() {
+        rooms[i].mini = MINI_RACCOON;
+    }
+    if let Some(&i) = by_seed(rooms, &wild).first() {
+        rooms[i].mini = MINI_FAIRY;
+    }
+    if let Some(&i) = by_seed(rooms, &|r: &Room| single(r) || wild(r)).first() {
+        rooms[i].mini = MINI_BEAR;
+    }
+}
+
 /// Home screens for the second wave of encounters: plain single screens and wilderness
 /// areas without a cave, in the encounter's region when possible.
 fn assign_encounters(rooms: &mut [Room], start: usize, shop: usize) {
@@ -622,6 +661,9 @@ fn assign_encounters(rooms: &mut [Room], start: usize, shop: usize) {
     // Home regions first; whatever is left over goes to the first free screens.
     let mut left = vec![];
     for (id, region) in FIXED_ENCOUNTERS {
+        if rooms.iter().any(|r| r.mini == id) {
+            continue; // already placed (Greenwood)
+        }
         match spots.iter().position(|&i| rooms[i].theme == region) {
             Some(p) => {
                 let i = spots.remove(p);
@@ -632,7 +674,7 @@ fn assign_encounters(rooms: &mut [Room], start: usize, shop: usize) {
         }
     }
     for id in left {
-        if !spots.is_empty() {
+        if !spots.is_empty() && !rooms.iter().any(|r| r.mini == id) {
             let i = spots.remove(0);
             rooms[i].mini = id;
             rooms[i].cache = false;

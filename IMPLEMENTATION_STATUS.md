@@ -135,9 +135,9 @@ The rune/monolith start is unchanged (user decision).
 ### Second-wave encounters (src/game/encounters.rs)
 
 The world now has 40 areas (8 big wilderness areas) so all 13 fixed encounters get a home screen; the
-Treasure Goblin (5% on entering a plain screen) and Merchant Ogre (6%) roam. Save version is 3: older
-saves are ignored and a new game is needed. The Greenwood ones (Fairy King, Honey Bear, Raccoon) fall back
-to other regions when Greenwood has no free screen; this world places them outside Greenwood.
+Treasure Goblin (5% on entering a plain screen) and Merchant Ogre (6%) roam. Older saves are ignored and a new game is needed. Greenwood is small, so its encounters claim screens before the caves: the
+Raccoon on the path north of the monolith, the Fairy King in the Greenwood wilderness; the Honey Bear has no room left
+there and lives in Mirefen. Save version 4 (the Greenwood move); older saves are ignored.
 
 | Encounter | How it works | Reward |
 |---|---|---|
