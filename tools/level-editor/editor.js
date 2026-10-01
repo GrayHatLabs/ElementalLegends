@@ -1,4 +1,5 @@
-/* Elemental Legends level editor. Reads and writes docs/LEVEL_FORMAT.md (format 1).
+/* Elemental Legends level editor. Reads and writes docs/LEVEL_FORMAT.md (format 1 caves /
+ * lairs here; format 2 hand-designed lairs in lair.js, which is loaded first).
  * Plain JS, no dependencies; works from file://. Art comes from assets.js
  * (scripts/build_editor_assets.py); anything missing is drawn as a coloured shape. */
 'use strict';
@@ -41,6 +42,17 @@ const TOP_KEYS = ['format', 'kind', 'number', 'name', 'theme', 'rooms'];
 const ENEMY_KEYS = ['kind', 'element', 'x', 'y', 'hp', 'still'];
 const OBJ_KEYS = { torch: ['lit'], block: [], lever: ['pulled'], chest: ['contents', 'hidden'], shrine: ['element'] };
 const STAIRS = [[7, 3], [8, 3], [7, 4], [8, 4]];
+
+// Format 2 (lair.js) switches: the level being edited decides.
+const isF2 = () => !!(S.level && S.level.format === 2);
+const tileChars = () => isF2() ? F2.TILE_CHARS : TILE_CHARS;
+const brushes = () => isF2() ? BRUSHES.concat(F2.BRUSHES) : BRUSHES;
+const tileName = c => TILE_NAMES[c] || F2.TILE_NAMES[c] || JSON.stringify(c);
+/** [cols, rows] of the current room: 16 x 13 for format 1, 16w x 13h for format 2. */
+function dims() {
+  if (isF2()) { const R = room(); return R ? dims2(R) : [COLS, ROWS]; }
+  return [COLS, ROWS];
+}
 
 /** Slots that exist for this level (the tabs). */
 function slotsFor(level) {
@@ -119,6 +131,7 @@ const isInt = v => typeof v === 'number' && Number.isInteger(v);
 
 /** Parsed JSON -> editor model. Keeps odd values so Check can report them. */
 function fromJson(j) {
+  if (isObj(j) && j.format === 2) return fromJson2(j);
   const L = newLevel('cave', 1);
   L.problems = [];
   if (!isObj(j)) { L.problems.push('The file is not a JSON object'); return L; }
@@ -222,6 +235,7 @@ function roomToJsonObj(R) {
 }
 /** Pretty JSON like the spec example: tiles one row per line, enemies/objects one per line. */
 function stringifyLevel(L) {
+  if (L.format === 2) return stringify2(L);
   const o = toJsonObj(L);
   const inline = v => {
     if (isObj(v)) {
@@ -294,6 +308,9 @@ function preload() {
   for (const [k, f] of Object.entries(A.objects || {})) img('ob_' + k, f.src);
   for (const [k, f] of Object.entries(A.items || {})) img('it_' + k, f.src);
   if (A.mage) img('mage', A.mage.src);
+  for (const [k, f] of Object.entries(A.tiles || {})) img('tile_' + k, f.src);
+  for (const [k, f] of Object.entries(A.relics || {})) img('re_' + k, f.src);
+  for (const [k, f] of Object.entries(A.props || {})) img('pr_' + k, f.src);
 }
 function enemySprite(kind, element) {
   const els = (A.enemies || {})[kind];
@@ -305,6 +322,7 @@ function enemySprite(kind, element) {
   return f ? { im: IMG['en_' + kind + '_' + key], w: f.w, h: f.h } : null;
 }
 function objSprite(o) {
+  if (isF2()) { const s = objSprite2(o); if (s || o.type === 'prop') return s; }
   let k = o.type;
   if (o.type === 'lever') k = o.pulled === true ? 'lever_on' : 'lever_off';
   const f = (A.objects || {})[k];
@@ -326,9 +344,10 @@ const el = (tag, attrs, ...kids) => {
 };
 const room = () => S.level.rooms[S.slot] || null;
 const tileAt = (R, x, y) => (R.tiles[y] || '')[x];
-const sizeOk = R => R.tiles.length === ROWS && R.tiles.every(r => r.length === COLS);
+const sizeOk = R => isF2() ? sizeOk2(R) : R.tiles.length === ROWS && R.tiles.every(r => r.length === COLS);
 /** Pad / trim to 16 x 13: missing cells become floor inside a wall ring. */
 function normalizeRoom(R) {
+  if (isF2()) { normalize2(R); return; }
   const blank = blankRoom().tiles;
   const t = [];
   for (let y = 0; y < ROWS; y++) {
@@ -357,7 +376,7 @@ function pushUndo(s) {
 }
 function restore(s) {
   const o = JSON.parse(s);
-  S.level = o.level; S.slot = o.slot; S.sel = null;
+  S.level = o.level; S.slot = o.slot; S.sel = null; S.doorForm = null;
 }
 function doUndo() {
   if (!S.undo.length) return;
@@ -384,15 +403,17 @@ let ctx = mainCtx; // the tile painters draw on this; swatches swap in their own
 /** Tiles as the game will build them (door gaps, locks, seals, stairs applied). */
 function effectiveTiles(R) {
   const t = [];
-  for (let y = 0; y < ROWS; y++) {
+  const [W, H] = dims();
+  for (let y = 0; y < H; y++) {
     const row = [];
-    for (let x = 0; x < COLS; x++) {
+    for (let x = 0; x < W; x++) {
       const c = tileAt(R, x, y);
       row.push(c === undefined ? '?' : c);
     }
     t.push(row);
   }
-  if (S.features) {
+  if (S.features && isF2()) applyFeatures2(t, R, S.slot);
+  else if (S.features) {
     for (const g of gapsFor(S.level, S.slot)) {
       const ch = { door: '.', lock: 'L', seal: 'S', crack: 'c' }[g.kind];
       for (const [x, y] of gapTiles(g.side)) t[y][x] = ch;
@@ -401,12 +422,13 @@ function effectiveTiles(R) {
   }
   return t;
 }
-const wallish = c => c === '#' || c === 'c' || c === 'L';
+const wallish = c => c === '#' || c === 'c' || c === 'L' || c === 'G';
 const wet = c => c === '~' || c === 'i';
 
 function drawRoom() {
   const R = room();
   const z = S.zoom;
+  const [COLS, ROWS] = dims(); // format 2 rooms can be 2 screens wide / tall
   cv.width = COLS * TS * z; cv.height = ROWS * TS * z;
   cv.style.width = cv.width + 'px'; cv.style.height = cv.height + 'px';
   ctx.setTransform(z, 0, 0, z, 0, 0);
@@ -447,7 +469,8 @@ function drawRoom() {
     else if (c === 'L') drawLock(px, py);
     else if (c === 'S') drawSeal(px, py);
     else if (c === 'B') drawBarrier(px, py);
-    else if (!TILE_CHARS.includes(c)) { ctx.fillStyle = '#d02050'; ctx.fillRect(px + 2, py + 2, TS - 4, TS - 4); label(c === '?' ? '?' : c, px + h, py + h, '#fff'); }
+    else if (isF2() && drawSpecial2(c, px, py)) { /* pit, lava, pegs, hidden bridge, thorns, big lock */ }
+    else if (!tileChars().includes(c)) { ctx.fillStyle = '#d02050'; ctx.fillRect(px + 2, py + 2, TS - 4, TS - 4); label(c === '?' ? '?' : c, px + h, py + h, '#fff'); }
   }
   // Grid.
   if (S.grid) {
@@ -458,7 +481,8 @@ function drawRoom() {
     ctx.stroke();
   }
   // Game-feature markers.
-  if (S.features) drawFeatureMarkers();
+  if (S.features && isF2()) drawFeatureMarkers2(R, S.slot);
+  else if (S.features) drawFeatureMarkers();
   // Objects then enemies (enemies stand on top).
   R.objects.forEach((o, i) => drawObject(o, S.sel && S.sel.list === 'objects' && S.sel.i === i));
   R.enemies.forEach((e, i) => drawEnemy(e, S.sel && S.sel.list === 'enemies' && S.sel.i === i));
@@ -597,10 +621,12 @@ function drawObject(o, selected) {
     ctx.fillStyle = g; ctx.fillRect(px - 8, py - 14, TS + 16, TS + 16);
   }
   if (sp && ready(sp.im)) {
-    const [sx, sy] = spritePos(o.x, o.y, sp.w, sp.h);
+    // Format 2 art is anchored like the game (keepdraw.rs): centred, bottom on the tile bottom.
+    const [sx, sy] = sp.anchor ? [Math.round(cx - sp.w / 2), (o.y + 1) * TS - sp.h + 2] : spritePos(o.x, o.y, sp.w, sp.h);
+    if (o.type === 'prop' && o.solid === false) ctx.globalAlpha = 0.85;
     ctx.drawImage(sp.im, sx, sy);
   } else {
-    const c = { torch: '#b0602a', block: '#8a8f9a', lever: '#a08050', chest: '#b07830', shrine: '#8080c0' }[o.type] || '#ff00aa';
+    const c = { torch: '#b0602a', block: '#8a8f9a', lever: '#a08050', chest: '#b07830', shrine: '#8080c0', ...(isF2() ? F2_FALLBACK : {}) }[o.type] || '#ff00aa';
     ctx.fillStyle = c; ctx.fillRect(px + 4, py + 4, TS - 8, TS - 8);
     label(String(o.type || '?').slice(0, 2), cx, cy, '#fff');
   }
@@ -614,9 +640,10 @@ function drawObject(o, selected) {
     ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(cx - 2, py - 1, 2, 2);
   }
   ctx.restore();
+  if (isF2()) drawObjExtras2(o, px, py);
   if (o.type === 'chest') {
     const kind = typeof o.contents === 'string' ? o.contents.split(':')[0] : '';
-    const ic = IMG['it_' + CONTENT_ICON[kind]];
+    const ic = isF2() && F2.CONTENT_ICON[kind] ? IMG['re_' + F2.CONTENT_ICON[kind]] : IMG['it_' + CONTENT_ICON[kind]];
     if (ready(ic)) ctx.drawImage(ic, px + TS - 10, py - 6, 12, 12);
     else if (kind) label(kind.slice(0, 2), px + TS - 4, py, '#ffe066', 7);
     if (o.hidden === true) label('H', px + 4, py + 4, '#9fe0ff', 8);
@@ -636,12 +663,13 @@ function selBox(x, y) {
   ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 2 / S.zoom;
   ctx.strokeRect(x * TS + 1 / S.zoom, y * TS + 1 / S.zoom, TS - 2 / S.zoom, TS - 2 / S.zoom);
 }
-setInterval(() => { if (S.flash && (Date.now() < S.flash.until + 300)) drawRoom(); }, 250);
+setInterval(() => { if (S.flash && (Date.now() < S.flash.until + 300)) { drawRoom(); if (isF2()) drawMap(); } }, 250);
 
 // ------------------------------------------------------------------ rendering: panels
 function renderAll() {
-  renderHeader(); renderTabs(); renderRoomPanel(); renderTools(); renderPlaceForm(); renderSelForm();
-  renderCheck(); renderFileState(); drawRoom(); renderLegend();
+  document.body.classList.toggle('f2', isF2());
+  renderHeader(); renderTabs(); renderRoomPanel(); renderRoom2(); renderLairBar(); renderTools(); renderPlaceForm(); renderSelForm();
+  renderCheck(); renderFileState(); drawRoom(); drawMap(); renderLegend();
   $('btnUndo').disabled = !S.undo.length; $('btnRedo').disabled = !S.redo.length;
 }
 function renderFileState() {
@@ -654,6 +682,20 @@ function renderFileState() {
 function renderHeader() {
   const L = S.level;
   $('fKind').value = L.kind === 'lair' ? 'lair' : 'cave';
+  $('fKind').disabled = isF2();
+  $('fKind').title = isF2() ? 'Format 2 is for lairs only (use New for a cave)' : '';
+  $('fFormat').textContent = isF2() ? '2 - hand-designed lair (free room layout)' : '1 - fixed room slots';
+  $('rowRelic').hidden = !isF2();
+  if (isF2()) {
+    const rs = $('fRelic');
+    if (!rs.options.length) {
+      rs.append(el('option', { value: '' }, '(none - Dark Tower)'));
+      F2.RELICS.forEach(r => rs.append(el('option', { value: r }, F2.RELIC_NAMES[r])));
+    }
+    for (const o of [...rs.options]) if (o.dataset.bad) o.remove();
+    if (L.relic !== null && !F2.RELICS.includes(L.relic)) { const o = el('option', { value: String(L.relic) }, String(L.relic) + ' (unknown)'); o.dataset.bad = '1'; rs.append(o); }
+    rs.value = L.relic === null ? '' : String(L.relic);
+  }
   $('fNumber').value = isInt(L.number) ? L.number : '';
   $('fNumber').max = L.kind === 'lair' ? 6 : 8;
   if (document.activeElement !== $('fName')) $('fName').value = typeof L.name === 'string' ? L.name : '';
@@ -672,6 +714,8 @@ function renderHeader() {
 function renderTabs() {
   const tabs = $('tabs');
   tabs.innerHTML = '';
+  tabs.hidden = isF2();
+  if (isF2()) return; // format 2: the room grid map / room list pick the room
   const slots = slotsFor(S.level);
   for (const k of Object.keys(S.level.rooms)) if (!slots.includes(k)) slots.push(k);
   if (!slots.includes(S.slot)) S.slot = slots[0];
@@ -686,6 +730,7 @@ function renderTabs() {
   }
 }
 function renderRoomPanel() {
+  if (isF2()) { $('undefinedPane').hidden = true; return; } // renderRoom2 (lair.js)
   const R = room();
   $('roomSlotName').textContent = S.slot;
   $('roomFields').hidden = !R;
@@ -742,8 +787,10 @@ function slotInfo(L, s) {
 function renderTools() {
   document.querySelectorAll('#modeButtons button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
   const bb = $('brushButtons');
+  const fmt = isF2() ? '2' : '1';
+  if (bb.dataset.fmt !== fmt) { bb.innerHTML = ''; bb.dataset.fmt = fmt; if (!brushes().some(b => b.ch === S.brush)) S.brush = '#'; }
   if (!bb.childElementCount) {
-    for (const b of BRUSHES) {
+    for (const b of brushes()) {
       const c = el('canvas', { width: 24, height: 24 });
       bb.append(el('button', { 'data-brush': b.ch, title: b.name + ' (' + b.key + ')', onclick: () => { setBrush(b.ch); } },
         c, b.name, el('span', { class: 'key' }, b.key + '  ' + b.ch)));
@@ -768,8 +815,10 @@ function drawSwatch(c, ch, theme) {
   else { if (ready(wall)) g.drawImage(wall, 0, 0, TS, TS, 0, 0, TS, TS); else { g.fillStyle = '#2c3a2e'; g.fillRect(0, 0, 24, 24); } }
   // Reuse the overlay painters on the swatch.
   ctx = g;
-  try { if (ch === 'i') drawIce(0, 0); if (ch === 'c') drawCrack(0, 0); if (ch === 'o') drawPlate(0, 0); if (ch === 'D') drawDecor(0, 0); }
-  finally { ctx = mainCtx; }
+  try {
+    if (ch === 'i') drawIce(0, 0); if (ch === 'c') drawCrack(0, 0); if (ch === 'o') drawPlate(0, 0); if (ch === 'D') drawDecor(0, 0);
+    if (F2.TILE_NAMES[ch]) drawSpecial2(ch, 0, 0);
+  } finally { ctx = mainCtx; }
 }
 
 // Property forms for enemies / objects (templates for placing, or the selection).
@@ -810,24 +859,34 @@ function contentsParts(c) {
 function objectForm(o, apply, isTpl) {
   const f = el('div', { class: 'form' });
   const pv = el('canvas', { width: 40, height: 40 });
+  const f2 = isF2();
   f.append(el('div', { class: 'preview' }, pv, el('span', { class: 'note' }, {
-    torch: 'Brazier; fire bolts light it. Solid.', block: 'Push block (lair plates puzzles). Solid.', lever: 'Pull by walking into it. Solid.',
-    chest: 'Chest. In caves the treasure chest also gives the page.', shrine: 'Orb that switches the mage\'s element.' }[o.type] || '')));
+    torch: 'Brazier; fire bolts light it. Solid.', block: 'Push block (lair plates puzzles). Solid.', lever: f2 ? 'Pulled by walking into it or with the whip; sets a flag.' : 'Pull by walking into it. Solid.',
+    chest: f2 ? 'Chest. Hidden chests appear when the room\'s shutter is solved.' : 'Chest. In caves the treasure chest also gives the page.', shrine: 'Orb that switches the mage\'s element.',
+    big_chest: 'Great chest: needs the big key, holds the relic.', ice_block: 'Slides until it hits something or reaches a plate.',
+    floor_switch: 'Pressed by the mage or a pushed block.', crystal_switch: 'A bolt or the whip swaps the orange / blue barriers.',
+    crystal: 'Lit by a bolt of its element; ordered ones must be lit 1, 2, 3...', whip_post: 'The Vine Whip pulls you to it (6 tiles).',
+    boulder: 'Heaved aside with the Titan Gloves.', pot: 'Bolts smash it; sometimes a heart, magic or coins.', crate: 'Bolts smash it; sometimes a heart, magic or coins.',
+    tablet: 'Lore / hints, read by walking up to it.', prop: 'Decoration from the art sheets.' }[o.type] || '')));
   paintPreview(pv, objSprite(o));
-  f.append(selectRow('Type', String(o.type), OBJ_TYPES.map(k => [k, k]), v => apply(x => {
+  f.append(selectRow('Type', String(o.type), (f2 ? F2.OBJ_TYPES : OBJ_TYPES).map(k => [k, k]), v => apply(x => {
     x.type = v;
     if (v === 'torch' && x.lit === undefined) x.lit = false;
-    if (v === 'lever' && x.pulled === undefined) x.pulled = false;
+    if (v === 'lever' && x.pulled === undefined && !f2) x.pulled = false;
     if (v === 'chest') { if (x.contents === undefined) x.contents = 'gold:50'; if (x.hidden === undefined) x.hidden = false; }
     if (v === 'shrine' && (x.element === undefined || x.element === null)) x.element = 'ice';
+    if (f2) objDefaults2(x);
   })));
   if (o.type === 'torch') f.append(checkRow('Lit', 'starts lit', o.lit === true, v => apply(x => { x.lit = v; })));
-  if (o.type === 'lever') f.append(checkRow('Pulled', 'starts pulled', o.pulled === true, v => apply(x => { x.pulled = v; })));
+  if (o.type === 'lever' && !f2) f.append(checkRow('Pulled', 'starts pulled', o.pulled === true, v => apply(x => { x.pulled = v; })));
+  if (f2) objectFields2(f, o, apply);
   if (o.type === 'shrine') f.append(selectRow('Element', o.element === null || o.element === undefined ? '' : String(o.element),
     [['', '(choose)'], ...SHRINE_ELEMENTS.map(k => [k, k])], v => apply(x => { x.element = v === '' ? null : v; })));
   if (o.type === 'chest') {
-    const [k, n] = contentsParts(o.contents);
-    const opts = [['', '(none)'], ...CONTENT_SIMPLE.map(c => [c, c]), ...CONTENT_COUNTED.map(c => [c, c + ':N']), ['custom', 'custom text']];
+    const simple = f2 ? F2.CONTENTS : CONTENT_SIMPLE;
+    let [k, n] = contentsParts(o.contents);
+    if (f2 && k === 'custom' && simple.includes(o.contents)) k = o.contents;
+    const opts = [['', '(none)'], ...simple.map(c => [c, c]), ...CONTENT_COUNTED.map(c => [c, c + ':N']), ['custom', 'custom text']];
     const num = el('input', { type: 'number', min: 1, step: 1, class: 'short', value: n, hidden: !CONTENT_COUNTED.includes(k),
       onchange: ev => apply(x => { x.contents = k + ':' + Math.max(1, parseInt(ev.target.value, 10) || 1); }) });
     const sel = el('select', { onchange: ev => apply(x => {
@@ -843,7 +902,7 @@ function objectForm(o, apply, isTpl) {
     const txt = el('input', { type: 'text', value: typeof o.contents === 'string' ? o.contents : '', spellcheck: 'false',
       onchange: ev => apply(x => { const v = ev.target.value.trim(); x.contents = v === '' ? null : v; }) });
     f.append(el('div', { class: 'row' }, el('label', {}, ''), txt));
-    f.append(checkRow('Hidden', 'until the puzzle is solved', o.hidden === true, v => apply(x => { x.hidden = v; })));
+    f.append(checkRow('Hidden', f2 ? 'until the shutter is solved' : 'until the puzzle is solved', o.hidden === true, v => apply(x => { x.hidden = v; })));
   }
   void isTpl;
   return f;
@@ -877,7 +936,7 @@ function renderPlaceForm() {
       rect: 'Drag a rectangle to fill it with the brush. Right-drag fills with floor.',
       fill: 'Click to flood-fill the connected area of the same tile.',
       pick: 'Click a tile to take its type as the brush.' }[S.mode]));
-    pf.append(el('div', { class: 'note' }, 'Brush: ', el('b', {}, TILE_NAMES[S.brush] + ' (' + S.brush + ')')));
+    pf.append(el('div', { class: 'note' }, 'Brush: ', el('b', {}, tileName(S.brush) + ' (' + S.brush + ')')));
   }
 }
 function selected() {
@@ -910,7 +969,8 @@ function renderLegend() {
   const R = room();
   if (!R) { lg.textContent = ''; return; }
   const cnt = {};
-  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) { const c = tileAt(R, x, y); cnt[c] = (cnt[c] || 0) + 1; }
+  const [W, H] = dims();
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = tileAt(R, x, y); cnt[c] = (cnt[c] || 0) + 1; }
   const blocks = R.objects.filter(o => o.type === 'block').length;
   lg.innerHTML = '';
   lg.append(`${R.enemies.length} enemies, ${R.objects.length} objects, ${cnt['o'] || 0} plates, ${blocks} blocks. `,
@@ -924,6 +984,7 @@ function renderLegend() {
 function runCheck() {
   const L = S.level, out = [];
   const add = (sev, slot, msg, x, y, w, h) => out.push({ sev, slot, msg, x, y, w: w || 1, h: h || 1 });
+  if (L.format === 2) { runCheck2(L, add); S.issues = out; return out; }
   for (const p of L.problems || []) add('error', null, p);
   if (L.format !== 1) add('error', null, '"format" must be 1 (got ' + JSON.stringify(L.format) + ')');
   if (L.kind !== 'cave' && L.kind !== 'lair') add('error', null, 'unknown kind ' + JSON.stringify(L.kind) + ' (cave or lair)');
@@ -1050,14 +1111,17 @@ function renderCheck() {
   sum.className = errs ? 'bad' : warns ? 'warn' : 'ok';
   if (!S.issues.length) ul.append(el('li', { class: 'note' }, 'No problems found. The game will accept this file.'));
   for (const it of S.issues) {
+    const where = isF2() ? (isInt(it.slot) && S.level.rooms[it.slot] ? String(S.level.rooms[it.slot].id) : null) : it.slot;
     ul.append(el('li', { class: 'item ' + it.sev, onclick: () => gotoIssue(it) },
       el('span', { class: 'sev' }, it.sev === 'error' ? '✖' : '!'),
-      el('span', {}, it.slot ? el('span', { class: 'where' }, it.slot + (isInt(it.x) ? ' ' + it.x + ',' + it.y : '') + '  ') : '', it.msg)));
+      el('span', {}, where ? el('span', { class: 'where' }, where + (isInt(it.x) ? ' ' + it.x + ',' + it.y : '') + '  ') : '', it.msg)));
   }
 }
 function gotoIssue(it) {
-  if (it.slot && (S.level.rooms[it.slot])) { S.slot = it.slot; S.sel = null; }
-  if (it.slot && isInt(it.x) && isInt(it.y)) {
+  const has = isF2() ? isInt(it.slot) && !!S.level.rooms[it.slot] : !!it.slot;
+  if (has && S.level.rooms[it.slot]) { if (S.slot !== it.slot) S.doorForm = null; S.slot = it.slot; S.sel = null; }
+  if (isF2() && has) S.flash = { slot: it.slot, x: it.x, y: it.y, w: it.w, h: it.h, until: Date.now() + 2200 }; // also flashes the room on the map
+  if (has && isInt(it.x) && isInt(it.y)) {
     S.flash = { slot: it.slot, x: it.x, y: it.y, w: it.w, h: it.h, until: Date.now() + 2200 };
     const R = room();
     if (R) {
@@ -1074,7 +1138,8 @@ function gotoIssue(it) {
 function tileFromEvent(ev) {
   const r = cv.getBoundingClientRect();
   const x = Math.floor((ev.clientX - r.left) / (TS * S.zoom)), y = Math.floor((ev.clientY - r.top) / (TS * S.zoom));
-  return (x >= 0 && y >= 0 && x < COLS && y < ROWS) ? { x, y } : null;
+  const [W, H] = dims();
+  return (x >= 0 && y >= 0 && x < W && y < H) ? { x, y } : null;
 }
 function rectOf(a, b) { return [Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y)]; }
 function hitEntity(R, t, lists) {
@@ -1100,6 +1165,7 @@ function floodFill(R, t, ch) {
   const from = tileAt(R, t.x, t.y);
   if (from === ch) return;
   const st = [[t.x, t.y]];
+  const [COLS, ROWS] = dims();
   while (st.length) {
     const [x, y] = st.pop();
     if (x < 0 || y < 0 || x >= COLS || y >= ROWS || tileAt(R, x, y) !== from) continue;
@@ -1118,7 +1184,7 @@ cv.addEventListener('mousedown', ev => {
   if (ev.altKey && !right) mode = 'pick';
   if (mode === 'pick') {
     const c = tileAt(R, t.x, t.y);
-    if (TILE_CHARS.includes(c)) { S.brush = c; if (S.mode === 'pick') S.mode = 'paint'; toast('Brush: ' + TILE_NAMES[c]); }
+    if (tileChars().includes(c)) { S.brush = c; if (S.mode === 'pick') S.mode = 'paint'; toast('Brush: ' + tileName(c)); }
     renderAll(); return;
   }
   if (mode === 'paint') {
@@ -1149,6 +1215,10 @@ cv.addEventListener('mousedown', ev => {
       S.sel = { list: 'enemies', i: R.enemies.length - 1 };
     });
   } else if (mode === 'object') {
+    if (isF2()) {
+      commit(() => { R.objects.push(newObject2(S.tplObject, t.x, t.y)); S.sel = { list: 'objects', i: R.objects.length - 1 }; });
+      return;
+    }
     commit(() => {
       const tp = S.tplObject, o = { type: tp.type, x: t.x, y: t.y, extra: {} };
       if (tp.type === 'torch') o.lit = !!tp.lit;
@@ -1169,7 +1239,7 @@ window.addEventListener('mousemove', ev => {
   if (R && S.hover) {
     const c = tileAt(R, t.x, t.y);
     const ents = [...R.enemies.filter(e => e.x === t.x && e.y === t.y).map(e => e.kind), ...R.objects.filter(o => o.x === t.x && o.y === t.y).map(o => o.type)];
-    $('hoverInfo').textContent = 'col ' + t.x + ', row ' + t.y + '  ' + (TILE_NAMES[c] || JSON.stringify(c)) + (ents.length ? '  [' + ents.join(', ') + ']' : '');
+    $('hoverInfo').textContent = 'col ' + t.x + ', row ' + t.y + '  ' + tileName(c) + (ents.length ? '  [' + ents.join(', ') + ']' : '');
   } else $('hoverInfo').textContent = '';
   const d = S.drag;
   if (d && R && t) {
@@ -1212,6 +1282,7 @@ function deleteSelected() {
 function nudge(dx, dy) {
   const it = selected();
   if (!it) return;
+  const [COLS, ROWS] = dims();
   const nx = Math.min(COLS - 1, Math.max(0, (it.x | 0) + dx)), ny = Math.min(ROWS - 1, Math.max(0, (it.y | 0) + dy));
   if (S.sel.list === 'mage') { S.mage.x = nx; S.mage.y = ny; renderAll(); return; }
   commit(() => { it.x = nx; it.y = ny; });
@@ -1221,8 +1292,17 @@ function confirmDiscard() {
 }
 function loadLevel(L, name) {
   S.level = L; S.undo = []; S.redo = []; S.dirty = false; S.sel = null; S.savedName = name || null;
-  const slots = slotsFor(L);
-  S.slot = slots.find(s => L.rooms[s]) || Object.keys(L.rooms)[0] || slots[0];
+  S.doorForm = null; S.mapAdd = null; S.mapDrag = null;
+  if (L.format === 2) {
+    // Start in the entrance room.
+    const e = L.rooms.findIndex(R => R.doors.some(d => d.to === 'exit'));
+    S.slot = e >= 0 ? e : 0;
+    if (!OBJ_TYPES.includes(S.tplObject.type) && !F2.OBJ_TYPES.includes(S.tplObject.type)) S.tplObject.type = 'chest';
+  } else {
+    const slots = slotsFor(L);
+    S.slot = slots.find(s => L.rooms[s]) || Object.keys(L.rooms)[0] || slots[0];
+    if (!OBJ_TYPES.includes(S.tplObject.type)) S.tplObject.type = 'chest';
+  }
   runCheck();
   renderAll();
   const errs = S.issues.filter(i => i.sev === 'error').length;
@@ -1304,14 +1384,26 @@ function showJson() {
 
 // ------------------------------------------------------------------ wiring
 function wire() {
-  $('btnNew').onclick = () => { $('nKind').value = S.level.kind === 'lair' ? 'lair' : 'cave'; showModal('newModal'); };
-  $('nKind').onchange = () => { $('nNumber').max = $('nKind').value === 'lair' ? 6 : 8; };
+  $('btnNew').onclick = () => { $('nKind').value = isF2() ? 'lair2' : S.level.kind === 'lair' ? 'lair' : 'cave'; $('nKind').onchange(); showModal('newModal'); };
+  $('nKind').onchange = () => {
+    const k = $('nKind').value;
+    $('nNumber').max = k === 'cave' ? 8 : 6;
+    $('newNote').textContent = k === 'lair2'
+      ? 'A format 2 lair starts with one entrance room (exit south). Add rooms on the grid map, then doors between them.'
+      : 'Every room starts as "not defined" (generated layout). Use Define room on a tab to draw one.';
+  };
   $('btnNewOk').onclick = () => {
     const kind = $('nKind').value, n = parseInt($('nNumber').value, 10);
-    const max = kind === 'lair' ? 6 : 8;
+    const max = kind === 'cave' ? 8 : 6;
     if (!(n >= 1 && n <= max)) { toast('Number must be 1-' + max, true); return; }
     if (!confirmDiscard()) return;
     closeModal();
+    if (kind === 'lair2') {
+      S.level = newLevel2(n); S.undo = []; S.redo = []; S.dirty = false; S.sel = null; S.savedName = null; S.issues = null;
+      S.slot = 0; S.doorForm = null; S.mapAdd = null;
+      renderAll();
+      return;
+    }
     const L = newLevel(kind, n);
     S.level = L; S.undo = []; S.redo = []; S.dirty = false; S.sel = null; S.savedName = null; S.issues = null;
     S.slot = kind === 'lair' ? 'entry' : 'challenge';
@@ -1344,6 +1436,8 @@ function wire() {
     if (other && !confirm('Rooms already defined keep their slot names; slots that do not exist for a ' + v + ' will be flagged by Check. Change kind?')) { renderHeader(); return; }
     commit(() => { S.level.kind = v; if (isInt(S.level.number) && S.level.number > (v === 'lair' ? 6 : 8)) S.level.number = v === 'lair' ? 6 : 8; });
   };
+  $('fRelic').onchange = e => commit(() => { S.level.relic = e.target.value === '' ? null : e.target.value; });
+  wireMap();
   $('fNumber').onchange = e => { const n = parseInt(e.target.value, 10); commit(() => { S.level.number = isNaN(n) ? S.level.number : n; }); };
   $('fName').oninput = e => {
     const pos = e.target.selectionStart;
@@ -1390,19 +1484,24 @@ function wire() {
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
     if (ctrl && e.key.toLowerCase() === 'o') { e.preventDefault(); $('fileInput').click(); return; }
-    if (e.key === 'Escape') { if (modalOpen()) closeModal(); else { S.sel = null; S.drag = null; renderAll(); } return; }
+    if (e.key === 'Escape') { if (modalOpen()) closeModal(); else { S.sel = null; S.drag = null; S.mapAdd = null; renderAll(); } return; }
     if (typing || modalOpen()) return;
     if (ctrl && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); return; }
     if (ctrl && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
     if (ctrl || e.altKey) return;
     const k = e.key;
-    const b = BRUSHES.find(x => x.key === k);
+    const b = brushes().find(x => x.key === k);
     if (b) { setBrush(b.ch); return; }
     const modes = { b: 'paint', r: 'rect', g: 'fill', i: 'pick', e: 'enemy', o: 'object', v: 'select' };
     if (modes[k.toLowerCase()] && !e.shiftKey) { setMode(modes[k.toLowerCase()]); return; }
     if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
     const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
     if (arrows[k] && S.sel) { e.preventDefault(); nudge(...arrows[k]); return; }
+    if ((k === '[' || k === ']') && isF2()) {
+      const n = S.level.rooms.length;
+      if (n) { S.slot = ((isInt(S.slot) ? S.slot : 0) + (k === ']' ? 1 : n - 1)) % n; S.sel = null; S.doorForm = null; renderAll(); }
+      return;
+    }
     if (k === '[' || k === ']') {
       const slots = [...document.querySelectorAll('#tabs button')].map(x => x.textContent.replace(' (unknown)', ''));
       const i = slots.indexOf(S.slot);
@@ -1420,7 +1519,7 @@ function wire() {
 
 // Expose a tiny API for scripted tests / the console.
 window.ELEditor = {
-  state: S, stringifyLevel, fromJson, runCheck, openText,
+  state: S, stringifyLevel, fromJson, runCheck, openText, keepGraph, solvable2,
   get json() { return stringifyLevel(S.level); },
 };
 

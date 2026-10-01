@@ -33,12 +33,18 @@
   <aside id="left" class="panel">
     <section>
       <h2>Level</h2>
+      <div class="row"><label>Format</label><span id="fFormat" class="note"></span></div>
       <div class="row"><label for="fKind">Kind</label>
         <select id="fKind"><option value="cave">cave</option><option value="lair">lair</option></select></div>
       <div class="row"><label for="fNumber">Number</label><input id="fNumber" type="number" min="1" max="8" step="1"></div>
       <div class="row"><label for="fName">Name</label><input id="fName" type="text" placeholder="(built-in name)" spellcheck="false"></div>
       <div class="row"><label for="fTheme">Theme</label><select id="fTheme"></select></div>
       <div id="themeNote" class="note"></div>
+      <div class="row" id="rowRelic" hidden><label for="fRelic">Relic</label><select id="fRelic" title="What the great chest holds"></select></div>
+    </section>
+    <section id="room2Section" hidden>
+      <h2>Room <span id="room2Id"></span></h2>
+      <div id="room2Body"></div>
     </section>
     <section id="roomSection">
       <h2>Room <span id="roomSlotName"></span></h2>
@@ -65,6 +71,30 @@
 
   <section id="centre">
     <nav id="tabs"></nav>
+    <div id="lairBar" hidden>
+      <div class="lairtools">
+        <span class="lbl">Rooms</span>
+        <select id="mapSize" title="Size of the new room in screens">
+          <option value="1x1">1x1</option><option value="2x1">2x1 wide</option><option value="1x2">1x2 tall</option><option value="2x2">2x2</option>
+        </select>
+        <button id="btnAddRoom" class="small" title="Then click an empty spot on the grid">Add room</button>
+        <button id="btnDelRoom" class="small danger" title="Delete the selected room">Delete room</button>
+        <button id="btnMapToggle" class="small">Hide map</button>
+        <label class="inline" title="Show the whole 13 x 13 grid instead of the rooms plus a margin"><input type="checkbox" id="tMapFull"> Full grid</label>
+        <span id="mapHover" class="note"></span>
+      </div>
+      <div id="mapWrap">
+        <canvas id="mapCanvas" width="417" height="339" title="Click a room to edit it, drag to move it. The map shows the rooms plus a one-cell margin; drop a room in the margin to grow it."></canvas>
+        <div class="maplegend note">
+          <ul id="roomList" class="roomlist"></ul>
+          <div>Doors: <span class="sw" style="background:#50dc78"></span>open <span class="sw" style="background:#ffd84a"></span>small key
+            <span class="sw" style="background:#ff5a4a"></span>big key <span class="sw" style="background:#b8bcc8"></span>shutter
+            <span class="sw" style="background:#d08848"></span>bomb <span class="sw" style="background:#c490ff"></span>flag
+            <span class="sw" style="background:#7fd8ff"></span>exit <span class="sw" style="background:#ff2a6a"></span>broken.
+            Badges: IN entrance, B boss stairs, D dark, $ big chest.</div>
+        </div>
+      </div>
+    </div>
     <div id="viewbar">
       <span class="lbl">Zoom</span>
       <button data-zoom="1" class="small zoom">1x</button>
@@ -122,13 +152,14 @@
     <h2>Keyboard shortcuts</h2>
     <table class="keys">
       <tr><td><kbd>1</kbd>-<kbd>7</kbd></td><td>Tile brush: floor, wall, water, ice, crack, plate, decor</td></tr>
+      <tr><td><kbd>8</kbd> <kbd>9</kbd> <kbd>0</kbd> <kbd>U</kbd> <kbd>H</kbd> <kbd>T</kbd></td><td>Format 2 lairs: pit, lava, orange barrier, blue barrier, hidden bridge, thorns</td></tr>
       <tr><td><kbd>B</kbd> <kbd>R</kbd> <kbd>G</kbd> <kbd>I</kbd></td><td>Paint, rectangle fill, flood fill, eyedropper (Alt+click also picks)</td></tr>
       <tr><td><kbd>E</kbd> <kbd>O</kbd> <kbd>V</kbd></td><td>Place enemy, place object, select / move</td></tr>
       <tr><td>Right click</td><td>Brushes: paint floor. Enemy / Object / Select: delete the thing on that tile</td></tr>
       <tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>Delete the selected enemy / object</td></tr>
       <tr><td>Arrow keys</td><td>Move the selected enemy / object one tile</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Deselect, close dialogs</td></tr>
-      <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next room tab</td></tr>
+      <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next room tab (format 2: previous / next room in the list)</td></tr>
       <tr><td><kbd>-</kbd> <kbd>=</kbd></td><td>Zoom out / in</td></tr>
       <tr><td><kbd>L</kbd> <kbd>F</kbd> <kbd>M</kbd></td><td>Toggle grid, game features (door gaps, locks, stairs), mage sprite</td></tr>
       <tr><td><kbd>K</kbd></td><td>Check the level</td></tr>
@@ -139,6 +170,10 @@
     <p class="note">Door gaps, locks, seals and the lair stairs are placed by the game; with
       <b>Game features</b> on they are drawn as they will appear, outlined in green (doors), amber
       (lock / seal / crack) and violet (stairs). The mage can be dragged with the Select tool.</p>
+    <p class="note">Format 2 lairs: click a room on the grid map to edit it, drag it to move it, <b>Add room</b>
+      then click an empty spot to place a new one. Doors are added on the left (side, segment,
+      a touching room or exit, and the lock); the far side of each door is added by the game and
+      shown dashed. <kbd>Esc</kbd> cancels placing a room.</p>
     <div class="modalbtns"><button data-close>Close</button></div>
   </div>
   <div class="modal wide" id="jsonModal" hidden>
@@ -154,9 +189,9 @@
   <div class="modal" id="newModal" hidden>
     <h2>New level</h2>
     <div class="row"><label for="nKind">Kind</label>
-      <select id="nKind"><option value="cave">cave</option><option value="lair">lair</option></select></div>
+      <select id="nKind"><option value="cave">cave (format 1)</option><option value="lair">lair (format 1, fixed slots)</option><option value="lair2">Lair (format 2, free layout)</option></select></div>
     <div class="row"><label for="nNumber">Number</label><input id="nNumber" type="number" min="1" max="8" value="1"></div>
-    <p class="note">Every room starts as "not defined" (generated layout). Use Define room on a tab to draw one.</p>
+    <p class="note" id="newNote">Every room starts as "not defined" (generated layout). Use Define room on a tab to draw one.</p>
     <div class="modalbtns"><button id="btnNewOk" class="primary">Create</button><button data-close>Cancel</button></div>
   </div>
 </div>
@@ -164,6 +199,7 @@
 <div id="toast" hidden></div>
 
 <script src="assets.js"></script>
+<script src="lair.js"></script>
 <script src="editor.js"></script>
 </body>
 </html>

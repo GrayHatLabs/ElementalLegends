@@ -8,7 +8,14 @@ data URLs, so the editor works when opened straight from disk (file://) with no 
 Contents:
   themes[<index>]   {wall, water?}   96x96 Wang corner atlases (4x4 tiles of 24 px)
   enemies[kind][element]  {src, w, h}  one idle frame (idle_down for 4-direction sheets)
-  objects[name]     {src, w, h}      torch, block, lever_off, lever_on, chest, shrine
+  objects[name]     {src, w, h}      torch, block, lever_off, lever_on, chest, shrine, and the
+                                     format 2 objects (big_chest, whip_post, boulder, pot, crate,
+                                     floor_switch, crystal_switch, ice_block, tablet,
+                                     crystal_<element>, crystal_<element>_lit)
+  tiles[name]       {src, w, h}      format 2 tiles: pit, lava (frame 0), thorns, and the
+                                     barrier pegs orange_up/_down, blue_up/_down
+  relics[name]      {src, w, h}      16 px icons from relic_items (relics, small/big key, map...)
+  props[name]       {src, w, h, theme}  every prop_<theme>_<name> sheet (first frame)
   mage              {src, w, h}      mage_fire idle_down, for scale
   items[name]       {src, w, h}      icons from the items sheet (chest contents)
 
@@ -20,6 +27,7 @@ import base64
 import io
 import json
 import os
+import re
 import sys
 
 from PIL import Image
@@ -38,6 +46,26 @@ OBJECTS = {
     "lever_on": "obj_lever_on",
     "chest": "obj_chest_closed",
     "shrine": "obj_shrine_pedestal",
+    # Format 2 lairs.
+    "big_chest": "obj_big_chest_closed",
+    "whip_post": "obj_whip_post",
+    "boulder": "obj_boulder",
+    "pot": "obj_pot",
+    "crate": "obj_crate",
+    "floor_switch": "obj_floor_switch_up",
+    "crystal_switch": "obj_crystal_switch_orange",
+    "ice_block": "obj_ice_block",
+    "tablet": "obj_lore_tablet",
+}
+CRYSTALS = ["fire", "ice", "storm", "earth"]
+TILES = {
+    "pit": "tile_pit",
+    "lava": "tile_lava",
+    "thorns": "tile_thorns",
+    "orange_up": "obj_block_orange_up",
+    "orange_down": "obj_block_orange_down",
+    "blue_up": "obj_block_blue_up",
+    "blue_down": "obj_block_blue_down",
 }
 
 
@@ -53,7 +81,8 @@ def warn(msg):
 
 def load_manifests(art):
     sprites = {}
-    for name in ("manifest.json", "manifest_objects.json", "manifest_bosses.json"):
+    for name in ("manifest.json", "manifest_objects.json", "manifest_bosses.json",
+                 "manifest_relics.json", "manifest_props.json"):
         p = os.path.join(art, name)
         if not os.path.exists(p):
             warn(name + " not found")
@@ -93,7 +122,8 @@ def main():
         sys.exit("art folder not found: " + art)
     print("art: " + art)
     sprites = load_manifests(art)
-    out = {"tile": 24, "themes": {}, "enemies": {}, "objects": {}, "mage": None, "items": {}}
+    out = {"tile": 24, "themes": {}, "enemies": {}, "objects": {}, "mage": None, "items": {},
+           "tiles": {}, "relics": {}, "props": {}}
 
     # Terrain atlases.
     tdir = os.path.join(art, "terrain")
@@ -118,6 +148,8 @@ def main():
             wimg = Image.open(water).convert("RGBA")
             if wimg.size == (96, 96):
                 entry["water"] = data_url(wimg)
+        else:
+            warn("theme %d has no water atlas (the editor draws water as a plain colour)" % i)
         out["themes"][str(i)] = entry
 
     # Enemies.
@@ -136,7 +168,37 @@ def main():
         fr = frame(art, sprites, sheet)
         if fr:
             out["objects"][key] = fr
+    for el in CRYSTALS:
+        for suffix, anims in (("", ("idle",)), ("_lit", ("lit", "idle"))):
+            fr = frame(art, sprites, "obj_crystal_" + el, anims=anims)
+            if fr:
+                out["objects"]["crystal_" + el + suffix] = fr
     out["mage"] = frame(art, sprites, "mage_fire")
+
+    # Format 2 tiles (frame 0 of animated ones such as lava).
+    for key, sheet in TILES.items():
+        fr = frame(art, sprites, sheet)
+        if fr:
+            out["tiles"][key] = fr
+
+    # Relic / dungeon item icons (one per row of relic_items).
+    if "relic_items" in sprites:
+        for name in sprites["relic_items"].get("anims", {}):
+            fr = frame(art, sprites, "relic_items", anims=(name,))
+            if fr:
+                out["relics"][name] = fr
+    else:
+        warn("relic_items not in manifests")
+
+    # Props for the format 2 prop palette (grouped by lair theme in the editor).
+    for sheet in sorted(sprites):
+        m = re.match(r"^prop_(\d+)_[a-z0-9_]+$", sheet)
+        if not m:
+            continue
+        fr = frame(art, sprites, sheet)
+        if fr:
+            fr["theme"] = int(m.group(1))
+            out["props"][sheet] = fr
 
     # Item icons (column 0 of each row of the items sheet).
     items = sprites.get("items")
@@ -153,9 +215,11 @@ def main():
         json.dump(out, f, separators=(",", ":"))
         f.write(";\n")
     n_en = sum(len(v) for v in out["enemies"].values())
-    print("wrote %s: %d themes, %d enemy frames, %d objects, %d item icons, mage=%s (%d KB)" % (
-        os.path.relpath(OUT, REPO), len(out["themes"]), n_en, len(out["objects"]), len(out["items"]),
-        "yes" if out["mage"] else "no", os.path.getsize(OUT) // 1024))
+    print("wrote %s: %d themes, %d enemy frames, %d objects, %d item icons, %d tiles, %d relic icons, "
+          "%d props, mage=%s (%d KB)" % (
+              os.path.relpath(OUT, REPO), len(out["themes"]), n_en, len(out["objects"]), len(out["items"]),
+              len(out["tiles"]), len(out["relics"]), len(out["props"]),
+              "yes" if out["mage"] else "no", os.path.getsize(OUT) // 1024))
 
 
 if __name__ == "__main__":
