@@ -183,6 +183,9 @@ impl Game {
                     T_PIT => {
                         self.obj_hd(scr, "tile_pit", cx, cy + 8.0);
                     }
+                    T_QUICK => {
+                        self.obj_hd(scr, "tile_quicksand", cx, cy + 8.0);
+                    }
                     T_HIDDEN => {
                         if lantern {
                             scr.blend(px + 1, py + 1, 14, 14, rgb(0xa4e4fc), 0.35 + (f as f32 * 0.08).sin().abs() * 0.15);

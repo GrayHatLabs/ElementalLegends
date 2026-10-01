@@ -127,9 +127,9 @@ The rune/monolith start is unchanged (user decision).
 | Overworld encounters: Hoard Dragon, Deceiving Dryad (+ poison status, antidote), Food Trees + Angry Treant, Graveyard + Grave Lord — one-time, save-flagged, map markers, old saves load | H, V (snapshots 50–61 reviewed); not yet playtested for feel or on hardware |
 | Better-looking dungeon entrances (playtest feedback) | Done in the SNES upgrade (generated building art) |
 | Less childish boss art (playtest feedback) | Done in the SNES upgrade (generated boss art) |
-| Mini-boss batch 1: Mimic Chest, Treasure Goblin, Bandit Raccoon, Wandering Merchant Ogre | H (self-test checks for each); placeholder shapes until the PixelLab art is imported; not playtested |
-| Mini-boss batch 2: Mushroom Ring Fairy King, Honey Bear, Headless Knight, Banshee | H; placeholder art; not playtested |
-| Mini-boss batch 3: Bog Witch, Giant Toad, Will-o'-wisp, Salamander Queen, Lava Golem Forge, Phoenix | H; placeholder art; not playtested |
+| Mini-boss batch 1: Mimic Chest, Treasure Goblin, Bandit Raccoon, Wandering Merchant Ogre | H, S (PixelLab art imported, snapshots 62-76 reviewed); not playtested |
+| Mini-boss batch 2: Mushroom Ring Fairy King, Honey Bear, Headless Knight, Banshee | H, S; not playtested |
+| Mini-boss batch 3: Bog Witch, Giant Toad, Will-o'-wisp, Salamander Queen, Lava Golem Forge, Phoenix | H, S; not playtested |
 | Mini-boss batch 4: Doppelganger Mage | H (uses the mage sheets, darkened); not playtested |
 
 ### Second-wave encounters (src/game/encounters.rs)
