@@ -1,0 +1,478 @@
+{
+  "format": 2,
+  "kind": "lair",
+  "number": 5,
+  "name": "FORGOTTEN SANCTUARY",
+  "theme": 8,
+  "relic": "feather_cloak",
+  "rooms": [
+    {
+      "id": "entry",
+      "name": "SANCTUARY STEPS",
+      "at": [2, 6],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "exit" },
+        { "side": "n", "to": "nave" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 6, "y": 8 },
+        { "kind": "ghost", "x": 10, "y": 8 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_8_statue" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_8_statue" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_8_brazier" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_8_brazier" },
+        { "type": "prop", "x": 8, "y": 7, "name": "prop_8_mosaic", "solid": false },
+        { "type": "tablet", "x": 5, "y": 2, "text": "Those who would rise must first learn to fall." }
+      ]
+    },
+    {
+      "id": "nave",
+      "name": "MOONLIT NAVE",
+      "at": [2, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "entry" },
+        { "side": "w", "to": "cloister" },
+        { "side": "e", "to": "baptistry" },
+        { "side": "n", "to": "starcourt" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 8, "y": 6 },
+        { "kind": "bat", "x": 5, "y": 6 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 6, "y": 1, "name": "prop_8_banner" },
+        { "type": "prop", "x": 9, "y": 1, "name": "prop_8_banner" },
+        { "type": "prop", "x": 2, "y": 10, "name": "prop_8_books" },
+        { "type": "prop", "x": 13, "y": 10, "name": "prop_8_books" }
+      ]
+    },
+    {
+      "id": "cloister",
+      "name": "WEST CLOISTER",
+      "at": [1, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..o...........#",
+        "#..............#",
+        "#......#.......#",
+        "#..............#",
+        "#..............#",
+        "#......#.......#",
+        "#..............#",
+        "#..............#",
+        "#...........o..#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "plates",
+      "doors": [
+        { "side": "e", "to": "nave" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "ice_block", "x": 3, "y": 8 },
+        { "type": "ice_block", "x": 6, "y": 10 },
+        { "type": "chest", "x": 10, "y": 3, "contents": "small_key", "hidden": true },
+        { "type": "tablet", "x": 12, "y": 6, "text": "Ice slides until something stops it." }
+      ]
+    },
+    {
+      "id": "baptistry",
+      "name": "BAPTISTRY",
+      "at": [3, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#...~~~~~~~~~..#",
+        "#...~~~~~~~~~..#",
+        "#...~~~~~~~~~..#",
+        "#...~~~...~~~..#",
+        "#...~~~...~~~..#",
+        "#...~~~...~~~..#",
+        "#...~~~~~~~~~..#",
+        "#...~~~~~~~~~..#",
+        "#...~~~~~~~~~..#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "nave" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 13, "y": 6 }
+      ],
+      "objects": [
+        { "type": "whip_post", "x": 9, "y": 6 },
+        { "type": "whip_post", "x": 1, "y": 8 },
+        { "type": "lever", "x": 7, "y": 5, "sets": "drain" },
+        { "type": "tablet", "x": 2, "y": 3, "text": "The island lever opens the font sluice." },
+        { "type": "prop", "x": 14, "y": 2, "name": "prop_8_statue" },
+        { "type": "prop", "x": 14, "y": 10, "name": "prop_8_statue" }
+      ]
+    },
+    {
+      "id": "starcourt",
+      "name": "STAR COURT",
+      "at": [2, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#....#....#....#",
+        "#.u..........r.#",
+        "#.u..........r.#",
+        "#.u..........r.#",
+        "#.u..........r.#",
+        "#.u..........r.#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "nave" },
+        { "side": "n", "to": "scriptorium", "lock": "small" },
+        { "side": "w", "to": "font" },
+        { "side": "e", "to": "belltower" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 6, "y": 9 },
+        { "kind": "ghost", "x": 10, "y": 9 }
+      ],
+      "objects": [
+        { "type": "crystal_switch", "x": 8, "y": 6 },
+        { "type": "prop", "x": 8, "y": 9, "name": "prop_8_mosaic", "solid": false }
+      ]
+    },
+    {
+      "id": "font",
+      "name": "SACRED FONT",
+      "at": [1, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#~~~~~~~~~~~~..#",
+        "#~~~~~~~~~~~~..#",
+        "#~~~~~~~~~~~~..#",
+        "#~~~~~~~~~~~~..#",
+        "#~~~~~.~~~~~~..#",
+        "#~~~~~~~~~~~~..#",
+        "#~~~~~~~~~~~~..#",
+        "#~~~~~~~~~~~~..#",
+        "#~~~~~~~~~~~~..#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "starcourt" },
+        { "side": "w", "to": "saints" }
+      ],
+      "flag_tiles": [
+        { "flag": "drain", "from": "~", "to": "." }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "chest", "x": 6, "y": 6, "contents": "finder" },
+        { "type": "prop", "x": 14, "y": 2, "name": "prop_8_statue" },
+        { "type": "prop", "x": 14, "y": 10, "name": "prop_8_statue" },
+        { "type": "tablet", "x": 13, "y": 6, "text": "When the font is drained, its gift lies bare." }
+      ]
+    },
+    {
+      "id": "saints",
+      "name": "HALL OF SAINTS",
+      "at": [0, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "e", "to": "font" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 4, "y": 6 },
+        { "kind": "ghost", "x": 11, "y": 6 },
+        { "kind": "skeleton", "x": 8, "y": 9 },
+        { "kind": "bat", "x": 6, "y": 4 },
+        { "kind": "bat", "x": 10, "y": 4 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 2, "name": "prop_8_statue" },
+        { "type": "prop", "x": 6, "y": 2, "name": "prop_8_statue" },
+        { "type": "prop", "x": 9, "y": 2, "name": "prop_8_statue" },
+        { "type": "prop", "x": 12, "y": 2, "name": "prop_8_statue" },
+        { "type": "chest", "x": 8, "y": 6, "contents": "map", "hidden": true }
+      ]
+    },
+    {
+      "id": "belltower",
+      "name": "BELL TOWER",
+      "at": [3, 4],
+      "dark": true,
+      "tiles": [
+        "################",
+        "#..pppppppppppp#",
+        "#..ppppphhhh..p#",
+        "#..ppppphpppppp#",
+        "#..pphhhhpppppp#",
+        "#..pphppppppppp#",
+        "#..hhhppppppppp#",
+        "#..pppppppppppp#",
+        "#..pppppppppppp#",
+        "#..pppppppppppp#",
+        "#..pppppppppppp#",
+        "#..pppppppppppp#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "starcourt" }
+      ],
+      "objects": [
+        { "type": "chest", "x": 13, "y": 2, "contents": "small_key" },
+        { "type": "tablet", "x": 1, "y": 9, "text": "The bell ropes hang over nothing. Trust only what the light reveals." }
+      ]
+    },
+    {
+      "id": "scriptorium",
+      "name": "SCRIPTORIUM",
+      "at": [2, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "crystals",
+      "doors": [
+        { "side": "s", "to": "starcourt" },
+        { "side": "n", "to": "chasm", "lock": "small" },
+        { "side": "w", "to": "sanctum", "lock": "big" },
+        { "side": "e", "to": "vault", "lock": "bomb" }
+      ],
+      "objects": [
+        { "type": "crystal", "x": 4, "y": 3, "element": "ice", "order": 1 },
+        { "type": "crystal", "x": 11, "y": 3, "element": "storm", "order": 2 },
+        { "type": "crystal", "x": 11, "y": 9, "element": "fire", "order": 3 },
+        { "type": "crystal", "x": 4, "y": 9, "element": "earth", "order": 4 },
+        { "type": "shrine", "x": 6, "y": 11, "element": "ice" },
+        { "type": "shrine", "x": 7, "y": 11, "element": "storm" },
+        { "type": "shrine", "x": 8, "y": 11, "element": "fire" },
+        { "type": "shrine", "x": 9, "y": 11, "element": "earth" },
+        { "type": "chest", "x": 8, "y": 6, "contents": "big_key", "hidden": true },
+        { "type": "prop", "x": 2, "y": 2, "name": "prop_8_books" },
+        { "type": "prop", "x": 13, "y": 2, "name": "prop_8_books" },
+        { "type": "tablet", "x": 2, "y": 6, "text": "Ice, storm, fire, earth: the order of the scribes." }
+      ]
+    },
+    {
+      "id": "sanctum",
+      "name": "INNER SANCTUM",
+      "at": [1, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "scriptorium" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "big_chest", "x": 8, "y": 4 },
+        { "type": "prop", "x": 5, "y": 4, "name": "prop_8_statue" },
+        { "type": "prop", "x": 11, "y": 4, "name": "prop_8_statue" },
+        { "type": "prop", "x": 8, "y": 8, "name": "prop_8_mosaic", "solid": false }
+      ]
+    },
+    {
+      "id": "vault",
+      "name": "RELIC VAULT",
+      "at": [3, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "scriptorium" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "chest", "x": 6, "y": 5, "contents": "elixir" },
+        { "type": "chest", "x": 10, "y": 5, "contents": "bombs:5" },
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_8_books" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_8_books" }
+      ]
+    },
+    {
+      "id": "chasm",
+      "name": "SKY CHASM",
+      "at": [2, 2],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "scriptorium" },
+        { "side": "n", "to": "gallery" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 5, "y": 2 },
+        { "kind": "bat", "x": 11, "y": 9 }
+      ],
+      "objects": [
+        { "type": "tablet", "x": 3, "y": 10, "text": "Spread the feather cloak and float across." }
+      ]
+    },
+    {
+      "id": "gallery",
+      "name": "GALLERY OF WINGS",
+      "at": [2, 1],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..ppp.........#",
+        "#..ppp.........#",
+        "#..............#",
+        "#.........ppp..#",
+        "#.........ppp..#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "s", "to": "chasm" },
+        { "side": "n", "to": "stairs", "lock": "shutter" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 4, "y": 8 },
+        { "kind": "ghost", "x": 11, "y": 3 },
+        { "kind": "skeleton", "x": 8, "y": 6 },
+        { "kind": "bat", "x": 7, "y": 3 },
+        { "kind": "bat", "x": 9, "y": 9 }
+      ]
+    },
+    {
+      "id": "stairs",
+      "name": "ANGEL'S STAIR",
+      "at": [2, 0],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "boss_stairs": true,
+      "doors": [
+        { "side": "s", "to": "gallery" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "prop", "x": 5, "y": 2, "name": "prop_8_brazier" },
+        { "type": "prop", "x": 10, "y": 2, "name": "prop_8_brazier" },
+        { "type": "prop", "x": 3, "y": 7, "name": "prop_8_statue" },
+        { "type": "prop", "x": 12, "y": 7, "name": "prop_8_statue" },
+        { "type": "prop", "x": 4, "y": 1, "name": "prop_8_banner" },
+        { "type": "prop", "x": 11, "y": 1, "name": "prop_8_banner" }
+      ]
+    }
+  ]
+}

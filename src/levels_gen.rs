@@ -5,4 +5,7 @@ pub const LEVELS: &[(&str, &str)] = &[
     ("lair_1.json", include_str!("../levels/lair_1.json")),
     ("lair_2.json", include_str!("../levels/lair_2.json")),
     ("lair_3.json", include_str!("../levels/lair_3.json")),
+    ("lair_4.json", include_str!("../levels/lair_4.json")),
+    ("lair_5.json", include_str!("../levels/lair_5.json")),
+    ("lair_6.json", include_str!("../levels/lair_6.json")),
 ];

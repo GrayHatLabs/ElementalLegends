@@ -1,0 +1,465 @@
+{
+  "format": 2,
+  "kind": "lair",
+  "number": 4,
+  "name": "DRAGON FORTRESS",
+  "theme": 7,
+  "relic": "ember_boots",
+  "rooms": [
+    {
+      "id": "gate",
+      "name": "MAGMA GATE",
+      "at": [2, 6],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "exit" },
+        { "side": "n", "to": "hall" },
+        { "side": "w", "to": "smelter" },
+        { "side": "e", "to": "vents" }
+      ],
+      "enemies": [
+        { "kind": "imp", "x": 5, "y": 8 },
+        { "kind": "imp", "x": 10, "y": 8 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_7_statue" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_7_statue" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_7_brazier" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_7_brazier" },
+        { "type": "prop", "x": 8, "y": 7, "name": "prop_7_mosaic", "solid": false },
+        { "type": "tablet", "x": 5, "y": 2, "text": "The wyrm sleeps where the lava runs deepest." }
+      ]
+    },
+    {
+      "id": "smelter",
+      "name": "SMELTER",
+      "at": [1, 6],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#.....llll.....#",
+        "#.....llll.....#",
+        "#.....llll.....#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "torches",
+      "doors": [
+        { "side": "e", "to": "gate" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "torch", "x": 3, "y": 3 },
+        { "type": "torch", "x": 12, "y": 3 },
+        { "type": "torch", "x": 3, "y": 9 },
+        { "type": "torch", "x": 12, "y": 9 },
+        { "type": "shrine", "x": 8, "y": 10, "element": "fire" },
+        { "type": "chest", "x": 8, "y": 3, "contents": "small_key", "hidden": true },
+        { "type": "tablet", "x": 5, "y": 6, "text": "Rekindle the smelter fires." }
+      ]
+    },
+    {
+      "id": "vents",
+      "name": "STEAM VENTS",
+      "at": [3, 6],
+      "tiles": [
+        "################",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "#.....ppp......#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "gate" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 3, "y": 3 },
+        { "kind": "bat", "x": 12, "y": 9 }
+      ],
+      "objects": [
+        { "type": "whip_post", "x": 10, "y": 6 },
+        { "type": "whip_post", "x": 4, "y": 4 },
+        { "type": "lever", "x": 13, "y": 6, "sets": "cool" },
+        { "type": "tablet", "x": 3, "y": 9, "text": "The vent lever cools the lava in the Cinder Hall." },
+        { "type": "prop", "x": 12, "y": 2, "name": "prop_7_hoard" },
+        { "type": "prop", "x": 12, "y": 10, "name": "prop_7_hoard" }
+      ]
+    },
+    {
+      "id": "hall",
+      "name": "FORGE HALL",
+      "at": [2, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..........rrr.#",
+        "#..........r.r.#",
+        "#..........rrr.#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "gate" },
+        { "side": "n", "to": "cinder" },
+        { "side": "w", "to": "slag" },
+        { "side": "e", "to": "anvil", "lock": "small" }
+      ],
+      "enemies": [
+        { "kind": "imp", "x": 8, "y": 8 },
+        { "kind": "golem", "x": 6, "y": 9 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 12, "y": 6, "contents": "gold:60" },
+        { "type": "crystal_switch", "x": 6, "y": 6 },
+        { "type": "prop", "x": 6, "y": 1, "name": "prop_7_banner" },
+        { "type": "prop", "x": 9, "y": 1, "name": "prop_7_banner" }
+      ]
+    },
+    {
+      "id": "slag",
+      "name": "SLAG PITS",
+      "at": [1, 5],
+      "tiles": [
+        "################",
+        "#..#...........#",
+        "####...........#",
+        "#..............#",
+        "#...pp....pp...#",
+        "#...pp....pp...#",
+        "#...pp....pp...#",
+        "#...pp....pp...#",
+        "#...pp....pp...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "e", "to": "hall" }
+      ],
+      "enemies": [
+        { "kind": "imp", "x": 7, "y": 3 },
+        { "kind": "imp", "x": 8, "y": 9 },
+        { "kind": "golem", "x": 13, "y": 6 },
+        { "kind": "bat", "x": 7, "y": 6 }
+      ],
+      "objects": [
+        { "type": "boulder", "x": 3, "y": 3 },
+        { "type": "chest", "x": 1, "y": 1, "contents": "map" },
+        { "type": "chest", "x": 8, "y": 6, "contents": "finder", "hidden": true }
+      ]
+    },
+    {
+      "id": "anvil",
+      "name": "ANVIL ROOM",
+      "at": [3, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#...o..........#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..........o...#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "plates",
+      "doors": [
+        { "side": "w", "to": "hall" },
+        { "side": "e", "to": "kennel" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "block", "x": 6, "y": 4 },
+        { "type": "block", "x": 9, "y": 8 },
+        { "type": "chest", "x": 8, "y": 2, "contents": "small_key", "hidden": true },
+        { "type": "prop", "x": 2, "y": 2, "name": "prop_7_brazier" },
+        { "type": "prop", "x": 13, "y": 2, "name": "prop_7_brazier" }
+      ]
+    },
+    {
+      "id": "kennel",
+      "name": "DRAKE KENNEL",
+      "at": [4, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#...D......D...#",
+        "#...D......D...#",
+        "#...D......D...#",
+        "#...D......D...#",
+        "#...D......D...#",
+        "#...D......D...#",
+        "#...D......D...#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "w", "to": "anvil" }
+      ],
+      "enemies": [
+        { "kind": "imp", "x": 6, "y": 3 },
+        { "kind": "imp", "x": 9, "y": 9 },
+        { "kind": "golem", "x": 8, "y": 6 },
+        { "kind": "bat", "x": 13, "y": 3 },
+        { "kind": "bat", "x": 2, "y": 9 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 8, "y": 3, "contents": "elixirs:2", "hidden": true }
+      ]
+    },
+    {
+      "id": "cinder",
+      "name": "CINDER HALL",
+      "at": [2, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#llllllllllllll#",
+        "#llllllllllllll#",
+        "#llllllllllllll#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "hall" },
+        { "side": "n", "to": "hoard", "lock": "big" },
+        { "side": "w", "to": "warroom", "lock": "small" }
+      ],
+      "flag_tiles": [
+        { "flag": "cool", "from": "l", "to": "." }
+      ],
+      "enemies": [
+        { "kind": "imp", "x": 6, "y": 5 },
+        { "kind": "imp", "x": 10, "y": 5 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 4, "y": 3, "name": "prop_7_statue" },
+        { "type": "prop", "x": 11, "y": 3, "name": "prop_7_statue" },
+        { "type": "tablet", "x": 8, "y": 11, "text": "A moat of fire. Somewhere a vent could cool it." }
+      ]
+    },
+    {
+      "id": "warroom",
+      "name": "WAR ROOM",
+      "at": [1, 4],
+      "dark": true,
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#....DDDDDD....#",
+        "#....DDDDDD....#",
+        "#....DDDDDD....#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "crystals",
+      "doors": [
+        { "side": "e", "to": "cinder" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 4, "y": 6 }
+      ],
+      "objects": [
+        { "type": "crystal", "x": 3, "y": 3, "element": "fire", "order": 1 },
+        { "type": "crystal", "x": 12, "y": 3, "element": "earth", "order": 2 },
+        { "type": "crystal", "x": 12, "y": 9, "element": "ice", "order": 3 },
+        { "type": "crystal", "x": 3, "y": 9, "element": "storm", "order": 4 },
+        { "type": "shrine", "x": 2, "y": 11, "element": "fire" },
+        { "type": "shrine", "x": 6, "y": 11, "element": "earth" },
+        { "type": "shrine", "x": 9, "y": 11, "element": "ice" },
+        { "type": "shrine", "x": 13, "y": 11, "element": "storm" },
+        { "type": "chest", "x": 8, "y": 2, "contents": "big_key", "hidden": true },
+        { "type": "tablet", "x": 8, "y": 9, "text": "Fire, earth, ice, storm: the order of the war council." }
+      ]
+    },
+    {
+      "id": "hoard",
+      "name": "DRAGON'S HOARD",
+      "at": [2, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "cinder" },
+        { "side": "e", "to": "obsidian" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "big_chest", "x": 8, "y": 4 },
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_7_hoard" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_7_hoard" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_7_hoard" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_7_hoard" },
+        { "type": "prop", "x": 8, "y": 8, "name": "prop_7_mosaic", "solid": false }
+      ]
+    },
+    {
+      "id": "obsidian",
+      "name": "OBSIDIAN WALK",
+      "at": [3, 3],
+      "tiles": [
+        "################",
+        "#..llllllllllll#",
+        "#..llllllllllll#",
+        "#..lll..lllllll#",
+        "#..lll..lllllll#",
+        "#..lllllllll..l#",
+        "#..lllllllll..l#",
+        "#..llllllllllll#",
+        "#..llllll..llll#",
+        "#..llllll..llll#",
+        "#..llllllllllll#",
+        "#..llllllllllll#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "hoard" },
+        { "side": "n", "to": "magma" }
+      ],
+      "enemies": [
+        { "kind": "imp", "x": 6, "y": 3 },
+        { "kind": "imp", "x": 12, "y": 5 }
+      ],
+      "objects": [
+        { "type": "tablet", "x": 1, "y": 9, "text": "Only boots that defy fire may walk the obsidian." }
+      ]
+    },
+    {
+      "id": "magma",
+      "name": "MAGMA CHAMBER",
+      "at": [3, 2],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "####...........#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "####lllllllllll#",
+        "#llllllllllllll#",
+        "#llllllllllllll#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "obsidian" },
+        { "side": "w", "to": "wyrm" }
+      ],
+      "enemies": [
+        { "kind": "golem", "x": 9, "y": 5 },
+        { "kind": "imp", "x": 12, "y": 6 }
+      ],
+      "objects": [
+        { "type": "boulder", "x": 2, "y": 5 },
+        { "type": "boulder", "x": 2, "y": 6 },
+        { "type": "boulder", "x": 2, "y": 7 },
+        { "type": "prop", "x": 8, "y": 2, "name": "prop_7_statue" },
+        { "type": "prop", "x": 12, "y": 2, "name": "prop_7_brazier" },
+        { "type": "prop", "x": 5, "y": 2, "name": "prop_7_brazier" }
+      ]
+    },
+    {
+      "id": "wyrm",
+      "name": "WYRM STAIR",
+      "at": [2, 2],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "boss_stairs": true,
+      "doors": [
+        { "side": "e", "to": "magma" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "prop", "x": 5, "y": 2, "name": "prop_7_brazier" },
+        { "type": "prop", "x": 10, "y": 2, "name": "prop_7_brazier" },
+        { "type": "prop", "x": 3, "y": 7, "name": "prop_7_statue" },
+        { "type": "prop", "x": 12, "y": 7, "name": "prop_7_statue" },
+        { "type": "prop", "x": 4, "y": 1, "name": "prop_7_banner" },
+        { "type": "prop", "x": 11, "y": 1, "name": "prop_7_banner" }
+      ]
+    }
+  ]
+}

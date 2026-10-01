@@ -227,8 +227,11 @@ def lair2():
 
 
 import lair3  # noqa: E402
+import lair4  # noqa: E402
+import lair5  # noqa: E402
+import lair6  # noqa: E402
 
-LAIRS = {1: lair1, 2: lair2, 3: lair3.build}
+LAIRS = {1: lair1, 2: lair2, 3: lair3.build, 4: lair4.build, 5: lair5.build, 6: lair6.build}
 
 
 def main(args):

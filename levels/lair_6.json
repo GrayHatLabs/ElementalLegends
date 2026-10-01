@@ -1,0 +1,552 @@
+{
+  "format": 2,
+  "kind": "lair",
+  "number": 6,
+  "name": "THE DARK TOWER",
+  "theme": 9,
+  "rooms": [
+    {
+      "id": "gate",
+      "name": "TOWER GATE",
+      "at": [2, 6],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "exit" },
+        { "side": "n", "to": "foyer" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 5, "y": 8 },
+        { "kind": "ghost", "x": 10, "y": 8 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_9_statue" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_9_statue" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_9_brazier" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_9_brazier" },
+        { "type": "prop", "x": 8, "y": 7, "name": "prop_9_circle", "solid": false },
+        { "type": "tablet", "x": 5, "y": 2, "text": "All five relics, all four elements. Only then the throne." }
+      ]
+    },
+    {
+      "id": "foyer",
+      "name": "SHADOW FOYER",
+      "at": [2, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "gate" },
+        { "side": "w", "to": "thorns" },
+        { "side": "e", "to": "archive" },
+        { "side": "n", "to": "chains" }
+      ],
+      "enemies": [
+        { "kind": "imp", "x": 7, "y": 6 },
+        { "kind": "ghost", "x": 9, "y": 8 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 6, "y": 1, "name": "prop_9_banner" },
+        { "type": "prop", "x": 9, "y": 1, "name": "prop_9_banner" },
+        { "type": "prop", "x": 2, "y": 10, "name": "prop_9_cage" },
+        { "type": "prop", "x": 13, "y": 10, "name": "prop_9_cage" }
+      ]
+    },
+    {
+      "id": "thorns",
+      "name": "THORN GARDEN",
+      "at": [1, 5],
+      "tiles": [
+        "################",
+        "#.........tttt##",
+        "#.........t...##",
+        "#..tttttttttttt#",
+        "#..t........t..#",
+        "#..t........t..#",
+        "#..t........t..#",
+        "#..t........t..#",
+        "#..t........t..#",
+        "#..tttttttttt..#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "foyer" },
+        { "side": "w", "to": "cellar", "lock": "bomb" }
+      ],
+      "enemies": [
+        { "kind": "slime", "x": 2, "y": 6 },
+        { "kind": "slime", "x": 13, "y": 6 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 12, "y": 2, "contents": "small_key" },
+        { "type": "chest", "x": 7, "y": 6, "contents": "gold:80" },
+        { "type": "tablet", "x": 14, "y": 10, "text": "Thorns everywhere. Cut, then cut again." }
+      ]
+    },
+    {
+      "id": "cellar",
+      "name": "ROOT CELLAR",
+      "at": [0, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "thorns" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "pot", "x": 2, "y": 2 },
+        { "type": "pot", "x": 3, "y": 2 },
+        { "type": "pot", "x": 12, "y": 2 },
+        { "type": "pot", "x": 13, "y": 10 },
+        { "type": "pot", "x": 2, "y": 10 },
+        { "type": "crate", "x": 13, "y": 2 },
+        { "type": "crate", "x": 12, "y": 10 },
+        { "type": "crate", "x": 3, "y": 10 },
+        { "type": "chest", "x": 8, "y": 6, "contents": "heart" }
+      ]
+    },
+    {
+      "id": "archive",
+      "name": "DARK ARCHIVE",
+      "at": [3, 5],
+      "dark": true,
+      "tiles": [
+        "################",
+        "#..............#",
+        "#.pppphppppppp.#",
+        "#.pphhhppppppp.#",
+        "#.pphppppppppp.#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "foyer" },
+        { "side": "e", "to": "library" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 9, "y": 7 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 6, "y": 1, "contents": "map" },
+        { "type": "prop", "x": 12, "y": 10, "name": "prop_9_banner" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_9_cage" },
+        { "type": "tablet", "x": 10, "y": 9, "text": "The map lies past a bridge only the lantern shows." }
+      ]
+    },
+    {
+      "id": "library",
+      "name": "CURSED LIBRARY",
+      "at": [4, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#.DDDD....DDDD.#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#.DDDD....DDDD.#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "w", "to": "archive" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 4, "y": 6 },
+        { "kind": "ghost", "x": 11, "y": 6 },
+        { "kind": "imp", "x": 8, "y": 2 },
+        { "kind": "skeleton", "x": 8, "y": 10 },
+        { "kind": "golem", "x": 13, "y": 6 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 8, "y": 6, "contents": "elixirs:2", "hidden": true }
+      ]
+    },
+    {
+      "id": "chains",
+      "name": "HALL OF CHAINS",
+      "at": [2, 4],
+      "size": [2, 1],
+      "tiles": [
+        "################################",
+        "#....................#....#....#",
+        "#....................##..##....#",
+        "#..............................#",
+        "#.........#......#.............#",
+        "#..............................#",
+        "#..............................#",
+        "#..............................#",
+        "#.........#......#.............#",
+        "#..............................#",
+        "#..............................#",
+        "#..............................#",
+        "################################"
+      ],
+      "doors": [
+        { "side": "s", "to": "foyer" },
+        { "side": "w", "to": "lava", "lock": "small" },
+        { "side": "e", "to": "void" },
+        { "side": "n", "to": "mirror", "lock": "flag:seal" },
+        { "side": "n", "to": "storm", "seg": 1 }
+      ],
+      "enemies": [
+        { "kind": "golem", "x": 8, "y": 6 },
+        { "kind": "golem", "x": 24, "y": 7 },
+        { "kind": "skeleton", "x": 14, "y": 5 },
+        { "kind": "skeleton", "x": 20, "y": 8 }
+      ],
+      "objects": [
+        { "type": "boulder", "x": 23, "y": 2 },
+        { "type": "boulder", "x": 24, "y": 2 },
+        { "type": "prop", "x": 4, "y": 3, "name": "prop_9_cage" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_9_cage" },
+        { "type": "prop", "x": 15, "y": 3, "name": "prop_9_cage" },
+        { "type": "prop", "x": 19, "y": 9, "name": "prop_9_cage" },
+        { "type": "prop", "x": 28, "y": 3, "name": "prop_9_cage" }
+      ]
+    },
+    {
+      "id": "lava",
+      "name": "LAVA WELL",
+      "at": [1, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#.llllllllllll.#",
+        "#.llllllllllll.#",
+        "#.llllllllllll.#",
+        "#.lllll...llll.#",
+        "#.lllll...llll.#",
+        "#.lllll...llll.#",
+        "#.llllllllllll.#",
+        "#.llllllllllll.#",
+        "#.llllllllllll.#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "chains" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "chest", "x": 8, "y": 6, "contents": "small_key" },
+        { "type": "tablet", "x": 14, "y": 9, "text": "Walk where fire flows." }
+      ]
+    },
+    {
+      "id": "void",
+      "name": "VOID LEDGE",
+      "at": [4, 4],
+      "tiles": [
+        "################",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "#...pppp.......#",
+        "################"
+      ],
+      "doors": [
+        { "side": "w", "to": "chains" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "whip_post", "x": 9, "y": 5 },
+        { "type": "whip_post", "x": 2, "y": 8 },
+        { "type": "chest", "x": 12, "y": 6, "contents": "finder" },
+        { "type": "prop", "x": 13, "y": 2, "name": "prop_9_statue" }
+      ]
+    },
+    {
+      "id": "storm",
+      "name": "STORM ENGINE",
+      "at": [3, 3],
+      "tiles": [
+        "################",
+        "#.....rrrrr....#",
+        "#.....r...r....#",
+        "#.....rrrrr....#",
+        "#..............#",
+        "#..#........#..#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "chains" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 5, "y": 7 },
+        { "kind": "imp", "x": 11, "y": 7 }
+      ],
+      "objects": [
+        { "type": "lever", "x": 8, "y": 2, "sets": "seal" },
+        { "type": "crystal_switch", "x": 8, "y": 9 },
+        { "type": "tablet", "x": 3, "y": 9, "text": "The engine seals the Mirror Hall until its lever is thrown." }
+      ]
+    },
+    {
+      "id": "mirror",
+      "name": "MIRROR HALL",
+      "at": [2, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "crystals",
+      "doors": [
+        { "side": "s", "to": "chains" },
+        { "side": "w", "to": "ice" },
+        { "side": "n", "to": "seals", "lock": "small" }
+      ],
+      "objects": [
+        { "type": "crystal", "x": 4, "y": 3, "element": "storm", "order": 1 },
+        { "type": "crystal", "x": 11, "y": 3, "element": "ice", "order": 2 },
+        { "type": "crystal", "x": 11, "y": 9, "element": "earth", "order": 3 },
+        { "type": "crystal", "x": 4, "y": 9, "element": "fire", "order": 4 },
+        { "type": "shrine", "x": 6, "y": 11, "element": "storm" },
+        { "type": "shrine", "x": 7, "y": 11, "element": "ice" },
+        { "type": "shrine", "x": 8, "y": 11, "element": "earth" },
+        { "type": "shrine", "x": 9, "y": 11, "element": "fire" },
+        { "type": "chest", "x": 8, "y": 6, "contents": "big_key", "hidden": true },
+        { "type": "tablet", "x": 2, "y": 6, "text": "Storm, ice, earth, fire: the mirror shows the order reversed." }
+      ]
+    },
+    {
+      "id": "ice",
+      "name": "ICE GALLERY",
+      "at": [1, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..o........o..#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#......##......#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "plates",
+      "doors": [
+        { "side": "e", "to": "mirror" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "ice_block", "x": 3, "y": 9 },
+        { "type": "ice_block", "x": 12, "y": 9 },
+        { "type": "chest", "x": 8, "y": 5, "contents": "bombs:5", "hidden": true }
+      ]
+    },
+    {
+      "id": "seals",
+      "name": "ABYSSAL STAIR",
+      "at": [2, 2],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#ppppp....ppppp#",
+        "#ppppp....ppppp#",
+        "#ppppp....ppppp#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "mirror" },
+        { "side": "n", "to": "throne", "lock": "big" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 4, "y": 1 },
+        { "kind": "bat", "x": 11, "y": 11 }
+      ],
+      "objects": [
+        { "type": "whip_post", "x": 8, "y": 5 },
+        { "type": "whip_post", "x": 8, "y": 1 },
+        { "type": "whip_post", "x": 6, "y": 7 },
+        { "type": "whip_post", "x": 9, "y": 11 },
+        { "type": "tablet", "x": 3, "y": 11, "text": "Swing, float, or fall." }
+      ]
+    },
+    {
+      "id": "throne",
+      "name": "THRONE ANTECHAMBER",
+      "at": [2, 1],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "s", "to": "seals" },
+        { "side": "w", "to": "armory" },
+        { "side": "n", "to": "stairs", "lock": "shutter" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 5, "y": 6 },
+        { "kind": "skeleton", "x": 10, "y": 6 },
+        { "kind": "golem", "x": 8, "y": 3 },
+        { "kind": "ghost", "x": 3, "y": 10 },
+        { "kind": "ghost", "x": 12, "y": 10 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 8, "y": 6, "name": "prop_9_circle", "solid": false }
+      ]
+    },
+    {
+      "id": "armory",
+      "name": "SHADOW ARMORY",
+      "at": [1, 1],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "throne" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "chest", "x": 6, "y": 5, "contents": "bombs:5" },
+        { "type": "chest", "x": 10, "y": 5, "contents": "elixir" },
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_9_cage" },
+        { "type": "prop", "x": 12, "y": 2, "name": "prop_9_banner" }
+      ]
+    },
+    {
+      "id": "stairs",
+      "name": "DARK THRONE STAIR",
+      "at": [2, 0],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "boss_stairs": true,
+      "doors": [
+        { "side": "s", "to": "throne" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "prop", "x": 5, "y": 2, "name": "prop_9_brazier" },
+        { "type": "prop", "x": 10, "y": 2, "name": "prop_9_brazier" },
+        { "type": "prop", "x": 3, "y": 7, "name": "prop_9_statue" },
+        { "type": "prop", "x": 12, "y": 7, "name": "prop_9_statue" },
+        { "type": "prop", "x": 4, "y": 1, "name": "prop_9_banner" },
+        { "type": "prop", "x": 11, "y": 1, "name": "prop_9_banner" }
+      ]
+    }
+  ]
+}
