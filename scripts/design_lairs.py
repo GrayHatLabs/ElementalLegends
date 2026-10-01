@@ -10,6 +10,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
+sys.path.insert(0, str(pathlib.Path(__file__).parent / 'lairs'))
 from lairkit import Room, lair, lint, write  # noqa: E402
 
 LEVELS = pathlib.Path(__file__).resolve().parent.parent / 'levels'
@@ -225,7 +226,9 @@ def lair2():
     return lair(2, 'Underground Crypt', 5, 'spirit_lantern', rooms), rooms
 
 
-LAIRS = {1: lair1, 2: lair2}
+import lair3  # noqa: E402
+
+LAIRS = {1: lair1, 2: lair2, 3: lair3.build}
 
 
 def main(args):

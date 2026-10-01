@@ -1,0 +1,459 @@
+{
+  "format": 2,
+  "kind": "lair",
+  "number": 3,
+  "name": "RUINED CASTLE",
+  "theme": 6,
+  "relic": "titan_gloves",
+  "rooms": [
+    {
+      "id": "gate",
+      "name": "GATEHOUSE",
+      "at": [2, 6],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "exit" },
+        { "side": "n", "to": "court" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 5, "y": 7 },
+        { "kind": "skeleton", "x": 10, "y": 7 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 3, "y": 3, "name": "prop_6_statue" },
+        { "type": "prop", "x": 12, "y": 3, "name": "prop_6_statue" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_6_brazier" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_6_brazier" },
+        { "type": "prop", "x": 5, "y": 1, "name": "prop_6_banner" },
+        { "type": "prop", "x": 10, "y": 1, "name": "prop_6_banner" },
+        { "type": "tablet", "x": 5, "y": 9, "text": "The castle fell, but its guardian never left the high tower." }
+      ]
+    },
+    {
+      "id": "court",
+      "name": "RUINED COURTYARD",
+      "at": [1, 4],
+      "size": [2, 2],
+      "tiles": [
+        "################################",
+        "#....................#....#....#",
+        "#....................##..##....#",
+        "#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#",
+        "#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#",
+        "#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#",
+        "#..............................#",
+        "#..............................#",
+        "#..............................#",
+        "#..............................#",
+        "#....#####............#####....#",
+        "#..............................#",
+        "#..............................#",
+        "#..........................#...#",
+        "#..........................#...#",
+        "#...........########.......#...#",
+        "#..........................#...#",
+        "#..............................#",
+        "#..............................#",
+        "#..............................#",
+        "#...#..........................#",
+        "#...#..........................#",
+        "#...#..........................#",
+        "#...#..........................#",
+        "#..............................#",
+        "################################"
+      ],
+      "doors": [
+        { "side": "s", "to": "gate", "seg": 1 },
+        { "side": "w", "to": "barracks" },
+        { "side": "w", "to": "cells", "seg": 1 },
+        { "side": "e", "to": "armory", "seg": 1 },
+        { "side": "n", "to": "keephall" },
+        { "side": "n", "to": "towerstair", "seg": 1 }
+      ],
+      "flag_tiles": [
+        { "flag": "drawbridge", "from": "~", "to": "." }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 8, "y": 13 },
+        { "kind": "skeleton", "x": 24, "y": 13 },
+        { "kind": "imp", "x": 16, "y": 18 },
+        { "kind": "imp", "x": 6, "y": 22 },
+        { "kind": "golem", "x": 25, "y": 23 }
+      ],
+      "objects": [
+        { "type": "boulder", "x": 23, "y": 2 },
+        { "type": "boulder", "x": 24, "y": 2 },
+        { "type": "prop", "x": 3, "y": 8, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 14, "y": 9, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 29, "y": 9, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 8, "y": 17, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 18, "y": 21, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 25, "y": 20, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 15, "y": 12, "name": "prop_6_statue" },
+        { "type": "prop", "x": 16, "y": 12, "name": "prop_6_statue" },
+        { "type": "prop", "x": 10, "y": 19, "name": "prop_6_pillar" },
+        { "type": "prop", "x": 21, "y": 19, "name": "prop_6_pillar" },
+        { "type": "tablet", "x": 13, "y": 22, "text": "The drawbridge winch lies past the armory." }
+      ]
+    },
+    {
+      "id": "barracks",
+      "name": "BARRACKS",
+      "at": [0, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..D..D..D..D..#",
+        "#..D..D..D..D..#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..D..D..D..D..#",
+        "#..D..D..D..D..#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "combat",
+      "doors": [
+        { "side": "e", "to": "court" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 4, "y": 6 },
+        { "kind": "skeleton", "x": 11, "y": 6 },
+        { "kind": "imp", "x": 8, "y": 4 },
+        { "kind": "imp", "x": 8, "y": 9 },
+        { "kind": "golem", "x": 13, "y": 6 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 8, "y": 6, "contents": "small_key", "hidden": true }
+      ]
+    },
+    {
+      "id": "cells",
+      "name": "PRISON CELLS",
+      "at": [0, 5],
+      "tiles": [
+        "################",
+        "#...#...#......#",
+        "#...#...#......#",
+        "#...#...#......#",
+        "#...#...#......#",
+        "##tt##..##cc#..#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "e", "to": "court" }
+      ],
+      "enemies": [
+        { "kind": "zombie", "x": 5, "y": 8 },
+        { "kind": "bat", "x": 11, "y": 8 }
+      ],
+      "objects": [
+        { "type": "chest", "x": 2, "y": 2, "contents": "finder" },
+        { "type": "chest", "x": 10, "y": 2, "contents": "bombs:4" },
+        { "type": "prop", "x": 6, "y": 2, "name": "prop_6_rubble" },
+        { "type": "pot", "x": 3, "y": 10 },
+        { "type": "crate", "x": 12, "y": 10 },
+        { "type": "crate", "x": 13, "y": 9 },
+        { "type": "pot", "x": 7, "y": 10 },
+        { "type": "tablet", "x": 9, "y": 8, "text": "The first cell is choked with thorns; the last wall is brittle." }
+      ]
+    },
+    {
+      "id": "armory",
+      "name": "ARMORY",
+      "at": [3, 5],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#...o......o...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "plates",
+      "doors": [
+        { "side": "w", "to": "court" },
+        { "side": "n", "to": "winch", "lock": "small" }
+      ],
+      "random_enemies": 1,
+      "objects": [
+        { "type": "block", "x": 5, "y": 7 },
+        { "type": "block", "x": 10, "y": 7 },
+        { "type": "chest", "x": 8, "y": 5, "contents": "map", "hidden": true },
+        { "type": "prop", "x": 2, "y": 10, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 13, "y": 10, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 2, "y": 1, "name": "prop_6_banner" },
+        { "type": "prop", "x": 13, "y": 1, "name": "prop_6_banner" }
+      ]
+    },
+    {
+      "id": "winch",
+      "name": "WINCH ROOM",
+      "at": [3, 4],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "armory" }
+      ],
+      "enemies": [
+        { "kind": "imp", "x": 10, "y": 8 }
+      ],
+      "objects": [
+        { "type": "lever", "x": 8, "y": 3, "sets": "drawbridge" },
+        { "type": "tablet", "x": 5, "y": 6, "text": "Pull the lever to lower the drawbridge over the moat." },
+        { "type": "prop", "x": 4, "y": 3, "name": "prop_6_pillar" },
+        { "type": "prop", "x": 11, "y": 3, "name": "prop_6_pillar" },
+        { "type": "crate", "x": 2, "y": 9 },
+        { "type": "crate", "x": 13, "y": 9 },
+        { "type": "pot", "x": 12, "y": 2 }
+      ]
+    },
+    {
+      "id": "keephall",
+      "name": "KEEP HALL",
+      "at": [1, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#...#......#...#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "court" },
+        { "side": "w", "to": "library" },
+        { "side": "n", "to": "treasury", "lock": "big" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 6, "y": 6 },
+        { "kind": "golem", "x": 10, "y": 6 }
+      ],
+      "objects": [
+        { "type": "prop", "x": 8, "y": 7, "name": "prop_6_rug", "solid": false },
+        { "type": "prop", "x": 6, "y": 1, "name": "prop_6_banner" },
+        { "type": "prop", "x": 9, "y": 1, "name": "prop_6_banner" },
+        { "type": "tablet", "x": 13, "y": 10, "text": "The library's crystals answer earth, then storm, then fire." }
+      ]
+    },
+    {
+      "id": "library",
+      "name": "LIBRARY",
+      "at": [0, 3],
+      "dark": true,
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#.DDDD....DDDD.#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#.DDDD....DDDD.#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "shutter": "crystals",
+      "doors": [
+        { "side": "e", "to": "keephall" }
+      ],
+      "enemies": [
+        { "kind": "ghost", "x": 6, "y": 8 }
+      ],
+      "objects": [
+        { "type": "crystal", "x": 4, "y": 6, "element": "earth", "order": 1 },
+        { "type": "crystal", "x": 8, "y": 2, "element": "storm", "order": 2 },
+        { "type": "crystal", "x": 12, "y": 6, "element": "fire", "order": 3 },
+        { "type": "shrine", "x": 2, "y": 11, "element": "earth" },
+        { "type": "shrine", "x": 8, "y": 11, "element": "storm" },
+        { "type": "shrine", "x": 13, "y": 11, "element": "fire" },
+        { "type": "chest", "x": 8, "y": 6, "contents": "big_key", "hidden": true }
+      ]
+    },
+    {
+      "id": "treasury",
+      "name": "TREASURY",
+      "at": [1, 2],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "keephall" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "big_chest", "x": 8, "y": 4 },
+        { "type": "prop", "x": 5, "y": 4, "name": "prop_6_statue" },
+        { "type": "prop", "x": 11, "y": 4, "name": "prop_6_statue" },
+        { "type": "prop", "x": 3, "y": 9, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 12, "y": 9, "name": "prop_6_rubble" },
+        { "type": "prop", "x": 8, "y": 8, "name": "prop_6_rug", "solid": false }
+      ]
+    },
+    {
+      "id": "towerstair",
+      "name": "TOWER STAIR",
+      "at": [2, 3],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#pppppppppppppp#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "court" },
+        { "side": "n", "to": "rampart" }
+      ],
+      "enemies": [
+        { "kind": "bat", "x": 6, "y": 9 },
+        { "kind": "bat", "x": 10, "y": 2 }
+      ],
+      "objects": [
+        { "type": "whip_post", "x": 8, "y": 3 },
+        { "type": "whip_post", "x": 11, "y": 9 },
+        { "type": "prop", "x": 3, "y": 2, "name": "prop_6_pillar" },
+        { "type": "prop", "x": 12, "y": 2, "name": "prop_6_pillar" },
+        { "type": "tablet", "x": 5, "y": 10, "text": "Lash the vine to the post to cross." }
+      ]
+    },
+    {
+      "id": "rampart",
+      "name": "RAMPART WALK",
+      "at": [2, 2],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#....rrrrrr....#",
+        "#..............#",
+        "#..u...........#",
+        "#..u.#....#....#",
+        "#..u...........#",
+        "#..u...........#",
+        "#..u...........#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "doors": [
+        { "side": "s", "to": "towerstair" },
+        { "side": "n", "to": "hightower" }
+      ],
+      "enemies": [
+        { "kind": "skeleton", "x": 4, "y": 9 },
+        { "kind": "skeleton", "x": 12, "y": 4 },
+        { "kind": "imp", "x": 12, "y": 9 }
+      ],
+      "objects": [
+        { "type": "crystal_switch", "x": 8, "y": 8 }
+      ]
+    },
+    {
+      "id": "hightower",
+      "name": "HIGH TOWER",
+      "at": [2, 1],
+      "tiles": [
+        "################",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "#..............#",
+        "################"
+      ],
+      "boss_stairs": true,
+      "doors": [
+        { "side": "s", "to": "rampart" }
+      ],
+      "random_enemies": 0,
+      "objects": [
+        { "type": "prop", "x": 5, "y": 2, "name": "prop_6_brazier" },
+        { "type": "prop", "x": 10, "y": 2, "name": "prop_6_brazier" },
+        { "type": "prop", "x": 3, "y": 7, "name": "prop_6_statue" },
+        { "type": "prop", "x": 12, "y": 7, "name": "prop_6_statue" },
+        { "type": "prop", "x": 4, "y": 1, "name": "prop_6_banner" },
+        { "type": "prop", "x": 11, "y": 1, "name": "prop_6_banner" }
+      ]
+    }
+  ]
+}
