@@ -352,7 +352,8 @@ impl Game {
 
     // ------------------------------------------------------------ title and element choice
     /// The painted title: parallax night scene panning slowly, the logo, the menu panel.
-    pub(super) fn draw_title_screen(&self, scr: &mut Screen) {
+    /// The painted, slowly panning title scene (parallax layers, or the single scene image).
+    fn draw_title_backdrop(&self, scr: &mut Screen) {
         let t = self.frame as f32;
         let layers = [("title_sky", 0.15), ("title_far", 0.3), ("title_near", 0.55)];
         let mut painted = false;
@@ -373,6 +374,9 @@ impl Game {
                 self.draw_stars(scr);
             }
         }
+    }
+    pub(super) fn draw_title_screen(&self, scr: &mut Screen) {
+        self.draw_title_backdrop(scr);
         match self.ui_sprite("title_logo", "idle") {
             Some(img) => scr.blit_hd(img, (128 - img.w / 2) as f32, 18.0, false),
             None => {
@@ -397,13 +401,9 @@ impl Game {
     }
     /// Element choice across the full width: four mages on pedestals, details below.
     pub(super) fn draw_choose_screen(&self, scr: &mut Screen) {
-        match self.ui_sprite("title_scene", "idle") {
-            Some(img) => {
-                scr.blit_hd(img, LEFT as f32, 16.0, false);
-                scr.blend_screen(0, 0, SW, SH, BLACK, 0.55);
-            }
-            None => self.draw_stars(scr),
-        }
+        // The same moonlit scene as the title, only lightly dimmed so it stays readable.
+        self.draw_title_backdrop(scr);
+        scr.blend_screen(0, 0, SW, SH, BLACK, 0.3);
         scr.text("CHOOSE YOUR ELEMENT", 128, 14, WHITE, Align::Center, 8);
         for i in 0..4 {
             let cx = LEFT + 40 + i as i32 * 80;
