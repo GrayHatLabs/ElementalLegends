@@ -126,9 +126,30 @@ impl Game {
         }
     }
 
+    /// Locked doors on north walls drawn with the generated door art (two panels fill the
+    /// four-tile doorway); other sides keep the tile look.
+    fn draw_keep_doors(&self, scr: &mut Screen) {
+        let Some(d) = &self.dungeon else { return };
+        let Some(k) = &d.keep else { return };
+        let room = &d.rooms[d.cur];
+        for door in k.def.rooms[d.cur].doors.iter().filter(|door| door.side == 0) {
+            let c = (door.seg * RC) as i32 + 7;
+            let art = match room.tiles[0][c as usize] {
+                T_LOCK => "obj_lock_door_small",
+                T_BIGLOCK => "obj_lock_door_big",
+                _ => continue,
+            };
+            let cx = (c * TS + TS) as f32;
+            let base = (HUD + TS) as f32 + 2.0;
+            self.obj_hd(scr, art, cx - 16.0, base);
+            self.obj_hd(scr, art, cx + 16.0, base);
+        }
+    }
+
     /// Per-frame tile effects in the current room: raised barriers, lava shimmer, hidden
     /// bridges under the lantern's light.
     pub(super) fn draw_keep_tiles(&self, scr: &mut Screen) {
+        self.draw_keep_doors(scr);
         let room = self.cur_room();
         let blue = self.crystals_blue();
         let lantern = self.has_relic(Relic::Lantern);

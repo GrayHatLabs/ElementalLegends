@@ -56,7 +56,7 @@ impl Game {
     /// One line for the quest log (pause map) and the notice board.
     pub(super) fn quest_line(&self) -> String {
         if self.s.blink {
-            "QUEST: SPELLBOOK RESTORED - BLINK LEARNED".to_string()
+            "SPELLBOOK RESTORED: BLINK LEARNED".to_string()
         } else {
             format!("QUEST: SPELLBOOK PAGES {}/{}", self.pages_found(), PAGES)
         }

@@ -1366,6 +1366,14 @@ impl Game {
         scr.text(&format!("LV{} RUNES {}/5  BAG: < {} X{} >", self.s.spell_lv, (1..=5).filter(|&i| self.s.cleared[i]).count(), slot.name(), self.slot_count(slot)), 128, y + 12, rgb(0xf878f8), Align::Center, 8);
         scr.text("M MONOLITH  V VILLAGE  C CAVE", 128, y + 26, rgb(0x747474), Align::Center, 8);
         scr.text(&self.quest_line(), 128, y + 38, rgb(0xd878fc), Align::Center, 8);
+        // Relics found so far, in a column at the right edge (empty boxes for the rest).
+        for (i, r) in crate::keepdef::RELICS.iter().enumerate() {
+            let (rx, ry) = (268, HUD + 26 + i as i32 * 22);
+            scr.frame_rect(rx - 9, ry - 9, 18, 18, rgb(0x5c4880));
+            if self.has_relic(*r) && !self.relic_icon(scr, r.key(), rx as f32, ry as f32, false) {
+                scr.disc(rx, ry, 4, rgb(0x98d858));
+            }
+        }
     }
     fn draw_dungeon_map(&self, scr: &mut Screen) {
         let Some(d) = &self.dungeon else { return };

@@ -1580,6 +1580,9 @@ fn keep_tests(t: &mut T) {
     t.tap(Btn::Start);
     // The big-key door and the great chest with the relic.
     t.check(t.g.debug_tile(8, 0) == T_BIGLOCK, "keep: the big-key door bars the stairs");
+    t.g.debug_set_player(128.0, 70.0, b'u');
+    t.frames(20);
+    t.shot("82b_keep_big_door");
     t.g.debug_set_player(128.0, 60.0, b'u');
     t.hold_until(Btn::Up, 60, |g| g.debug_tile(8, 0) != 16);
     t.check(t.g.debug_tile(8, 0) != T_BIGLOCK, "keep: the big key opens the great lock");
