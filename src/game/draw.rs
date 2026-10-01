@@ -984,6 +984,7 @@ impl Game {
             self.draw_bullets(scr);
             self.draw_parts_pass(scr, false);
             self.draw_ambience(scr);
+            self.draw_keep_ambience(scr);
             self.draw_lighting(scr);
             self.draw_parts_pass(scr, true);
             scr.oy = base_oy;

@@ -296,4 +296,97 @@ impl Game {
         }
         let _ = Shutter::None;
     }
+
+    /// Per-lair atmosphere in hand-designed lairs: spores (shrine), dust and drips (crypt),
+    /// falling grit (castle), embers (fortress), sparkles (sanctuary), wisps (tower).
+    /// Deterministic (frame counter), so drawing never touches gameplay randomness.
+    pub(super) fn draw_keep_ambience(&self, scr: &mut Screen) {
+        let Some(d) = &self.dungeon else { return };
+        if d.keep.is_none() {
+            return;
+        }
+        let f = self.frame as f32;
+        let hash = |i: u32| -> u32 {
+            let mut h = i.wrapping_mul(0x9e37_79b9) ^ 0x7f4a_7c15;
+            h ^= h >> 15;
+            h = h.wrapping_mul(0x2c1b_3c6d);
+            h ^ (h >> 12)
+        };
+        let (pw, ph) = (SW, SH - HUD_PX);
+        let wrap = |v: i32, m: i32| ((v % m) + m) % m;
+        match d.theme {
+            4 => {
+                for i in 0..12u32 {
+                    let h = hash(i);
+                    let x = wrap((h >> 8) as i32 % pw + ((f * 0.03 + i as f32).sin() * 10.0) as i32, pw);
+                    let y = wrap((h >> 16) as i32 % ph - (f * (0.15 + (h % 50) as f32 / 400.0)) as i32, ph) + HUD_PX;
+                    let a = 0.35 + 0.3 * (f * 0.07 + i as f32).sin().abs();
+                    scr.blend_screen(x, y, 2, 2, rgb(0xb8f818), a);
+                }
+            }
+            5 => {
+                for i in 0..10u32 {
+                    let h = hash(i + 20);
+                    let x = wrap((h >> 8) as i32 % pw + ((f * 0.01 + i as f32).sin() * 16.0) as i32, pw);
+                    let y = wrap((h >> 16) as i32 % ph + ((f * 0.013 + i as f32).cos() * 10.0) as i32, ph) + HUD_PX;
+                    scr.blend_screen(x, y, 1, 1, rgb(0xc8c8d8), 0.5);
+                }
+                // A drip falls every so often.
+                for i in 0..3u32 {
+                    let h = hash(i + 60);
+                    let period = 150 + (h % 90) as i32;
+                    let t = (self.frame as i32 + (h >> 8) as i32) % period;
+                    if t < 40 {
+                        let x = (h >> 10) as i32 % pw;
+                        let y = HUD_PX + 8 + t * 4;
+                        scr.fill_screen(x, y, 1, 3, rgb(0x78a8dc));
+                    }
+                }
+            }
+            6 => {
+                for i in 0..10u32 {
+                    let h = hash(i + 100);
+                    let x = (h >> 8) as i32 % pw + ((f * 0.02 + i as f32).sin() * 6.0) as i32;
+                    let y = wrap((h >> 16) as i32 % ph + (f * (0.3 + (h % 40) as f32 / 100.0)) as i32, ph) + HUD_PX;
+                    scr.blend_screen(x, y, 1, 2, rgb(0xd8c8a0), 0.55);
+                }
+            }
+            7 => {
+                for i in 0..16u32 {
+                    let h = hash(i + 140);
+                    let x = wrap((h >> 8) as i32 % pw + ((f * 0.04 + i as f32).sin() * 8.0) as i32, pw);
+                    let y = wrap((h >> 16) as i32 % ph - (f * (0.4 + (h % 60) as f32 / 120.0)) as i32, ph) + HUD_PX;
+                    let c = if i % 3 == 0 { rgb(0xfce040) } else { rgb(0xfc7800) };
+                    let a = 0.4 + 0.4 * (f * 0.11 + i as f32).sin().abs();
+                    scr.blend_screen(x, y, 2, 2, c, a);
+                }
+            }
+            8 => {
+                for i in 0..14u32 {
+                    let h = hash(i + 200);
+                    let x = (h >> 8) as i32 % pw;
+                    let y = (h >> 16) as i32 % ph + HUD_PX;
+                    let tw = ((f * 0.06 + i as f32 * 1.3).sin() * 0.5 + 0.5).powi(3);
+                    if tw > 0.2 {
+                        scr.blend_screen(x, y, 1, 1, WHITE, tw);
+                        if tw > 0.7 {
+                            scr.blend_screen(x - 2, y, 5, 1, rgb(0xd4f4fc), tw * 0.5);
+                            scr.blend_screen(x, y - 2, 1, 5, rgb(0xd4f4fc), tw * 0.5);
+                        }
+                    }
+                }
+            }
+            9 => {
+                for i in 0..6u32 {
+                    let h = hash(i + 260);
+                    let x = wrap((h >> 6) as i32 % (pw + 80) + (f * 0.2) as i32, pw + 80) - 40;
+                    let y = HUD_PX + 16 + (h >> 14) as i32 % (ph - 32) + ((f * 0.02 + i as f32).sin() * 8.0) as i32;
+                    let a = 0.06 + 0.05 * (f * 0.03 + i as f32).sin().abs();
+                    scr.blend_screen(x - 20, y - 3, 40, 6, rgb(0xb040fc), a);
+                    scr.blend_screen(x - 10, y - 5, 20, 10, rgb(0xd878fc), a * 0.8);
+                }
+            }
+            _ => {}
+        }
+    }
 }
