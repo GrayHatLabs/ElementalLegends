@@ -77,6 +77,10 @@ OS with PortMaster installed. It then appears under **Ports**.
 The binary links to the system `libSDL2-2.0.so.0` and needs glibc 2.35 or newer
 (it's built on Ubuntu 22.04).
 
+### Playtesting
+
+`docs/QA_GUIDE.md` has the spoilers: world map, main route, lair walkthroughs, caves and mini-bosses.
+
 ### Tests
 
 `scripts/test.sh [screenshot-dir]` runs the unit tests and the headless self-test. The self-test plays through every dungeon and boss and checks the acceptance criteria. Current status is in `IMPLEMENTATION_STATUS.md`.

@@ -248,11 +248,7 @@ impl Game {
         self.float("FELL!", x - 20.0, y - 18.0, rgb(0xfc7460));
         if self.dungeon.is_none() && !self.gate_warned {
             self.gate_warned = true;
-            self.show_msg(if self.has_relic(Relic::Lantern) {
-                "A DEEP CHASM. THE FEATHER CLOAK FROM THE FORGOTTEN SANCTUARY (LAIR 5) WOULD FLOAT YOU ACROSS."
-            } else {
-                "THE GROUND GIVES WAY! THE SPIRIT LANTERN FROM THE UNDERGROUND CRYPT (LAIR 2) SHOWS THE HIDDEN PATH. FIND LAIR 2 ANOTHER WAY."
-            });
+            self.show_msg(if self.has_relic(Relic::Lantern) { "A DEEP CHASM. YOU WOULD NEED TO FLOAT ACROSS IT." } else { "THE GROUND GIVES WAY! A LIGHT THAT SHOWS HIDDEN THINGS MIGHT REVEAL A SAFE PATH." });
         }
         let (rx, ry) = self.room_entry_pos;
         self.pl.x = rx;
@@ -330,8 +326,8 @@ impl Game {
         let (c, r) = tile_of(probe.0, probe.1);
         let (relic, text) = match self.tile_at(c, r) {
             T_THORNS => (Relic::Whip, "THORNY VINES CHOKE THE PATH. SOMETHING SHARP AND SUPPLE COULD CUT THEM."),
-            T_ROCK => (Relic::Gloves, "A HUGE BOULDER BLOCKS THE WAY. THE TITAN GLOVES FROM THE RUINED CASTLE (LAIR 3) COULD MOVE IT."),
-            T_LAVA => (Relic::Boots, "A RIVER OF LAVA BARS THE WAY. THE EMBER BOOTS FROM THE DRAGON FORTRESS (LAIR 4) WOULD BE NEEDED."),
+            T_ROCK => (Relic::Gloves, "A HUGE BOULDER BLOCKS THE WAY. ONLY GREAT STRENGTH COULD MOVE IT."),
+            T_LAVA => (Relic::Boots, "A RIVER OF LAVA BARS THE WAY. BOOTS THAT DEFY FIRE WOULD BE NEEDED."),
             _ => return,
         };
         if self.has_relic(relic) {

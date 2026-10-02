@@ -1333,6 +1333,54 @@ mod tests {
         assert!(problems.is_empty(), "{} blocked doorway pairs", problems.len());
     }
 
+    /// Prints the world for the QA guide: `cargo test --release world_guide -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn world_guide() {
+        let (rooms, start, shop) = gen_world(&build_themes());
+        let region = ["GREENWOOD", "OLD CRYPT", "MIREFEN", "EMBERPEAK"];
+        let mini = |m: u8| match m {
+            MINI_HOARD => "Hoard Dragon", MINI_DRYAD => "Deceiving Dryad", MINI_TREANT => "Angry Treant", MINI_GRAVE => "Graveyard/Grave Lord",
+            MINI_MIMIC => "Mimic Chest", MINI_RACCOON => "Bandit Raccoon", MINI_FAIRY => "Fairy King ring", MINI_BEAR => "Honey Bear",
+            MINI_KNIGHT => "Headless Knight", MINI_BANSHEE => "Banshee", MINI_WITCH => "Bog Witch", MINI_TOAD => "Giant Toad",
+            MINI_WISP => "Will-o-wisp", MINI_SALAMANDER => "Salamander Queen", MINI_FORGE => "Lava Golem Forge", MINI_PHOENIX => "Phoenix",
+            MINI_DOPPEL => "Doppelganger", _ => "",
+        };
+        let relic = ["THORNS (Vine Whip)", "HIDDEN PIT PATH (Spirit Lantern)", "BOULDER (Titan Gloves)", "LAVA (Ember Boots)", "CHASM (Feather Cloak)"];
+        let side = ["N", "S", "E", "W"];
+        // Map: which area owns each cell.
+        let mut grid = vec![vec![usize::MAX; WW]; WH];
+        for r in &rooms {
+            for y in r.y..r.y + r.ch {
+                for x in r.x..r.x + r.cw {
+                    grid[y][x] = r.i;
+                }
+            }
+        }
+        println!("MAP (area numbers; row 0 = north)");
+        for row in &grid {
+            println!("{}", row.iter().map(|i| format!("{i:>4}")).collect::<String>());
+        }
+        for r in &rooms {
+            let mut tags = vec![];
+            if r.i == start { tags.push("MONOLITH START".to_string()); }
+            if r.i == shop { tags.push("VILLAGE".to_string()); }
+            if r.gate > 0 { tags.push(format!("LAIR {}", r.gate)); }
+            if r.cave > 0 { tags.push(format!("CAVE {}", r.cave)); }
+            if r.mini > 0 { tags.push(mini(r.mini).to_string()); }
+            if r.tank { tags.push("heart/tank dead end".to_string()); }
+            if r.cache { tags.push("treasure dead end".to_string()); }
+            if r.shrine.is_some() { tags.push("element shrine".to_string()); }
+            if r.pool.is_some() { tags.push("poison pool".to_string()); }
+            if !r.trees.is_empty() { tags.push("fruit trees".to_string()); }
+            let links: Vec<String> = r.links.iter().map(|l| {
+                let g = r.relic_gates.iter().find(|g| g.0 == l.d && g.1 == l.seg).map(|g| format!(" [needs {}]", relic[g.2.min(4)])).unwrap_or_default();
+                format!("{}->{}{}", side[l.d], l.to, g)
+            }).collect();
+            println!("AREA {:>2} at ({},{}) {}x{} {} dist {} zone {} | {} | {}", r.i, r.x, r.y, r.cw, r.ch, region[r.theme.min(3)], r.dist, r.zone, tags.join(", "), links.join("  "));
+        }
+    }
+
     #[test]
     fn world_layout_is_sane() {
         let (rooms, start, shop) = gen_world(&build_themes());

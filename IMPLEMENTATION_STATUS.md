@@ -170,7 +170,7 @@ The hand-designed lairs have no feast halls or pantries (those belonged to the o
 - Life meter shows 5 hearts of four quarters (4 HP each); HP and hits-to-die unchanged.
 - Bolt damage: ice 1.5 -> 2.0, lightning 1.3 -> 1.7, earth 4.5 -> 5.8 (fire 2.0 unchanged).
 - Camera: in dungeons it looks across a chasm the mage is next to, and frames a whip post in line (the post glows).
-- Overworld relic-gate hints name the relic and its lair (e.g. the hidden-path chasm needs the Spirit Lantern from lair 2).
+- In-game hints stay riddles (user's choice); plain answers live in `docs/QA_GUIDE.md` (world map, route, lair walkthroughs, caves, mini-bosses).
 - One screenshot-mode self-test run failed 12 dungeon-5 checks once and passed on three reruns; cause not found (possible flake).
 
 ## Known issues / next steps
