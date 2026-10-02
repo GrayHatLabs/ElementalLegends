@@ -1266,10 +1266,19 @@ fn encounters(t: &mut T) {
         t.g.debug_select_slot("VINE WHIP");
         let (x, y) = tc(c, r);
         t.g.debug_set_player(x, y, dir);
-        t.frames(2);
+        t.frames(40);
+        // The camera frames the post across the gap, so the far side can be seen.
+        let (px, py) = tc(pc, pr);
+        let (cx, cy) = t.g.debug_cam();
+        let (vw, vh) = t.g.debug_view();
+        let seen = px >= cx + 4.0 && px <= cx + vw - 4.0 && py - 22.0 >= cy && py <= cy + vh;
+        t.check(seen, &format!("lair {n}: the whip post in {room} is on screen from the take-off spot (post {px:.0},{py:.0} cam {cx:.0},{cy:.0} view {vw:.0}x{vh:.0} mage {:?} {})", t.g.debug_player(), t.g.debug_whip_near()));
+        if n == 1 {
+            t.frames(240);
+            t.shot("91_lair1_whip_view");
+        }
         t.tap(Btn::Potion);
         t.frames(40);
-        let (px, py) = tc(pc, pr);
         let (ex, ey) = match dir {
             b'u' => (px, py + 16.0),
             b'l' => (px + 16.0, py),

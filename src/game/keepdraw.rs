@@ -62,6 +62,17 @@ impl Game {
                 }
             }
             OK::Post => {
+                // Glow when the mage can whip to it: brighter while facing it.
+                if let Some((px, py, facing)) = self.whip_post_near() {
+                    if (px - fx).abs() < 1.0 && (py - (y as f32)).abs() < 9.0 {
+                        let pulse = (self.frame as f32 * 0.15).sin().abs();
+                        let a = if facing { 0.25 + pulse * 0.25 } else { 0.12 };
+                        scr.blend_disc(x, y - 6, 14, rgb(0x58d854), a);
+                        if facing {
+                            scr.ring(x, y - 6, 12 + (pulse * 3.0) as i32, rgb(0xb8f818));
+                        }
+                    }
+                }
                 if !self.obj_hd(scr, "obj_whip_post", fx, base) {
                     scr.fill(x - 2, y - 8, 4, 15, rgb(0x6c4420));
                     scr.ring(x, y - 9, 3, rgb(0xfcbc3c));

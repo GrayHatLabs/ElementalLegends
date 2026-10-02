@@ -226,6 +226,13 @@ impl Game {
     pub fn debug_set_rations(&mut self, n: i32) {
         self.s.rations = n;
     }
+    /// The visible world area (logic units).
+    pub fn debug_view(&self) -> (f32, f32) {
+        (VIEW_W, VIEW_H)
+    }
+    pub fn debug_whip_near(&self) -> String {
+        format!("{:?} boss={} minis={}", self.whip_post_near(), self.boss.is_some(), self.enemies.iter().filter(|e| e.mini > 0 && !e.dead).count())
+    }
     pub fn debug_clear_relics(&mut self) {
         self.s.relics = 0;
     }

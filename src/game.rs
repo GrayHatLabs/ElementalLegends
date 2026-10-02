@@ -1029,6 +1029,15 @@ impl Game {
             let lo = (self.pl.y - VIEW_H + 28.0).max(HUDF);
             ty = by.max(lo).min((self.pl.y - 20.0).max(lo));
         }
+        // A whip post in line with the mage: frame both, so the far side of a chasm shows.
+        let mut tx = tx;
+        if let (None, Some((px, py, _))) = (focus, self.whip_post_near()) {
+            let room = self.cur_room();
+            let (mx, my) = Self::cam_target(room, (px + self.pl.x) * 0.5, (py - 24.0 + self.pl.y) * 0.5);
+            let (lo_y, lo_x) = ((self.pl.y - VIEW_H + 16.0).max(HUDF), (self.pl.x - VIEW_W + 20.0).max(0.0));
+            ty = my.max(lo_y).min((self.pl.y - 24.0).max(lo_y));
+            tx = mx.max(lo_x).min((self.pl.x - 20.0).max(lo_x));
+        }
         if snap {
             self.cam = (tx, ty);
         } else {

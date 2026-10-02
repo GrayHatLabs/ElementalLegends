@@ -12,6 +12,35 @@ const HOVER_FRAMES: i32 = 80;
 
 impl Game {
     /// Lash the Vine Whip in the facing direction.
+    /// The nearest whip post lined up with the mage (same row or column, within reach),
+    /// once the Vine Whip is owned: (post x, post y, the mage is facing it).
+    /// The camera frames it and the post glows, so the far side of a chasm is visible.
+    pub(super) fn whip_post_near(&self) -> Option<(f32, f32, bool)> {
+        if !self.has_relic(crate::keepdef::Relic::Whip) {
+            return None;
+        }
+        let dg = self.dungeon.as_ref()?;
+        let (x0, y0) = (self.pl.x, self.pl.y - 2.0);
+        let (fx, fy) = (self.pl.fx, self.pl.fy);
+        let l = fx.hypot(fy).max(0.01);
+        dg.objs[dg.cur]
+            .iter()
+            .filter(|o| o.visible && o.k == OK::Post)
+            .filter_map(|o| {
+                let (px, py) = tile_center(o.c, o.r);
+                let (dx, dy) = (px - x0, py - y0);
+                let lined = (dx.abs() < 10.0 && dy.abs() <= WHIP_REACH + 8.0) || (dy.abs() < 10.0 && dx.abs() <= WHIP_REACH + 8.0);
+                let d = dx.hypot(dy);
+                if !lined || d < 12.0 {
+                    return None;
+                }
+                let facing = (dx * fx + dy * fy) / (d * l) > 0.9 && d <= WHIP_REACH + 4.0;
+                Some((d, px, py, facing))
+            })
+            // The post being faced wins; otherwise the nearest.
+            .min_by(|a, b| (!a.3, a.0).partial_cmp(&(!b.3, b.0)).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(_, px, py, f)| (px, py, f))
+    }
     pub(super) fn use_whip(&mut self) {
         if self.whip.is_some() || self.pull.is_some() {
             return;
