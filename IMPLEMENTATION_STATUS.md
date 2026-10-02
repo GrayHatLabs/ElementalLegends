@@ -165,6 +165,14 @@ The hand-designed lairs have no feast halls or pantries (those belonged to the o
 - **Travel rations:** a new bag slot after the elixir. The shop's first stand now sells a ration (15 gold) for the bag instead of a roast eaten on the spot. Carry up to 5 and eat one with Y for +40 food (refused when already full). New games start with 2.
 - **Lair pots** now sometimes hold bread (12%) or a roast (6%) as well as hearts, magic and coins.
 
+## Handheld playtest tuning (2026-10-02)
+
+- Life meter shows 5 hearts of four quarters (4 HP each); HP and hits-to-die unchanged.
+- Bolt damage: ice 1.5 -> 2.0, lightning 1.3 -> 1.7, earth 4.5 -> 5.8 (fire 2.0 unchanged).
+- Camera: in dungeons it looks across a chasm the mage is next to, and frames a whip post in line (the post glows).
+- Overworld relic-gate hints name the relic and its lair (e.g. the hidden-path chasm needs the Spirit Lantern from lair 2).
+- One screenshot-mode self-test run failed 12 dungeon-5 checks once and passed on three reruns; cause not found (possible flake).
+
 ## Known issues / next steps
 
 - **First hardware run (2026-10-01, RG35XX Pro, Knulli):** the game runs and the user found it fun. On a fresh Knulli card the old launcher failed because PortMaster wasn't installed yet (Knulli installs it from Device Settings); the launcher now runs without PortMaster and logs to log.txt. The Ports menu had no picture; the package now ships cover.png and screenshot.png.
