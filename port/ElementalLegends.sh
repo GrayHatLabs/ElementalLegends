@@ -1,34 +1,52 @@
 #!/bin/bash
-# PortMaster launcher for ELEMENTAL LEGENDS.
+# Launcher for ELEMENTAL LEGENDS (PortMaster style, but also runs without PortMaster).
 # Copy this file and the "elementallegends" folder into your ports directory
-# (e.g. /roms/ports/ or /mnt/sdcard/ports/ depending on firmware).
+# (e.g. /userdata/roms/ports on Knulli, /mnt/mmc/ROMS/Ports on muOS).
+
+# The game folder sits next to this script, wherever the firmware keeps ports.
+GAMEDIR="$(cd "$(dirname "$0")" && pwd)/elementallegends"
+cd "$GAMEDIR" || exit 1
+# Log everything from the very first line (send log.txt if the game doesn't start).
+exec > "$GAMEDIR/log.txt" 2>&1
+echo "Elemental Legends launcher: $(date)"
+echo "script: $0"
+echo "gamedir: $GAMEDIR"
+uname -a
+ldd --version 2>&1 | head -1
 
 XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+controlfolder=""
+for d in /opt/system/Tools/PortMaster /opt/tools/PortMaster "$XDG_DATA_HOME/PortMaster" \
+         /userdata/system/.local/share/PortMaster /userdata/roms/ports/PortMaster \
+         /mnt/mmc/MUOS/PortMaster /roms/ports/PortMaster; do
+  if [ -f "$d/control.txt" ]; then
+    controlfolder="$d"
+    break
+  fi
+done
+echo "PortMaster: ${controlfolder:-not found}"
 
-if [ -d "/opt/system/Tools/PortMaster/" ]; then
-  controlfolder="/opt/system/Tools/PortMaster"
-elif [ -d "/opt/tools/PortMaster/" ]; then
-  controlfolder="/opt/tools/PortMaster"
-elif [ -d "$XDG_DATA_HOME/PortMaster/" ]; then
-  controlfolder="$XDG_DATA_HOME/PortMaster"
-else
-  controlfolder="/roms/ports/PortMaster"
+if [ -n "$controlfolder" ]; then
+  source "$controlfolder/control.txt"
+  [ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
+  get_controls
+  export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 fi
 
-source $controlfolder/control.txt
-[ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
-get_controls
-
-GAMEDIR="/$directory/ports/elementallegends"
-cd "$GAMEDIR"
-> "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1
-
-export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 chmod +x "$GAMEDIR/elementallegends"
+echo "libraries:"
+ldd "$GAMEDIR/elementallegends" 2>&1
 
 # gptokeyb only provides the SELECT+START exit hotkey; the game reads the pad natively.
-$GPTOKEYB "elementallegends" -c "$GAMEDIR/elementallegends.gptk" &
-pm_platform_helper "$GAMEDIR/elementallegends"
-./elementallegends --fullscreen
+if [ -n "$controlfolder" ] && [ -n "$GPTOKEYB" ]; then
+  $GPTOKEYB "elementallegends" -c "$GAMEDIR/elementallegends.gptk" &
+  type pm_platform_helper >/dev/null 2>&1 && pm_platform_helper "$GAMEDIR/elementallegends"
+fi
 
-pm_finish
+echo "starting game"
+./elementallegends --fullscreen
+echo "game exited with code $?"
+
+if [ -n "$controlfolder" ]; then
+  type pm_finish >/dev/null 2>&1 && pm_finish
+fi
