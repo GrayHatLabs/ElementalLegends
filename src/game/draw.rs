@@ -1256,6 +1256,13 @@ impl Game {
         let n = self.slot_count(slot);
         scr.frame_rect(93, 11, 14, 18, rgb(0x5c4880));
         match slot {
+            Slot::Ration => match self.item_hd(IK::Meat) {
+                Some(img) => scr.spr_hd(img, 100.0, 20.0, false),
+                None => {
+                    scr.disc(100, 20, 4, rgb(0xa86030));
+                    scr.fill(100 - 1, 20 - 2, 2, 2, rgb(0xfcbc3c));
+                }
+            },
             Slot::Potion => scr.spr(&self.spr.potion.img, 100.0, 20.0, false),
             Slot::Antidote => scr.spr(&self.spr.antidote.img, 100.0, 20.0, false),
             Slot::Bomb => draw_bomb_icon(scr, 100, 20),

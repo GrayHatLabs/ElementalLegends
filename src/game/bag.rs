@@ -6,6 +6,8 @@ use super::*;
 /// Bag slots, in cycling order.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum Slot {
+    /// Travel rations: food carried in the bag, eaten whenever you like.
+    Ration,
     Potion,
     Antidote,
     Bomb,
@@ -14,7 +16,10 @@ pub(super) enum Slot {
     Whip,
     Cloak,
 }
-pub(super) const SLOTS: [Slot; 4] = [Slot::Potion, Slot::Antidote, Slot::Bomb, Slot::Elixir];
+pub(super) const SLOTS: [Slot; 5] = [Slot::Potion, Slot::Antidote, Slot::Bomb, Slot::Elixir, Slot::Ration];
+pub(super) const MAX_RATIONS: i32 = 5;
+/// Food one ration restores.
+pub(super) const RATION_FOOD: f32 = 40.0;
 pub(super) const MAX_BOMBS: i32 = 9;
 pub(super) const MAX_ELIXIRS: i32 = 3;
 /// Frames from dropping a bomb to its blast.
@@ -26,6 +31,7 @@ const BLAST_DMG: f32 = 8.0;
 impl Slot {
     pub(super) fn name(self) -> &'static str {
         match self {
+            Slot::Ration => "RATION",
             Slot::Potion => "MANA POTION",
             Slot::Antidote => "ANTIDOTE",
             Slot::Bomb => "BOMB",
@@ -62,6 +68,7 @@ impl Game {
     }
     pub(super) fn slot_count(&self, s: Slot) -> i32 {
         match s {
+            Slot::Ration => self.s.rations,
             Slot::Potion => self.s.potions,
             Slot::Antidote => self.s.antidotes,
             Slot::Bomb => self.s.bombs,
@@ -87,6 +94,17 @@ impl Game {
         match self.slot() {
             Slot::Whip => self.use_whip(),
             Slot::Cloak => self.use_cloak(),
+            Slot::Ration => {
+                if self.s.rations <= 0 {
+                    self.float("NO RATIONS", x - 40.0, y - 18.0, rgb(0x747474));
+                    self.sfx(Sfx::Deny);
+                } else if self.s.food >= 99.5 {
+                    self.float("NOT HUNGRY", x - 40.0, y - 18.0, rgb(0xfcbc3c));
+                } else {
+                    self.s.rations -= 1;
+                    self.eat(RATION_FOOD, 0, "RATION");
+                }
+            }
             Slot::Potion => {
                 // The same button cures poison first when you carry an antidote.
                 if self.poison > 0 && self.s.antidotes > 0 {

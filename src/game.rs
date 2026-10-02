@@ -510,6 +510,8 @@ pub struct SaveData {
     blink: bool,
     /// Relics owned (bit per keepdef::Relic).
     relics: u8,
+    /// Travel rations carried in the bag (bag::MAX_RATIONS).
+    rations: i32,
     /// Encounter charms (bit per encounters::CHARM_*).
     charms: u8,
     /// Progress in format 2 lairs, by lair number: opened chests and doors, solved rooms,
@@ -550,6 +552,7 @@ impl SaveData {
             pages: 0,
             blink: false,
             relics: 0,
+            rations: 2,
             charms: 0,
             keeps: std::collections::BTreeMap::new(),
         }
@@ -562,11 +565,11 @@ impl SaveData {
         let l = |v: &[usize]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         let dp = self.dprog.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
         format!(
-            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\npages={}\nblink={}\nrelics={}\ncharms={}\n{}",
+            "version={}\nmax_hp={}\nhp={}\nmax_mp={}\nmp={}\nfood={}\ngold={}\nel={}\nspell_lv={}\nspeed={}\ncleared={}\ntanks={}\ncaches={}\nopened={}\nvisited={}\nroom={}\ntime={}\nheart_price={}\ndprog={}\npotions={}\nmini_seen={}\nmini_done={}\nhoard_left={}\nzombies={}\nantidotes={}\nbombs={}\nelixirs={}\nbag_sel={}\npages={}\nblink={}\nrelics={}\ncharms={}\nrations={}\n{}",
             SAVE_VERSION, self.max_hp, self.hp, self.max_mp, self.mp, self.food, self.gold, self.el, self.spell_lv, self.speed,
             b(&self.cleared), l(&self.tanks), l(&self.caches), l(&self.opened), l(&self.visited), self.room,
             self.time, self.heart_price, dp, self.potions, self.mini_seen, self.mini_done, self.hoard_left,
-            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel, self.pages, self.blink as u8, self.relics, self.charms,
+            self.zombies, self.antidotes, self.bombs, self.elixirs, self.bag_sel, self.pages, self.blink as u8, self.relics, self.charms, self.rations,
             self.keeps.iter().map(|(n, t)| format!("keep{}={}\n", n, t.iter().cloned().collect::<Vec<_>>().join(","))).collect::<String>()
         )
     }
@@ -618,6 +621,7 @@ impl SaveData {
                 "blink" => s.blink = num() as i32 == 1,
                 "relics" => s.relics = num() as u8 & 0x1f,
                 "charms" => s.charms = num() as u8 & 7,
+                "rations" => s.rations = (num() as i32).clamp(0, bag::MAX_RATIONS),
                 k if k.starts_with("keep") => {
                     if let Ok(n) = k[4..].parse::<usize>() {
                         s.keeps.insert(n, v.split(',').map(str::trim).filter(|t| !t.is_empty()).map(str::to_string).collect());
@@ -2092,13 +2096,18 @@ impl Game {
             }
             if self.shop_armed[i] {
                 self.shop_armed[i] = false;
-                let what = ["A HEARTY ROAST", "A MANA POTION TO CARRY", "AN ANTIDOTE FOR POISON", "A BOMB FOR YOUR BAG", "AN ELIXIR: FULL LIFE AND MAGIC", "A HEART CONTAINER"][i];
+                let what = ["A TRAVEL RATION FOR YOUR BAG", "A MANA POTION TO CARRY", "AN ANTIDOTE FOR POISON", "A BOMB FOR YOUR BAG", "AN ELIXIR: FULL LIFE AND MAGIC", "A HEART CONTAINER"][i];
                 self.show_msg(format!("{} FOR {} GOLD. PRESS A TO BUY.", what, prices[i]));
                 if let Some(m) = self.msg.as_mut() {
                     m.1 = 120;
                 }
             }
             if !self.p(Btn::Fire) {
+                continue;
+            }
+            if i == 0 && self.s.rations >= bag::MAX_RATIONS {
+                self.show_msg("YOUR BAG CAN'T HOLD ANY MORE RATIONS.");
+                self.sfx(Sfx::Deny);
                 continue;
             }
             if i == 1 && self.s.potions >= MAX_POTIONS {
@@ -2129,8 +2138,9 @@ impl Game {
             self.s.gold -= prices[i];
             match i {
                 0 => {
-                    self.eat(50.0, 4, "ROAST");
-                    self.show_msg("A HEARTY MEAL! HUNGER SATED.");
+                    self.s.rations += 1;
+                    self.show_msg(format!("A RATION FOR YOUR BAG: {} OF {}. SELECT PICKS IT, Y EATS IT.", self.s.rations, bag::MAX_RATIONS));
+                    self.sfx(Sfx::Pickup);
                 }
                 1 => {
                     self.s.potions += 1;

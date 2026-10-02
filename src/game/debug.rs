@@ -220,6 +220,12 @@ impl Game {
     pub fn debug_room_has_lair(&self, room: usize) -> bool {
         self.rooms.get(room).map_or(false, |r| r.gate > 0)
     }
+    pub fn debug_rations(&self) -> i32 {
+        self.s.rations
+    }
+    pub fn debug_set_rations(&mut self, n: i32) {
+        self.s.rations = n;
+    }
     pub fn debug_clear_relics(&mut self) {
         self.s.relics = 0;
     }

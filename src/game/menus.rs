@@ -172,6 +172,13 @@ impl Game {
     fn draw_slot_icon(&self, scr: &mut Screen, s: Slot, cx: i32, cy: i32) {
         let (x, y) = (cx as f32, cy as f32);
         match s {
+            Slot::Ration => match self.item_hd(IK::Meat) {
+                Some(img) => scr.spr_hd(img, x, y, false),
+                None => {
+                    scr.disc(cx, cy, 4, rgb(0xa86030));
+                    scr.fill(cx - 1, cy - 2, 2, 2, rgb(0xfcbc3c));
+                }
+            },
             Slot::Potion => match self.item_named("mana_potion") {
                 Some(img) => scr.spr_hd(img, x, y, false),
                 None => scr.spr(&self.spr.potion.img, x, y, false),

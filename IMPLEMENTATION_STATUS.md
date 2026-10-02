@@ -159,8 +159,15 @@ there and lives in Mirefen. Save version 4 (the Greenwood move); older saves are
 
 Playtest notes: the player likes the mana potions, and the lighting is "just about right".
 
+## Food (2026-10-01 playtest on the RG35XX Pro: "the food is hard")
+
+The hand-designed lairs have no feast halls or pantries (those belonged to the old generated dungeons). Fixes:
+- **Travel rations:** a new bag slot after the elixir. The shop's first stand now sells a ration (15 gold) for the bag instead of a roast eaten on the spot. Carry up to 5 and eat one with Y for +40 food (refused when already full). New games start with 2.
+- **Lair pots** now sometimes hold bread (12%) or a roast (6%) as well as hearts, magic and coins.
+
 ## Known issues / next steps
 
+- **First hardware run (2026-10-01, RG35XX Pro, Knulli):** the game runs and the user found it fun. On a fresh Knulli card the old launcher failed because PortMaster wasn't installed yet (Knulli installs it from Device Settings); the launcher now runs without PortMaster and logs to log.txt. The Ports menu had no picture; the package now ships cover.png and screenshot.png.
 - **Hardware test needed:** performance with heavy particle scenes on the H700 (particle cap is 700), button mapping, and fullscreen scaling.
 - **Needs playtesting:** boss difficulty and balance, puzzle clarity, and how the cinematics pace and read at full size.
 - **Visual polish:** the Dragon's wing membranes render as fanned lines, and the building art is fully procedural.

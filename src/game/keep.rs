@@ -809,7 +809,20 @@ impl Game {
                 self.sfx(Sfx::Hit);
                 // ALttP-style drops: often nothing, sometimes a heart, magic or coins.
                 let v = self.rng.f();
-                let kind = if v < 0.28 { Some(IK::Heart) } else if v < 0.42 { Some(IK::Potion) } else if v < 0.7 { Some(IK::Coin) } else { None };
+                // Lairs have no feast halls, so pots also hold food.
+                let kind = if v < 0.24 {
+                    Some(IK::Heart)
+                } else if v < 0.36 {
+                    Some(IK::Potion)
+                } else if v < 0.48 {
+                    Some(IK::Bread)
+                } else if v < 0.54 {
+                    Some(IK::Meat)
+                } else if v < 0.76 {
+                    Some(IK::Coin)
+                } else {
+                    None
+                };
                 if let Some(k) = kind {
                     let val = if k == IK::Coin { 5 } else { 0 };
                     self.add_item(k, x, y, val, Elem::Neutral);

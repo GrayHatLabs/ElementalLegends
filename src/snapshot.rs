@@ -363,7 +363,17 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check(t.g.debug_hp() == 20 && t.g.debug_mp() >= 39.5 && t.g.debug_bag().2 == 0, "an elixir fully restores life and magic");
     t.tap(Btn::Start);
     t.tap(Btn::Right);
-    t.check(t.g.debug_paused() && t.g.debug_bag().0 == 0, "the pause menu picks the bag item with Left/Right");
+    t.check(t.g.debug_paused() && t.g.debug_bag().0 == 4, "the pause menu picks the bag item with Left/Right (on to the rations)");
+    t.tap(Btn::Start);
+    // Travel rations: carried food, eaten from the bag.
+    t.g.debug_set_rations(2);
+    t.g.debug_set_food(30.0);
+    t.tap(Btn::Potion);
+    t.check(t.g.debug_rations() == 1 && (t.g.debug_food() - 70.0).abs() < 1.0, "eating a ration from the bag restores food");
+    t.g.debug_set_food(100.0);
+    t.tap(Btn::Potion);
+    t.check(t.g.debug_rations() == 1, "a full mage doesn't waste a ration");
+    t.tap(Btn::Start);
     t.shot("09f_pause_bag");
     let m0 = t.g.debug_muted();
     t.tap(Btn::Bag);
