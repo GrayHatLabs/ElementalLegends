@@ -41,6 +41,32 @@ impl Game {
             .min_by(|a, b| (!a.3, a.0).partial_cmp(&(!b.3, b.0)).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(_, px, py, f)| (px, py, f))
     }
+    /// Standing at the edge of a chasm (pits) and facing it: a point on the far side,
+    /// so the camera can show where the chasm leads.
+    pub(super) fn chasm_far_side(&self) -> Option<(f32, f32)> {
+        self.dungeon.as_ref()?;
+        let (fx, fy) = (self.pl.fx, self.pl.fy);
+        let (ux, uy) = if fx.abs() >= fy.abs() { (fx.signum(), 0.0) } else { (0.0, fy.signum()) };
+        let pit = |x: f32, y: f32| {
+            let (c, r) = tile_of(x, y);
+            matches!(self.tile_at(c, r), T_PIT | T_HIDDEN)
+        };
+        // A pit within two tiles in front of the mage.
+        let near = (1..=2).any(|k| pit(self.pl.x + ux * 16.0 * k as f32, self.pl.y + uy * 16.0 * k as f32));
+        if !near {
+            return None;
+        }
+        // Walk across it to firm ground (at most 10 tiles), then a little beyond.
+        let mut k = 1;
+        while k <= 10 && !pit(self.pl.x + ux * 16.0 * k as f32, self.pl.y + uy * 16.0 * k as f32) {
+            k += 1;
+        }
+        while k <= 12 && pit(self.pl.x + ux * 16.0 * k as f32, self.pl.y + uy * 16.0 * k as f32) {
+            k += 1;
+        }
+        let k = k as f32 + 1.5;
+        Some((self.pl.x + ux * 16.0 * k, self.pl.y + uy * 16.0 * k))
+    }
     pub(super) fn use_whip(&mut self) {
         if self.whip.is_some() || self.pull.is_some() {
             return;
@@ -222,7 +248,11 @@ impl Game {
         self.float("FELL!", x - 20.0, y - 18.0, rgb(0xfc7460));
         if self.dungeon.is_none() && !self.gate_warned {
             self.gate_warned = true;
-            self.show_msg(if self.has_relic(Relic::Lantern) { "A DEEP CHASM. YOU WOULD NEED TO FLOAT ACROSS IT." } else { "THE GROUND GIVES WAY! A LIGHT THAT SHOWS HIDDEN THINGS MIGHT REVEAL A SAFE PATH." });
+            self.show_msg(if self.has_relic(Relic::Lantern) {
+                "A DEEP CHASM. THE FEATHER CLOAK FROM THE FORGOTTEN SANCTUARY (LAIR 5) WOULD FLOAT YOU ACROSS."
+            } else {
+                "THE GROUND GIVES WAY! THE SPIRIT LANTERN FROM THE UNDERGROUND CRYPT (LAIR 2) SHOWS THE HIDDEN PATH. FIND LAIR 2 ANOTHER WAY."
+            });
         }
         let (rx, ry) = self.room_entry_pos;
         self.pl.x = rx;
@@ -300,8 +330,8 @@ impl Game {
         let (c, r) = tile_of(probe.0, probe.1);
         let (relic, text) = match self.tile_at(c, r) {
             T_THORNS => (Relic::Whip, "THORNY VINES CHOKE THE PATH. SOMETHING SHARP AND SUPPLE COULD CUT THEM."),
-            T_ROCK => (Relic::Gloves, "A HUGE BOULDER BLOCKS THE WAY. ONLY GREAT STRENGTH COULD MOVE IT."),
-            T_LAVA => (Relic::Boots, "A RIVER OF LAVA BARS THE WAY. BOOTS THAT DEFY FIRE WOULD BE NEEDED."),
+            T_ROCK => (Relic::Gloves, "A HUGE BOULDER BLOCKS THE WAY. THE TITAN GLOVES FROM THE RUINED CASTLE (LAIR 3) COULD MOVE IT."),
+            T_LAVA => (Relic::Boots, "A RIVER OF LAVA BARS THE WAY. THE EMBER BOOTS FROM THE DRAGON FORTRESS (LAIR 4) WOULD BE NEEDED."),
             _ => return,
         };
         if self.has_relic(relic) {

@@ -228,9 +228,9 @@ fn mult(att: Elem, tgt: Elem) -> f32 {
 fn bolt_stats(e: Elem) -> (f32, f32, f32, i32, i32) {
     match e {
         Elem::Fire => (3.4, 2.0, 3.0, 24, 72),
-        Elem::Ice => (4.4, 1.5, 3.0, 16, 60),
-        Elem::Storm => (7.0, 1.3, 3.0, 20, 40),
-        _ => (3.0, 4.5, 4.0, 33, 70),
+        Elem::Ice => (4.4, 2.0, 3.0, 16, 60),
+        Elem::Storm => (7.0, 1.7, 3.0, 20, 40),
+        _ => (3.0, 5.8, 4.0, 33, 70),
     }
 }
 fn spell_cost(e: Elem) -> f32 {
@@ -1031,7 +1031,8 @@ impl Game {
         }
         // A whip post in line with the mage: frame both, so the far side of a chasm shows.
         let mut tx = tx;
-        if let (None, Some((px, py, _))) = (focus, self.whip_post_near()) {
+        let look = self.whip_post_near().map(|(x, y, _)| (x, y)).or_else(|| self.chasm_far_side());
+        if let (None, Some((px, py))) = (focus, look) {
             let room = self.cur_room();
             let (mx, my) = Self::cam_target(room, (px + self.pl.x) * 0.5, (py - 24.0 + self.pl.y) * 0.5);
             let (lo_y, lo_x) = ((self.pl.y - VIEW_H + 16.0).max(HUDF), (self.pl.x - VIEW_W + 20.0).max(0.0));

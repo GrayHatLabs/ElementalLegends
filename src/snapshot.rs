@@ -1245,6 +1245,22 @@ fn encounters(t: &mut T) {
         }
         t.check(t.g.debug_mode() == Mode::Play, &format!("lair {n}: every room can be visited"));
     }
+    // Walking up to a chasm (no whip yet), the camera looks across to the far side.
+    if t.g.debug_has_keep(1) {
+        t.g.debug_clear_relics();
+        t.g.debug_enter_lair(1);
+        t.g.debug_keep_goto("roothall");
+        t.g.debug_kill_enemies();
+        t.frames(70);
+        let (x, y) = tc(10, 7);
+        t.g.debug_set_player(x, y, b'u');
+        t.frames(40);
+        let (_, far_y) = tc(10, 3);
+        let (_, cy) = t.g.debug_cam();
+        t.check(cy <= far_y - 8.0, &format!("lair 1: at the Root Hall chasm the camera shows the far side (cam y {cy:.0}, far bank {far_y:.0})"));
+        t.frames(240);
+        t.shot("91_lair1_chasm_view");
+    }
     // Every whip swing the lairs rely on lands on solid ground beside its post.
     t.g.debug_grant_relic(0);
     for (n, room, (c, r), dir, (pc, pr)) in [

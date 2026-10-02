@@ -1287,8 +1287,8 @@ impl Game {
         }
         scr.spr(&self.spr.coin.img, 124.0, 7.0, false);
         scr.text(&format!("{:04}", self.s.gold), 130, 3, rgb(0xfcbc3c), Align::Left, 8);
-        // Life: rows of hearts under a -LIFE- label, two HP per heart (half hearts show).
-        let per = ((self.s.max_hp + 29) / 30).max(2);
+        // Life: rows of hearts under a -LIFE- label, four HP per heart (quarter hearts show).
+        let per = ((self.s.max_hp + 59) / 60).max(4);
         let hearts = (self.s.max_hp + per - 1) / per;
         let low = self.s.hp <= 6 && (self.frame >> 3) & 1 == 1;
         let (hx, hy) = (178, 11);
@@ -1301,7 +1301,9 @@ impl Game {
             if v >= per {
                 draw_heart(scr, x, y, full, 7);
             } else if v > 0 {
-                draw_heart(scr, x, y, full, 4);
+                // Quarter, half or three-quarter heart.
+                let q = (v * 4 / per).clamp(1, 3);
+                draw_heart(scr, x, y, full, [0, 2, 4, 5][q as usize]);
             }
         }
         if self.muted {
@@ -1452,7 +1454,7 @@ impl Game {
     }
 }
 
-/// A small heart for the life meter; `cols` < 7 draws only the left part (half heart).
+/// A small heart for the life meter; `cols` < 7 draws only the left part (part of a heart).
 fn draw_heart(scr: &mut Screen, x: i32, y: i32, c: u32, cols: i32) {
     const ROWS: [&str; 6] = [".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."];
     for (j, row) in ROWS.iter().enumerate() {
