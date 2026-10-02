@@ -621,6 +621,12 @@ fn run_dungeon(t: &mut T, n: usize) {
     t.g.debug_set_player(bx as f32 * 16.0 + 8.0, 56.0, b'u');
     t.frames(6);
     t.check(t.g.debug_mode() == Mode::Play && t.g.debug_dungeon().is_none(), &format!("dungeon {n}: standing behind the building doesn't enter it"));
+    // Walking sideways along the front of the building, past the door, doesn't pull you in.
+    let gate_y = 32.0 + 6.0 * 16.0 + 8.0;
+    t.g.debug_set_player(80.0, gate_y + 2.0, b'r');
+    t.frames(2);
+    t.hold_until(Btn::Right, 60, |g| g.debug_player().0 > 176.0);
+    t.check(t.g.debug_mode() == Mode::Play && t.g.debug_dungeon().is_none(), &format!("dungeon {n}: walking past the door doesn't enter it"));
     t.g.debug_set_player(128.0, 176.0, b'u');
     t.frames(2);
     let entered = t.hold_until(Btn::Up, 120, |g| g.debug_mode() == Mode::EnterDungeon);
@@ -818,6 +824,28 @@ fn boss_fight(t: &mut T, n: usize) {
     let mut saw_shots = false;
     let mut strafe_kept = true;
     let mut frame_ms: Vec<f64> = Vec::with_capacity(2400);
+    // Hiding beside the treant, level with it, is no safe spot: its vines lash both sides.
+    if n == 1 {
+        let bx = t.g.debug_boss().map_or(128.0, |b| b.x);
+        let hp0 = t.g.debug_hp();
+        let mut lashed = false;
+        let mut shots = 0;
+        for f in 0..420 {
+            if f % 30 == 0 {
+                t.g.debug_set_player(bx - 56.0, 92.0, b'r');
+            }
+            t.frames(1);
+            let lash = t.g.debug_boss().map_or(false, |b| b.atk == "Lash" && b.hazards > 0);
+            lashed |= lash;
+            // One frame of the warning and one of the strike.
+            if lash && (shots == 0 || (shots == 1 && f % 40 == 0)) {
+                t.shot(&format!("34_boss_1_lash_{shots}"));
+                shots += 1;
+            }
+        }
+        t.check(lashed && t.g.debug_hp() < hp0, &format!("boss 1: standing beside the treant gets lashed (hp {hp0} -> {})", t.g.debug_hp()));
+        t.g.debug_god();
+    }
     t.g.debug_set_player(128.0, 176.0, b'u');
     t.input.set_key(Btn::Fire, true);
     let limit = 2400;

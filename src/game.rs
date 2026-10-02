@@ -1967,6 +1967,13 @@ impl Game {
             (GATE_X, GATE_Y)
         }
     }
+    /// The mage is in a building's or cave's doorway (centred on it, at the wall) and
+    /// pushing up into it. Walking past the front of the building doesn't count.
+    fn walking_into_door(&self, dx: f32, dy: f32) -> bool {
+        let (px, py) = (self.pl.x, self.pl.y);
+        let up = self.held(Btn::Up) || self.inp.aim().map_or(false, |(_, ay)| ay < -0.5);
+        up && (px - dx).abs() < 7.0 && py < dy + 4.0 && py > dy - 20.0
+    }
     fn room_objects(&mut self) {
         let ri = self.room;
         let (px, py) = (self.pl.x, self.pl.y);
@@ -1979,15 +1986,15 @@ impl Game {
         let cave = self.rooms[ri].cave;
         if cave > 0 {
             let (dx, dy) = self.door_pos(ri);
-            if (px - dx).abs() < 12.0 && py < dy + 8.0 && py > dy - 20.0 {
+            if self.walking_into_door(dx, dy) {
                 self.begin_enter_dungeon(cave::LAIRS + cave);
                 return;
             }
         }
         if gate > 0 {
             // The building's doorway sits just below its footprint.
-            // Only right at the doorway, below the building (not anywhere north of it).
-            let at_door = (px - GATE_X).abs() < 12.0 && py < GATE_Y + 8.0 && py > GATE_Y - 14.0;
+            // Only walking up into the doorway itself (not brushing past the building front).
+            let at_door = self.walking_into_door(GATE_X, GATE_Y);
             if at_door {
                 // Open lairs, and conquered ones (their rune stone slides aside).
                 if self.gate_state(gate) >= 1 {

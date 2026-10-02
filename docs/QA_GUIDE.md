@@ -215,6 +215,17 @@ Falling into a gate pit drops you back where you entered the screen, with a ridd
    - **Void Ledge:** use the cloak or the whip to reach the **item finder**.
    - **Cursed Library, Ice Gallery, Root Cellar and Shadow Armory.**
 
+## Bosses
+
+| Lair | Boss | Weak to | Resists | Notes |
+|---|---|---|---|---|
+| 1 | Ancient Treant | fire | earth | Roots under you, a branch sweep across the floor, a shockwave ring, slimes. **Vine Lash:** a red band flashes on both sides at its height, then vines whip across, so don't hide beside it. Half health: phase 2. |
+| 2 | Undead Guardian | storm | ice | Sword slashes at you, guards (blocks), dark orbs, raises the dead. |
+| 3 | Stone Golem | storm | fire | Armour first (break it), then rock throws, ground slam with falling rocks, shockwave. |
+| 4 | Crimson Dragon | ice | fire | Fireballs, flame breath, flies up and lands on you (tracked shadow), tail swipe up close. |
+| 5 | Arcane Sorcerer | earth | storm | Bolts, teleports, magic circles under you, shield, summons in phase 2. |
+| 6 | Dark Sorcerer | ice | fire | Same tricks as lair 5, with three phases. |
+
 ## Caves (optional, 8)
 
 Each cave has either a sealed fight or a freeze-plate puzzle, then a treasure chest. Cleared caves

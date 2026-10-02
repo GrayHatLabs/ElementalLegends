@@ -34,6 +34,8 @@ pub(super) enum Atk {
     Bolts,
     Circles,
     Shield,
+    /// The treant whips its vine arms out to both sides at its own height.
+    Lash,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -54,6 +56,8 @@ pub(super) enum HK {
     Rock,
     Sweep,
     Tail,
+    /// A vine arm lashing out sideways from the treant (a rectangle).
+    Lash,
 }
 
 #[derive(Clone, Debug)]
@@ -165,8 +169,8 @@ pub(super) fn make_boss(n: usize) -> Boss {
 fn attacks(kind: BKind, phase: u8) -> &'static [Atk] {
     use Atk::*;
     match (kind, phase) {
-        (BKind::Treant, 1) => &[Roots, Shock, Branch, Summon],
-        (BKind::Treant, _) => &[Roots, Branch, Shock, Roots, Summon, Branch],
+        (BKind::Treant, 1) => &[Roots, Shock, Lash, Branch, Summon],
+        (BKind::Treant, _) => &[Roots, Branch, Lash, Shock, Roots, Summon, Lash, Branch],
         (BKind::Guardian, 1) => &[Slash, Guard, DarkOrbs, Slash, Raise],
         (BKind::Guardian, _) => &[Slash, DarkOrbs, Guard, Slash, Raise, DarkOrbs],
         (BKind::Golem, 1) => &[Throw, Slam, Shock, Throw],
@@ -199,6 +203,7 @@ fn tele_time(a: Atk) -> i32 {
         Bolts => 20,
         Circles => 12,
         Shield => 14,
+        Lash => 30,
         None => 1,
     }
 }
@@ -216,6 +221,7 @@ fn act_time(a: Atk) -> i32 {
         Bolts => 36,
         Circles => 30,
         Tail => 12,
+        Lash => 14,
         _ => 10,
     }
 }
@@ -229,7 +235,7 @@ fn recover_time(a: Atk) -> i32 {
 }
 /// Bosses whose opening attacks deserve a "!" warning.
 fn big_attack(a: Atk) -> bool {
-    matches!(a, Atk::Roots | Atk::Branch | Atk::Breath | Atk::Fly | Atk::Slash | Atk::Slam | Atk::Circles | Atk::Tail)
+    matches!(a, Atk::Roots | Atk::Branch | Atk::Breath | Atk::Fly | Atk::Slash | Atk::Slam | Atk::Circles | Atk::Tail | Atk::Lash)
 }
 
 impl Game {
@@ -523,6 +529,11 @@ impl Game {
                     if a == Atk::Tail && dist(b.x, b.y, px, py) > 70.0 {
                         a = Atk::Fireball;
                     }
+                    // Standing beside the treant (level with it) is no safe spot: it lashes out.
+                    let beside = (py - b.y).abs() < 34.0 && (px - b.x).abs() > b.w * 0.3;
+                    if b.kind == BKind::Treant && beside && b.atk != Atk::Lash {
+                        a = Atk::Lash;
+                    }
                     if matches!(a, Atk::Summon | Atk::Raise) && self.enemies.len() >= 5 {
                         a = if matches!(b.kind, BKind::Guardian) { Atk::DarkOrbs } else { Atk::Bolts };
                     }
@@ -704,6 +715,16 @@ impl Game {
                 b.ax = y;
                 b.tx = if vx > 0.0 { -1.0 } else { 1.0 };
                 b.hazards.push(Hazard { k: HK::Sweep, x, y, r: 0.0, w: 30.0, h: 14.0, vx, warn: tele, warn_max: tele, act: 50, dmg: 3, track: false });
+            }
+            Atk::Lash => {
+                // Both sides at once, from the treant's trunk out to the walls.
+                let (y, h) = (b.y - 4.0, 52.0);
+                let inner = b.w * 0.3;
+                for (x0, x1) in [(16.0, b.x - inner), (b.x + inner, 240.0)] {
+                    let w = (x1 - x0).max(8.0);
+                    b.hazards.push(Hazard { k: HK::Lash, x: (x0 + x1) / 2.0, y, r: 0.0, w, h, vx: 0.0, warn: tele, warn_max: tele, act: 14, dmg: 3, track: false });
+                }
+                self.sfx(Sfx::Roar);
             }
             Atk::Slam => {
                 b.hazards.push(Hazard::circle(HK::Slam, b.x, b.y + b.h / 2.0 - 4.0, 38.0, tele, 10, 4));
@@ -995,7 +1016,11 @@ impl Game {
                     h.x += (px - h.x) * 0.12;
                     h.y += (py - h.y) * 0.12;
                 }
-                if h.warn == 0 && h.k != HK::Sweep {
+                if h.warn == 0 && h.k == HK::Lash {
+                    self.shake = self.shake.max(5);
+                    self.sfx(Sfx::Hit);
+                }
+                if h.warn == 0 && !matches!(h.k, HK::Sweep | HK::Lash) {
                     let el = match h.k {
                         HK::Magic => Elem::Storm,
                         HK::Root | HK::Rock | HK::Slam => Elem::Earth,
@@ -1072,6 +1097,12 @@ impl Game {
                     HK::Sweep => {
                         scr.blend(16, y - 7, W - 32, 14, rgb(0xd82800), 0.12 + 0.12 * blink as i32 as f32);
                     }
+                    HK::Lash => {
+                        let (hx, hy, w, hh) = (x - h.w as i32 / 2, y - h.h as i32 / 2, h.w as i32, h.h as i32);
+                        scr.blend(hx, hy, w, hh, rgb(0xd82800), 0.10 + p * 0.15 + 0.08 * blink as i32 as f32);
+                        scr.fill(hx, hy, w, 1, rgb(0xd82800));
+                        scr.fill(hx, hy + hh - 1, w, 1, rgb(0xd82800));
+                    }
                     HK::Rock => {
                         scr.blend_ellipse(x, y, (r as f32 * (0.4 + p * 0.6)) as i32, (r as f32 * 0.5 * (0.4 + p * 0.6)) as i32, BLACK, 0.5);
                         let fall = (1.0 - p) * 120.0;
@@ -1137,6 +1168,22 @@ impl Game {
                     HK::Tail => {
                         scr.ring(x, y, r, rgb(0xfc9838));
                         scr.ring(x, y, r - 2, rgb(0xd82800));
+                    }
+                    HK::Lash => {
+                        // Thorny vines whipping across the band.
+                        let (hx, hy, w, hh) = (x - h.w as i32 / 2, y - h.h as i32 / 2, h.w as i32, h.h as i32);
+                        for k in 0..4 {
+                            let vy = hy + 5 + k * (hh - 10) / 3;
+                            let mut lx = hx;
+                            while lx < hx + w {
+                                let wave = ((lx + k * 7 + q * 3) as f32 * 0.35).sin() * 2.0;
+                                scr.fill(lx, vy + wave as i32, 3, 2, rgb(0x2c7c1c));
+                                if (lx / 3 + k) % 4 == 0 {
+                                    scr.fill(lx + 1, vy + wave as i32 - 2, 1, 2, rgb(0x8c5020));
+                                }
+                                lx += 3;
+                            }
+                        }
                     }
                 }
             }
