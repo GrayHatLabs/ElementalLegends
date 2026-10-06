@@ -898,8 +898,17 @@ impl Game {
         if self.in_shop() {
             return Song::Village;
         }
-        if self.dungeon.is_some() {
-            return Song::Dungeon;
+        if let Some(n) = self.dungeon.as_ref().map(|d| d.n) {
+            // Each lair has its own theme; caves share the dungeon tune.
+            return match n {
+                1 => Song::Shrine,
+                2 => Song::Catacomb,
+                3 => Song::Castle,
+                4 => Song::Fortress,
+                5 => Song::Sanctuary,
+                6 => Song::Tower,
+                _ => Song::Dungeon,
+            };
         }
         let r = &self.rooms[self.room];
         if r.special != SP_NONE {

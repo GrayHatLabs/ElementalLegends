@@ -169,7 +169,7 @@ pub fn parse_keep(v: &Value) -> Result<(Keep, Vec<String>), String> {
     }
     let mut warn = vec![];
     let name = o.get("name").and_then(Value::as_str).map(|s| s.to_uppercase()).filter(|s| !s.trim().is_empty());
-    let theme = o.get("theme").and_then(Value::as_u64).map(|t| t as usize).filter(|&t| t <= 10);
+    let theme = o.get("theme").and_then(Value::as_u64).map(|t| t as usize).filter(|&t| t <= 11);
     let relic = match o.get("relic").and_then(Value::as_str) {
         None => None,
         Some(s) => Some(Relic::from_key(s).ok_or(format!("unknown relic \"{s}\""))?),

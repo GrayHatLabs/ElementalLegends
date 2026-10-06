@@ -61,8 +61,15 @@ pub enum Song {
     Swamp,
     Volcano,
     Dungeon,
+    /// Lair interiors, one theme each (lairs 1-6).
+    Shrine,
+    Catacomb,
+    Castle,
+    Fortress,
+    Sanctuary,
+    Tower,
 }
-const SONG_COUNT: usize = 8;
+const SONG_COUNT: usize = 14;
 
 // ---------------------------------------------------------------- instruments
 #[derive(Clone, Copy, PartialEq)]
@@ -254,6 +261,78 @@ const DUNGEON: SongText = SongText {
     ],
 };
 
+// ---------------------------------------------------------------- lair interiors
+const SHRINE: SongText = SongText {
+    bpm: 100.0,
+    div: 4.0,
+    tracks: &[
+        (P_FLUTE, 0.9, "A4 - - - D5 - C5 - A4 - G4 - F4 - G4 - | E4 - - - G4 - A4 - C5 - - - B4 - G4 - | D4 - - - B4 - - - A4 - G4 - F#4 - G4 - | A4 - - - - - - - . . . . D5 - C5 -"),
+        (P_HARP, 0.8, "D3 F3 A3 D4 A3 F3 D3 F3 A3 D4 F4 D4 A3 F3 D3 F3 | C3 E3 G3 C4 G3 E3 C3 E3 G3 C4 E4 C4 G3 E3 C3 E3 | G2 B2 D3 G3 D3 B2 G2 B2 D3 G3 B3 G3 D3 B2 G2 B2 | D3 F3 A3 D4 A3 F3 D3 F3 A3 D4 F4 D4 A3 F3 D3 F3"),
+        (P_STRINGS, 0.45, "D3+F3+A3 - - - - - - - - - - - - - - - | C3+E3+G3 - - - - - - - - - - - - - - - | G2+B2+D3 - - - - - - - - - - - - - - - | D3+F3+A3 - - - - - - - - - - - - - - -"),
+        (P_BASS, 0.7, "D2 - - - - - A2 - D2 - - - - - A2 - | C2 - - - - - G2 - C2 - - - - - G2 - | G1 - - - - - D2 - G1 - - - - - D2 - | D2 - - - - - A2 - D2 - - - - - A2 -"),
+        (P_HAT, 0.4, ". . h . . . h . . . h . . . h ."),
+    ],
+};
+
+const CATACOMB: SongText = SongText {
+    bpm: 80.0,
+    div: 4.0,
+    tracks: &[
+        (P_ORGAN, 0.55, "C3+D#3+G3 - - - - - - - - - - - - - - - | G#2+C3+D#3 - - - - - - - - - - - - - - - | F2+G#2+C3 - - - - - - - - - - - - - - - | G2+B2+D3 - - - - - - - - - - - - - - -"),
+        (P_BELL, 0.75, "G4 - - - - - - - D#4 - - - - - - - | C5 - - - - - - - G#4 - - - G4 - - - | F4 - - - - - G#4 - C5 - - - - - - - | B4 - - - D5 - - - G4 - - - - - - -"),
+        (P_BASS, 0.75, "C2 - - - - - - - C2 - - - G2 - - - | G#1 - - - - - - - G#1 - - - D#2 - - - | F1 - - - - - - - F1 - - - C2 - - - | G1 - - - - - - - G1 - - - D2 - - -"),
+        (P_TOM, 0.5, "t . . . . . . . . . . . t . . ."),
+    ],
+};
+
+const CASTLE: SongText = SongText {
+    bpm: 112.0,
+    div: 4.0,
+    tracks: &[
+        (P_BRASS, 0.8, "E4 - - B3 E4 - G4 - F#4 - E4 - D#4 - B3 - | C4 - - G3 C4 - E4 - D4 - C4 - B3 - G3 - | A3 - C4 - E4 - A4 - G4 - F#4 - E4 - C4 - | B3 - - - D#4 - F#4 - B4 - - - - - . ."),
+        (P_STRINGS, 0.5, "E3 . G3 . B3 . G3 . E3 . G3 . B3 . G3 . | C3 . E3 . G3 . E3 . C3 . E3 . G3 . E3 . | A2 . C3 . E3 . C3 . A2 . C3 . E3 . C3 . | B2 . D#3 . F#3 . D#3 . B2 . D#3 . F#3 . D#3 ."),
+        (P_BASS, 0.75, "E2 - . E2 B2 - . B2 E2 - . E2 E3 - B2 - | C2 - . C2 G2 - . G2 C2 - . C2 C3 - G2 - | A1 - . A1 E2 - . E2 A1 - . A1 A2 - E2 - | B1 - . B1 F#2 - . F#2 B1 - . B1 B2 - F#2 -"),
+        (P_SNARE, 0.6, "s . s s s . s . s . s s s s s ."),
+        (P_KICK, 0.7, "k . . . k . . . k . . . k . . ."),
+    ],
+};
+
+const FORTRESS: SongText = SongText {
+    bpm: 138.0,
+    div: 4.0,
+    tracks: &[
+        (P_PBASS, 1.0, "A1 A1 A2 A1 A1 A2 A1 E2 A1 A1 A2 A1 E2 A2 E2 A1 | A#1 A#1 A#2 A#1 A#1 A#2 A#1 F2 A#1 A#1 A#2 A#1 F2 A#2 F2 A#1 | G1 G1 G2 G1 G1 G2 G1 D2 G1 G1 G2 G1 D2 G2 D2 G1 | A1 A1 A2 A1 A1 A2 A1 E2 A1 A1 A2 A1 E2 A2 E2 A1"),
+        (P_LEAD, 0.75, "A4 - - - A#4 - A4 - E5 - - - D5 - C5 - | D5 - - - F5 - E5 - D5 - A#4 - A4 - - - | G4 - - - A#4 - D5 - G5 - F5 - D5 - A#4 - | C#5 - - - E5 - - - A5 - - - - - . ."),
+        (P_BRASS, 0.45, "A2+C3+E3 - - - - - - - - - - - - - - - | A#2+D3+F3 - - - - - - - - - - - - - - - | G2+A#2+D3 - - - - - - - - - - - - - - - | A2+C#3+E3 - - - - - - - - - - - - - - -"),
+        (P_KICK, 0.9, "k . . k . . k . k . . k . . k ."),
+        (P_SNARE, 0.7, ". . . . s . . . . . . . s . s s"),
+        (P_HAT, 0.5, "h h h h h h h h h h h h h h h h"),
+    ],
+};
+
+const SANCTUARY: SongText = SongText {
+    bpm: 88.0,
+    div: 4.0,
+    tracks: &[
+        (P_BELL, 0.98, "C6 - - - A5 - - - B5 - - - G5 - - - | D6 - - - B5 - - - A5 - G5 - E5 - - - | G5 - - - E5 - C6 - B5 - - - G5 - - - | A5 - - - - - - - F5 - - - - - - -"),
+        (P_HARP, 0.84, "F4 A4 C5 A5 C6 A5 C5 A4 F4 A4 C5 A5 C6 A5 C5 A4 | G4 B4 D5 B5 D6 B5 D5 B4 G4 B4 D5 B5 D6 B5 D5 B4 | E4 G4 C5 G5 C6 G5 C5 G4 E4 G4 C5 G5 C6 G5 C5 G4 | F4 A4 C5 A5 C6 A5 C5 A4 F4 A4 C5 A5 C6 A5 C5 A4"),
+        (P_STRINGS, 0.7, "F3+A3+C4 - - - - - - - - - - - - - - - | G3+B3+D4 - - - - - - - - - - - - - - - | E3+G3+C4 - - - - - - - - - - - - - - - | F3+A3+C4 - - - - - - - - - - - - - - -"),
+        (P_BASS, 0.77, "F2 - - - - - - - C3 - - - - - - - | G2 - - - - - - - D3 - - - - - - - | C2 - - - - - - - G2 - - - - - - - | F2 - - - - - - - C3 - - - - - - -"),
+    ],
+};
+
+const TOWER: SongText = SongText {
+    bpm: 120.0,
+    div: 4.0,
+    tracks: &[
+        (P_ORGAN, 0.62, "B2+D3+F#3 - - - - - - - - - - - - - - - | G2+B2+D3 - - - - - - - - - - - - - - - | C3+E3+G3 - - - - - - - - - - - - - - - | F#2+A#2+C#3 - - - - - - - - - - - - - - -"),
+        (P_LEAD, 0.88, "B4 - - - C5 - B4 - A#4 - B4 - F#4 - - - | G4 - - - A#4 - B4 - D5 - C#5 - B4 - - - | C5 - - - E5 - G5 - F#5 - E5 - C5 - - - | C#5 - - - A#4 - - - F#4 - G4 - A#4 - C#5 -"),
+        (P_PBASS, 1.12, "B1 . B1 . B2 . B1 . B1 . B1 . F#2 . B2 . | G1 . G1 . G2 . G1 . G1 . G1 . D2 . G2 . | C2 . C2 . C3 . C2 . C2 . C2 . G2 . C3 . | F#1 . F#1 . F#2 . F#1 . F#1 . F#1 . C#2 . F#2 ."),
+        (P_TOM, 0.69, "t . . . . . t . . . t . . . . ."),
+        (P_KICK, 1.0, "k . . . k . . . k . . . k . k ."),
+    ],
+};
+
 const LAIR: SongText = SongText {
     bpm: 168.0,
     div: 4.0,
@@ -404,7 +483,7 @@ fn mtof(m: u8) -> f32 {
 
 impl Synth {
     pub fn new(sr: f32) -> Self {
-        let order = [TITLE, FIELD, LAIR, VILLAGE, CRYPT, SWAMP, VOLCANO, DUNGEON];
+        let order = [TITLE, FIELD, LAIR, VILLAGE, CRYPT, SWAMP, VOLCANO, DUNGEON, SHRINE, CATACOMB, CASTLE, FORTRESS, SANCTUARY, TOWER];
         let songs: Vec<SongData> = order.iter().map(parse).collect();
         debug_assert_eq!(songs.len(), SONG_COUNT);
         let echo_len = |s: f32| vec![0.0; (sr * s) as usize + 1];
@@ -797,7 +876,10 @@ impl AudioCallback for Synth {
 pub fn render_music(dir: &str, secs: f32) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
     let sr = 44100u32;
-    let songs = [Song::Title, Song::Village, Song::Field, Song::Crypt, Song::Swamp, Song::Volcano, Song::Dungeon, Song::Lair];
+    let songs = [
+        Song::Title, Song::Village, Song::Field, Song::Crypt, Song::Swamp, Song::Volcano, Song::Dungeon, Song::Lair, Song::Shrine,
+        Song::Catacomb, Song::Castle, Song::Fortress, Song::Sanctuary, Song::Tower,
+    ];
     for song in songs {
         let mut s = Synth::new(sr as f32);
         s.play_song(Some(song));
@@ -853,7 +935,10 @@ mod tests {
     #[test]
     fn every_song_parses_and_renders_sound() {
         let mut s = Synth::new(22050.0);
-        for song in [Song::Title, Song::Field, Song::Lair, Song::Village, Song::Crypt, Song::Swamp, Song::Volcano, Song::Dungeon] {
+        for song in [
+            Song::Title, Song::Field, Song::Lair, Song::Village, Song::Crypt, Song::Swamp, Song::Volcano, Song::Dungeon, Song::Shrine,
+            Song::Catacomb, Song::Castle, Song::Fortress, Song::Sanctuary, Song::Tower,
+        ] {
             let d = &s.songs[song as usize];
             assert!(d.len >= 16, "{song:?} has a full bar");
             assert!(d.tracks.iter().all(|t| !t.events.is_empty()), "{song:?} tracks have notes");

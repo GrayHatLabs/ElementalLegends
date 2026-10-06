@@ -37,7 +37,7 @@ cave or lair. The overworld stays procedurally generated.
 | `kind` | yes | `"cave"` or `"lair"` |
 | `number` | yes | Cave 1-8 or lair 1-6; must match the file name |
 | `name` | no | Shown when entering (caves) and on the dungeon map. Upper-case letters, digits and basic punctuation only |
-| `theme` | no | Wall/floor tileset index (see *Themes*). Default: the cave's region, or the lair's own set |
+| `theme` | no | Wall/floor tileset index (see *Themes*). Default: the cave tileset (11) for caves, or the lair's own set |
 | `rooms` | yes | Rooms by slot name (see below). Slots you leave out keep their generated layout |
 
 ### Room slots
@@ -168,7 +168,7 @@ automatically.
 | 2 | Mirefen | 8 | Forgotten sanctuary |
 | 3 | Emberpeak | 9 | Dark tower |
 | 4 | Overgrown shrine | 10 | Village shop |
-| 5 | Underground crypt | | |
+| 5 | Underground crypt | 11 | Cave |
 
 ## Validation
 

@@ -741,5 +741,9 @@ pub fn build_themes() -> Vec<Theme> {
         rgb(0xd8b878),
         true,
     );
-    vec![forest, crypt, swamp, volcano, shrine, crypt_d, castle, fortress, sanctuary, tower, shop]
+    // Natural caves: packed earth floors and rounded rock walls (index 11, see cave.rs).
+    let cave_floors = floors(|s, d| flagstone(rgb(0x3a3028), s, d), 1101);
+    let cave_walls = vec![boulder(&cave_floors[0]), boulder(&cave_floors[1])];
+    let cave = theme("CAVE", cave_floors, cave_walls, rgb(0x7c6c58), true);
+    vec![forest, crypt, swamp, volcano, shrine, crypt_d, castle, fortress, sanctuary, tower, shop, cave]
 }

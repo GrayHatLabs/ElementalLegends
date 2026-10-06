@@ -259,9 +259,9 @@ pub fn parse(text: &str) -> Result<(Level, Vec<String>), String> {
     let theme = match o.get("theme") {
         None | Some(Value::Null) => None,
         Some(t) => match t.as_u64() {
-            Some(t) if t <= 10 => Some(t as usize),
+            Some(t) if t <= 11 => Some(t as usize),
             _ => {
-                warn.push("\"theme\" must be 0-10; using the default".into());
+                warn.push("\"theme\" must be 0-11; using the default".into());
                 None
             }
         },

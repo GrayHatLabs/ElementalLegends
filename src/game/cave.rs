@@ -50,9 +50,11 @@ pub(super) fn cave_name(n: usize) -> &'static str {
     ["MOSSY HOLLOW", "WHISPERING GROTTO", "BONE CAVE", "ROOTED DEN", "FROSTED CAVERN", "SUNKEN BURROW", "ECHOING DEEP", "EMBER VAULT"]
         [(n - LAIRS - 1).min(CAVES - 1)]
 }
-/// Cave walls: the lair tileset that best matches each overworld region.
-fn cave_theme(region: usize) -> usize {
-    [4, 5, 4, 7][region.min(3)]
+/// Tileset index of the natural-cave theme (sprites::build_themes).
+pub(super) const CAVE_THEME: usize = 11;
+/// Every cave uses the rocky cave tileset.
+fn cave_theme(_region: usize) -> usize {
+    CAVE_THEME
 }
 /// The room holding the challenge and the treasure room (dungeon room slots).
 pub(super) fn cave_rooms(three: bool) -> (usize, usize) {

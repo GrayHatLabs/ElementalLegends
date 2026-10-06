@@ -18,7 +18,7 @@ const BRUSHES = [
 ];
 const TILE_NAMES = { '.': 'floor', '#': 'wall', '~': 'water', 'i': 'ice', 'c': 'cracked wall', 'o': 'pressure plate', 'D': 'decoration' };
 const THEMES = ['Greenwood', 'Old crypt', 'Mirefen', 'Emberpeak', 'Overgrown shrine', 'Underground crypt',
-  'Ruined castle', 'Dragon fortress', 'Forgotten sanctuary', 'Dark tower', 'Village shop'];
+  'Ruined castle', 'Dragon fortress', 'Forgotten sanctuary', 'Dark tower', 'Village shop', 'Cave'];
 const KINDS = ['slime', 'bat', 'skeleton', 'imp', 'ghost', 'golem', 'zombie', 'generator'];
 const ELEMENTS = ['fire', 'ice', 'storm', 'earth', 'neutral'];
 const SHRINE_ELEMENTS = ['fire', 'ice', 'storm', 'earth'];
@@ -110,7 +110,7 @@ function gapTiles(side) {
 }
 function defaultTheme(level) {
   if (level.kind === 'lair') return Math.min(Math.max(level.number | 0, 1), 6) + 3;
-  return 4; // caves: depends on the region they sit in (4, 5 or 7); preview with 4
+  return 11; // caves: the rocky cave tileset
 }
 
 // ------------------------------------------------------------------ model
@@ -708,7 +708,7 @@ function renderHeader() {
   const d = defaultTheme(L);
   $('themeNote').textContent = L.theme === null
     ? (L.kind === 'lair' ? 'Default: the lair\'s own set (' + d + ' ' + THEMES[d] + ').'
-      : 'Default: the region\'s set (4, 5 or 7). Previewing ' + d + ' ' + THEMES[d] + '.')
+      : 'Default: the rocky cave set (' + d + ' ' + THEMES[d] + ').')
     : '';
 }
 function renderTabs() {

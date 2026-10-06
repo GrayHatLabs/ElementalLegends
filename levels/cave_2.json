@@ -3,7 +3,7 @@
   "kind": "cave",
   "number": 2,
   "name": "WHISPERING GROTTO",
-  "theme": 4,
+  "theme": 11,
   "rooms": {
     "mouth": {
       "tiles": [
