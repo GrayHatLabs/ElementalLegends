@@ -173,6 +173,12 @@ The hand-designed lairs have no feast halls or pantries (those belonged to the o
 - In-game hints stay riddles (user's choice); plain answers live in `docs/QA_GUIDE.md` (world map, route, lair walkthroughs, caves, mini-bosses).
 - One screenshot-mode self-test run failed 12 dungeon-5 checks once and passed on three reruns; cause not found (possible flake).
 
+## October polish (2026-10-06)
+
+- Redrawn mini-bosses: a warty Giant Toad (bloated when full), a dark grizzly Honey Bear that rears up to swipe, a crowned lava Salamander Queen (art repo 8439563, about 41 PixelLab generations).
+- Caves use their own rocky tileset (theme 11 CAVE: rock walls, packed-earth floor, dark pools, stalagmites, crystals, pebbles).
+- Each lair has its own music theme; caves keep the dungeon tune.
+
 ## Known issues / next steps
 
 - **First hardware run (2026-10-01, RG35XX Pro, Knulli):** the game runs and the user found it fun. On a fresh Knulli card the old launcher failed because PortMaster wasn't installed yet (Knulli installs it from Device Settings); the launcher now runs without PortMaster and logs to log.txt. The Ports menu had no picture; the package now ships cover.png and screenshot.png.
