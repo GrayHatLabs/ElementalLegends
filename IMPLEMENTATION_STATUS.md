@@ -178,6 +178,6 @@ The hand-designed lairs have no feast halls or pantries (those belonged to the o
 - **First hardware run (2026-10-01, RG35XX Pro, Knulli):** the game runs and the user found it fun. On a fresh Knulli card the old launcher failed because PortMaster wasn't installed yet (Knulli installs it from Device Settings); the launcher now runs without PortMaster and logs to log.txt. The Ports menu had no picture; the package now ships cover.png and screenshot.png.
 - **Hardware test needed:** performance with heavy particle scenes on the H700 (particle cap is 700), button mapping, and fullscreen scaling.
 - **Needs playtesting:** boss difficulty and balance, puzzle clarity, and how the cinematics pace and read at full size.
-- **Visual polish:** the Dragon's wing membranes render as fanned lines, and the building art is fully procedural.
+- **Visual polish:** the Crimson Dragon and the lair buildings use their PixelLab sprites (with proper wings and facades); the old procedural versions (fanned-line wings) remain only as fallbacks when art is missing.
 - **Fixed after playtest (2026-09-29):** the mage could get trapped inside a combat room's portcullis while standing in the doorway. The mage is now pushed into the room, and a regression check covers it.
 - **Fixed:** a dungeon lever behind a hidden wall couldn't be pulled because its touch range was too small.
