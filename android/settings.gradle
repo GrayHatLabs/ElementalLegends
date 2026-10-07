@@ -1,0 +1,2 @@
+rootProject.name = 'ElementalLegends'
+include ':app'

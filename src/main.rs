@@ -55,8 +55,31 @@ fn map_button(b: Button) -> Option<Btn> {
     })
 }
 
+/// Android: SDL's Java side (android/) loads libmain.so and calls this, its usual entry point.
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "C" fn SDL_main(_argc: std::os::raw::c_int, _argv: *const *const std::os::raw::c_char) -> std::os::raw::c_int {
+    match main() {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("elemental legends: {e}");
+            1
+        }
+    }
+}
+
 fn main() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();
+    // Android (handhelds with a pad on stock Android): saves in the app's own storage, landscape
+    // only, and the Back button doesn't quit the game.
+    #[cfg(target_os = "android")]
+    {
+        if let Ok(p) = sdl2::filesystem::pref_path("GrayHatLabs", "ElementalLegends") {
+            std::env::set_var("ELEMENTAL_SAVE_DIR", p);
+        }
+        sdl2::hint::set("SDL_ANDROID_TRAP_BACK_BUTTON", "1");
+        sdl2::hint::set("SDL_IOS_ORIENTATIONS", "LandscapeLeft LandscapeRight");
+    }
     if let Some(i) = args.iter().position(|a| a == "--render-music") {
         let dir = args.get(i + 1).map(String::as_str).unwrap_or("music");
         audio::render_music(dir, 32.0).map_err(|e| e.to_string())?;
@@ -74,6 +97,7 @@ fn main() -> Result<(), String> {
     sdl2::hint::set("SDL_RENDER_SCALE_QUALITY", "0");
 
     let fullscreen = args.iter().any(|a| a == "--fullscreen")
+        || cfg!(target_os = "android")
         || (cfg!(target_arch = "aarch64") && !args.iter().any(|a| a == "--windowed"));
 
     let mut wb = video.window("Elemental Legends", 960, 720);
@@ -184,7 +208,11 @@ fn main() -> Result<(), String> {
         let (ww, wh) = canvas.output_size()?;
         let (gw, gh) = (gfx::SW as u32, gfx::SH as u32);
         let s = (ww / gw).min(wh / gh);
-        let (dw, dh) = if s >= 1 {
+        // Android screens vary (system bars, cutouts): when whole-number scaling would leave wide
+        // borders, fill the screen instead (keeping the shape).
+        let fit = (ww as f32 / gw as f32).min(wh as f32 / gh as f32);
+        let fill = cfg!(target_os = "android") && (s as f32) < fit * 0.9;
+        let (dw, dh) = if s >= 1 && !fill {
             (gw * s, gh * s)
         } else {
             let f = (ww as f32 / gw as f32).min(wh as f32 / gh as f32);

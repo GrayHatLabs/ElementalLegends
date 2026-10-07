@@ -179,6 +179,14 @@ The hand-designed lairs have no feast halls or pantries (those belonged to the o
 - Caves use their own rocky tileset (theme 11 CAVE: rock walls, packed-earth floor, dark pools, stalagmites, crystals, pebbles).
 - Each lair has its own music theme; caves keep the dungeon tune.
 
+## Android build (2026-10-07)
+
+- `scripts/build-android.sh` makes `dist/ElementalLegends.apk` (arm64 + x86_64, minSdk 24), from the same
+  source as desktop and handheld, via SDL's Java shell in `android/` and cargo-ndk (copied from Ashen Sanctum).
+- Fullscreen landscape; saves in the app's storage; Back doesn't quit; fills the screen when whole-number
+  scaling would leave wide borders. No touch controls (needs a pad).
+- Verified only in the Android 14 emulator (title and element screens, screenshots). Not tried on a real device.
+
 ## Known issues / next steps
 
 - **First hardware run (2026-10-01, RG35XX Pro, Knulli):** the game runs and the user found it fun. On a fresh Knulli card the old launcher failed because PortMaster wasn't installed yet (Knulli installs it from Device Settings); the launcher now runs without PortMaster and logs to log.txt. The Ports menu had no picture; the package now ships cover.png and screenshot.png.

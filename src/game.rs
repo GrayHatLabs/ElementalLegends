@@ -644,6 +644,10 @@ impl SaveData {
     }
 }
 fn save_path() -> std::path::PathBuf {
+    // Android keeps the save in the app's own storage (set in main.rs).
+    if let Ok(dir) = std::env::var("ELEMENTAL_SAVE_DIR") {
+        return std::path::Path::new(&dir).join("elementallegends.sav");
+    }
     std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("elementallegends.sav")))

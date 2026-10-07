@@ -81,6 +81,20 @@ The binary links to the system `libSDL2-2.0.so.0` and needs glibc 2.35 or newer
 
 `docs/QA_GUIDE.md` has the spoilers: world map, main route, lair walkthroughs, caves and mini-bosses.
 
+### Android (handhelds with a pad on stock Android, phones with a controller)
+
+From WSL, with the Android SDK/NDK installed (the same one-time setup as Ashen Sanctum's
+`scripts/setup-android.sh`):
+
+```bash
+scripts/build-android.sh          # builds dist/ElementalLegends.apk (arm64 + x86_64)
+scripts/android-emulator-test.sh  # boots an emulator, installs and screenshots it (dist/android_test*.png)
+```
+
+Copy the APK to the device and install it (allow installs from unknown sources). It is signed with a
+local sideload key (`android/sideload.keystore`, made on first build, kept out of git). The game needs
+a gamepad or built-in controls; there are no touch controls. Saves live in the app's own storage.
+
 ### Tests
 
 `scripts/test.sh [screenshot-dir]` runs the unit tests and the headless self-test. The self-test plays through every dungeon and boss and checks the acceptance criteria. Current status is in `IMPLEMENTATION_STATUS.md`.
