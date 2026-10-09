@@ -112,3 +112,7 @@ a gamepad or built-in controls; there are no touch controls. Saves live in the a
 
 `elementallegends --snapshot <dir>` plays a scripted run with no window and writes
 PNG screenshots. Useful for checking rendering without a display.
+
+## License
+
+Code: MIT. Art and music: CC BY 4.0 (credit "Elemental Legends by GrayHatLabs"). See `LICENSE` and `LICENSE-ART`.
