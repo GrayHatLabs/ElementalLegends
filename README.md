@@ -95,6 +95,15 @@ Copy the APK to the device and install it (allow installs from unknown sources).
 local sideload key (`android/sideload.keystore`, made on first build, kept out of git). The game needs
 a gamepad or built-in controls; there are no touch controls. Saves live in the app's own storage.
 
+### Downloads and CI
+
+- **CI** (`.github/workflows/ci.yml`): every push to `main` runs the unit tests and the headless self-test.
+- **Release** (`.github/workflows/release.yml`): pushing a version tag (`git tag v0.5.0 && git push origin v0.5.0`)
+  builds Windows (.exe, SDL built in), Linux x86_64 (static SDL), the handheld PortMaster zip (aarch64) and
+  the Android APK, and publishes them on a GitHub Release. Running it by hand from the Actions tab
+  uploads the builds as workflow artifacts only. Optional repo secret `ANDROID_KEYSTORE_B64` (base64 of a
+  keystore with alias/passwords `elementallegends`) keeps Android updates installable over older versions.
+
 ### Tests
 
 `scripts/test.sh [screenshot-dir]` runs the unit tests and the headless self-test. The self-test plays through every dungeon and boss and checks the acceptance criteria. Current status is in `IMPLEMENTATION_STATUS.md`.

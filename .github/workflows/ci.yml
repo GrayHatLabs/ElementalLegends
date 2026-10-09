@@ -1,0 +1,29 @@
+# Every push and pull request: the unit tests and the scripted self-test (headless, no window).
+# Platform builds (Windows, Linux, handheld, Android) are in release.yml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: SDL2
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests
+        run: cargo test --release
+      - name: Self-test (plays through every lair, boss, cave and encounter)
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: |
+          cargo build --release
+          ./target/release/elementallegends --selftest
+

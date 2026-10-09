@@ -1,0 +1,190 @@
+# Builds the game for every platform and publishes them as downloads on a GitHub Release.
+# Push a version tag to make one:   git tag v0.5.0 && git push origin v0.5.0
+# (or run it by hand from the Actions tab: a manual run uploads the builds as workflow artifacts only).
+#
+# - Windows (x86_64): a standalone .exe, SDL2 built in, cross-compiled with MinGW.
+# - Linux (x86_64): a standalone binary, SDL2 built in and linked statically.
+# - Handhelds (aarch64 Linux: Anbernic RG35XX H/Pro with PortMaster): the port folder
+#   (as scripts/build-handheld.sh), built natively on an arm64 runner against the system SDL2.
+# - Android (arm64 + x86_64): a sideloadable APK (as scripts/build-android.sh). It is signed with the
+#   ANDROID_KEYSTORE_B64 secret if the repo has one (so updates install over older versions), otherwise
+#   with a fresh throwaway key.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: MinGW and CMake
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mingw-w64 cmake
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows
+      - name: Build
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: x86_64-w64-mingw32-gcc
+          CC_x86_64_pc_windows_gnu: x86_64-w64-mingw32-gcc
+          CXX_x86_64_pc_windows_gnu: x86_64-w64-mingw32-g++
+          AR_x86_64_pc_windows_gnu: x86_64-w64-mingw32-ar
+          # SDL2's registry calls need advapi32, which the sdl2 crate doesn't link on its own.
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS: -C link-arg=-ladvapi32
+        run: cargo build --release --target x86_64-pc-windows-gnu --features bundled
+      - name: Package
+        run: |
+          mkdir -p out/ElementalLegends-windows
+          cp target/x86_64-pc-windows-gnu/release/elementallegends.exe out/ElementalLegends-windows/ElementalLegends.exe
+          cp README.md docs/QA_GUIDE.md out/ElementalLegends-windows/
+          cd out && zip -qr ElementalLegends-windows.zip ElementalLegends-windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: out/ElementalLegends-windows.zip
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tools and SDL2's backends (X11, Wayland, ALSA, PulseAudio)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libxss-dev libxinerama-dev libxfixes-dev libwayland-dev libxkbcommon-dev wayland-protocols \
+            libasound2-dev libpulse-dev libgl1-mesa-dev libegl1-mesa-dev libudev-dev libdbus-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux
+      - name: Build (SDL2 built in)
+        run: cargo build --release --features bundled
+      - name: Package
+        run: |
+          mkdir -p out/ElementalLegends-linux
+          cp target/release/elementallegends out/ElementalLegends-linux/ElementalLegends
+          chmod +x out/ElementalLegends-linux/ElementalLegends
+          cp README.md docs/QA_GUIDE.md out/ElementalLegends-linux/
+          cd out && tar czf ElementalLegends-linux-x86_64.tar.gz ElementalLegends-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: out/ElementalLegends-linux-x86_64.tar.gz
+
+  handheld:
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: SDL2
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: handheld
+      - name: Build
+        run: cargo build --release
+      - name: Package (PortMaster-style port folder)
+        run: |
+          OUT=out/ports
+          mkdir -p "$OUT/elementallegends"
+          cp target/release/elementallegends "$OUT/elementallegends/"
+          cp port/ElementalLegends.sh "$OUT/"
+          cp port/elementallegends.gptk port/cover.png port/screenshot.png README.md "$OUT/elementallegends/"
+          chmod +x "$OUT/ElementalLegends.sh" "$OUT/elementallegends/elementallegends"
+          cd out && zip -qr ElementalLegends-handheld-aarch64.zip ports
+      - uses: actions/upload-artifact@v4
+        with:
+          name: handheld
+          path: out/ElementalLegends-handheld-aarch64.zip
+
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK and NDK
+        run: |
+          SM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SM" --licenses > /dev/null || true
+          "$SM" --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264" > /dev/null
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android
+          workspaces: android/rust
+      - name: cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Build the game library (arm64 for devices, x86_64 for the emulator)
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.3.11579264"
+          export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
+          JNI=android/app/src/main/jniLibs
+          cargo ndk -t arm64-v8a -t x86_64 -P 24 -o "$JNI" build --release --manifest-path android/rust/Cargo.toml
+          # SDL and hidapi were built as shared libraries next to the game: ship them too.
+          for pair in arm64-v8a:aarch64-linux-android x86_64:x86_64-linux-android; do
+            abi=${pair%%:*}; triple=${pair##*:}
+            for lib in libSDL2.so libhidapi.so; do
+              f=$(find android/rust/target/$triple/release -name "$lib" | head -1)
+              [ -n "$f" ] && cp "$f" "$JNI/$abi/"
+            done
+            ls -la "$JNI/$abi"
+          done
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            echo "$KEYSTORE" | base64 -d > android/sideload.keystore
+          else
+            echo "No ANDROID_KEYSTORE_B64 secret: signing with a throwaway key."
+            keytool -genkeypair -keystore android/sideload.keystore -alias elementallegends -keyalg RSA -keysize 2048 \
+              -validity 10000 -storepass elementallegends -keypass elementallegends -dname "CN=Elemental Legends, O=GrayHatLabs"
+          fi
+      - name: Build the APK
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          cd android && chmod +x gradlew && ./gradlew -q assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk ../ElementalLegends-android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: ElementalLegends-android.apk
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [windows, linux, handheld, android]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: builds
+          merge-multiple: true
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Elemental Legends ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## Downloads
+            - **Windows:** `ElementalLegends-windows.zip`: unzip and run `ElementalLegends.exe` (nothing else to install).
+            - **Linux (x86_64):** `ElementalLegends-linux-x86_64.tar.gz`: unpack and run `./ElementalLegends`.
+            - **Handhelds (aarch64, PortMaster):** `ElementalLegends-handheld-aarch64.zip`: copy the `ports` folder's
+              contents into the card's ports folder (Anbernic RG35XX H/Pro on Knulli, muOS or ROCKNIX).
+            - **Android:** `ElementalLegends-android.apk`: sideload it (allow installs from unknown sources; needs a gamepad).
+
+            Spoilers and a walkthrough for testing: `QA_GUIDE.md` (inside the Windows and Linux downloads).
+          files: builds/*
