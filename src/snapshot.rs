@@ -534,6 +534,11 @@ pub fn run(dir: Option<&str>) -> i32 {
     t.check(t.g.debug_enemy(id).map_or(false, |e| e.freeze > 0), "second ice hit on a chilled enemy freezes it");
     t.frames(16);
     t.shot("14_frozen");
+    // The PortMaster screenshot (port/screenshot.png): this scene with a normal life meter.
+    let (hp, max) = (t.g.debug_hp(), t.g.debug_max().0);
+    t.g.debug_set_hp(15, 20);
+    t.shot("00_port_screenshot");
+    t.g.debug_set_hp(hp, max);
     let mut shards = 0;
     for _ in 0..200 {
         t.frames(1);
@@ -874,7 +879,9 @@ fn boss_fight(t: &mut T, n: usize) {
             strafe_kept = false;
         }
         match f {
-            150 => t.shot(&format!("34_boss_{n}_a")),
+            150 => {
+                t.shot(&format!("34_boss_{n}_a"));
+            }
             400 => {
                 t.shot(&format!("35_boss_{n}_b"));
                 t.g.debug_boss_hp(0.45);

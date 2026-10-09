@@ -98,7 +98,7 @@ jobs:
           mkdir -p "$OUT/elementallegends"
           cp target/release/elementallegends "$OUT/elementallegends/"
           cp port/ElementalLegends.sh "$OUT/"
-          cp port/elementallegends.gptk port/cover.png port/screenshot.png README.md "$OUT/elementallegends/"
+          cp port/elementallegends.gptk port/cover.png port/screenshot.png port/port.json port/gameinfo.xml README.md "$OUT/elementallegends/"
           chmod +x "$OUT/ElementalLegends.sh" "$OUT/elementallegends/elementallegends"
           cd out && zip -qr ElementalLegends-handheld-aarch64.zip ports
       - uses: actions/upload-artifact@v4

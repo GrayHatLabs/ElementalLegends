@@ -15,8 +15,8 @@ mkdir -p "$OUT/elementallegends"
 cp "$CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/elementallegends" "$OUT/elementallegends/"
 cp port/ElementalLegends.sh "$OUT/"
 cp port/elementallegends.gptk "$OUT/elementallegends/"
-# Menu art for the Ports list (cover + screenshot, PortMaster convention).
-cp port/cover.png port/screenshot.png "$OUT/elementallegends/"
+# Menu art and metadata for the Ports list (PortMaster: cover, screenshot, port.json, gameinfo.xml).
+cp port/cover.png port/screenshot.png port/port.json port/gameinfo.xml "$OUT/elementallegends/"
 cp README.md "$OUT/elementallegends/"
 chmod +x "$OUT/ElementalLegends.sh" "$OUT/elementallegends/elementallegends"
 (cd dist && rm -f ElementalLegends-aarch64.zip && python3 -m zipfile -c ElementalLegends-aarch64.zip ports/)

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<gameList>
+  <game>
+    <path>./ElementalLegends.sh</path>
+    <name>Elemental Legends</name>
+    <desc>A young mage awakens at the rune stone and masters fire, ice, storm and earth magic to conquer five elemental lairs and the Dark Tower. A Link to the Past style action RPG with relics, puzzles, caves, side quests and fifteen mini-bosses.</desc>
+    <releasedate>20261009T000000</releasedate>
+    <developer>GrayHatLabs</developer>
+    <publisher>GrayHatLabs</publisher>
+    <genre>Action RPG</genre>
+    <players>1</players>
+    <image>./elementallegends/cover.png</image>
+    <thumbnail>./elementallegends/screenshot.png</thumbnail>
+  </game>
+</gameList>

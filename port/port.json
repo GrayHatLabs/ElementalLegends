@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "name": "elementallegends.zip",
+  "items": [
+    "ElementalLegends.sh",
+    "elementallegends"
+  ],
+  "items_opt": [],
+  "attr": {
+    "title": "Elemental Legends",
+    "porter": [
+      "GrayHatLabs"
+    ],
+    "desc": "A young mage awakens at the rune stone and masters fire, ice, storm and earth magic to conquer five elemental lairs and the Dark Tower. A Link to the Past style action RPG with relics, puzzles, caves, side quests and fifteen mini-bosses.",
+    "inst": "Ready to run. Copy ElementalLegends.sh and the elementallegends folder into your ports folder.",
+    "genres": [
+      "action",
+      "rpg",
+      "adventure"
+    ],
+    "image": {
+      "screenshot": "screenshot.png",
+      "cover": "cover.png"
+    },
+    "rtr": true,
+    "exp": false,
+    "runtime": null,
+    "reqs": [],
+    "arch": [
+      "aarch64"
+    ]
+  }
+}
